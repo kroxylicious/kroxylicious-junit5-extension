@@ -5,9 +5,12 @@
  */
 package io.kroxylicious.junit5;
 
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.kroxylicious.cluster.InVMKafkaCluster;
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.BrokerConfig;
 import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.SaslPlainAuth;
 import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
@@ -36,6 +40,16 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         assertEquals(2, dc.nodes().get().size());
         assertEquals(cluster.getClusterId(), dc.clusterId().get());
         var cbc = assertInstanceOf(InVMKafkaCluster.class, cluster);
+    }
+
+    @Test
+    public void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster cluster,
+                              Admin admin)
+            throws ExecutionException, InterruptedException {
+        ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
+        Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+        assertEquals("zstd", configs.get("compression.type").value());
+        assertEquals("false", configs.get("delete.topic.enable").value());
     }
 
     @Test

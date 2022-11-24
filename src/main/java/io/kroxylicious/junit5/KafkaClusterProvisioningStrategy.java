@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtensionConfigurationException;
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.cluster.KafkaClusterConfig;
 import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.BrokerConfig;
 import io.kroxylicious.junit5.constraint.ClusterId;
 import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.SaslPlainAuth;
@@ -23,8 +24,11 @@ import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 public interface KafkaClusterProvisioningStrategy {
 
     public static KafkaClusterConfig kafkaClusterConfig(AnnotatedElement sourceElement) {
-        var builder = KafkaClusterConfig.builder()
-                .brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
+        var builder = KafkaClusterConfig.builder();
+
+        if (sourceElement.isAnnotationPresent(BrokerCluster.class)) {
+            builder.brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
+        }
         if (sourceElement.isAnnotationPresent(KRaftCluster.class)
                 && sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
             throw new ExtensionConfigurationException(
@@ -58,6 +62,12 @@ public interface KafkaClusterProvisioningStrategy {
         if (sourceElement.isAnnotationPresent(ClusterId.class)
                 && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
             builder.kafkaKraftClusterId(sourceElement.getAnnotation(ClusterId.class).value());
+        }
+
+        if (sourceElement.isAnnotationPresent(BrokerConfig.BrokerConfigs.class)) {
+            for (var config : sourceElement.getAnnotation(BrokerConfig.BrokerConfigs.class).value()) {
+                builder.brokerConfig(config.name(), config.value());
+            }
         }
         KafkaClusterConfig build = builder.build();
         return build;

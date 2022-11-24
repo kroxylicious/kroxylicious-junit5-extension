@@ -33,6 +33,8 @@ import lombok.ToString;
 @ToString
 public class KafkaClusterConfig {
 
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterConfig.class.getName());
+
     private TestInfo testInfo;
 
     /**
@@ -63,13 +65,17 @@ public class KafkaClusterConfig {
     @Singular
     private final Map<String, String> users;
 
+    @Singular
+    private final Map<String, String> brokerConfigs;
+
     public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier, Supplier<Endpoint> zookeeperEndpointSupplier) {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
             Properties server = new Properties();
+            server.putAll(brokerConfigs);
 
-            server.put("broker.id", Integer.toString(brokerNum));
+            putConfig(server, "broker.id", Integer.toString(brokerNum));
 
             var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
             var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
@@ -90,40 +96,41 @@ public class KafkaClusterConfig {
             protocolMap.put("INTERNAL", "PLAINTEXT");
             listeners.put("INTERNAL", interBrokerEndpoint.getBind().toString());
             advertisedListeners.put("INTERNAL", interBrokerEndpoint.getConnect().toString());
-            server.put("inter.broker.listener.name", "INTERNAL");
+            putConfig(server, "inter.broker.listener.name", "INTERNAL");
 
             if (isKraftMode()) {
-                server.put("node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
+                putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
 
                 var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
                 var quorumVoters = IntStream.range(0, kraftControllers)
                         .mapToObj(b -> String.format("%d@%s", b, kafkaEndpoints.getControllerEndpoint(b).getConnect().toString())).collect(Collectors.joining(","));
-                server.put("controller.quorum.voters", quorumVoters);
-                server.put("controller.listener.names", "CONTROLLER");
+                putConfig(server, "controller.quorum.voters", quorumVoters);
+                putConfig(server, "controller.listener.names", "CONTROLLER");
                 protocolMap.put("CONTROLLER", "PLAINTEXT");
 
                 if (brokerNum == 0) {
-                    server.put("process.roles", "broker,controller");
+                    putConfig(server, "process.roles", "broker,controller");
 
                     listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
                 }
                 else {
-                    server.put("process.roles", "broker");
+                    putConfig(server, "process.roles", "broker");
                 }
             }
             else {
-                server.put("zookeeper.connect", String.format("%s:%d", zookeeperEndpointSupplier.get().getHost(), zookeeperEndpointSupplier.get().getPort()));
-                server.put("zookeeper.sasl.enabled", "false");
-                server.put("zookeeper.connection.timeout.ms", Long.toString(60000));
+                putConfig(server, "zookeeper.connect", String.format("%s:%d", zookeeperEndpointSupplier.get().getHost(), zookeeperEndpointSupplier.get().getPort()));
+                putConfig(server, "zookeeper.sasl.enabled", "false");
+                putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
             }
 
-            server.put("listener.security.protocol.map", protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            server.put("listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            server.put("advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            server.put("early.start.listeners", advertisedListeners.keySet().stream().map(Object::toString).collect(Collectors.joining(",")));
+            putConfig(server, "listener.security.protocol.map",
+                    protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+            putConfig(server, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+            putConfig(server, "advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+            putConfig(server, "early.start.listeners", advertisedListeners.keySet().stream().map(Object::toString).collect(Collectors.joining(",")));
 
             if (saslMechanism != null) {
-                server.put("sasl.enabled.mechanisms", saslMechanism);
+                putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
 
                 var saslPairs = new StringBuilder();
 
@@ -136,20 +143,27 @@ public class KafkaClusterConfig {
 
                 // TODO support other than PLAIN
                 String plainModuleConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required %s;", saslPairs);
-                server.put(String.format("listener.name.%s.plain.sasl.jaas.config", "EXTERNAL".toLowerCase()), plainModuleConfig);
+                putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", "EXTERNAL".toLowerCase()), plainModuleConfig);
             }
 
-            server.put("offsets.topic.replication.factor", Integer.toString(1));
+            putConfig(server, "offsets.topic.replication.factor", Integer.toString(1));
             // 1 partition for the __consumer_offsets_ topic should be enough
-            server.put("offsets.topic.num.partitions", Integer.toString(1));
+            putConfig(server, "offsets.topic.num.partitions", Integer.toString(1));
             // Disable delay during every re-balance
-            server.put("group.initial.rebalance.delay.ms", Integer.toString(0));
+            putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
             properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(),
                     String.format("%s:%d", clientEndpoint.getConnect().getHost(), clientEndpoint.getConnect().getPort()), brokerNum, kafkaKraftClusterId));
         }
 
         return properties.stream();
+    }
+
+    private static void putConfig(Properties server, String key, String value) {
+        var old = server.put(key, value);
+        if (old != null) {
+            LOGGER.log(System.Logger.Level.WARNING, "Ignoring broker config {0}={1}", key, old);
+        }
     }
 
     protected Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
