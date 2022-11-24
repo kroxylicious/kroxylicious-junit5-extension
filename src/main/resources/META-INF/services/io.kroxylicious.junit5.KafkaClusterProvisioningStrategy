@@ -1,0 +1,2 @@
+io.kroxylicious.junit5.InVMProvisioningStrategy
+io.kroxylicious.junit5.TestcontainersProvisioningStrategy
