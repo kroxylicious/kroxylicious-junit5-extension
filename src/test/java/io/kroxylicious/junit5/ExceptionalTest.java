@@ -9,6 +9,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionConfigurationException;
+import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.testkit.engine.Events;
 
@@ -38,18 +39,6 @@ public class ExceptionalTest {
         }
     }
 
-    @ExtendWith(KafkaClusterExtension.class)
-    static class AmbiguousClusterCase {
-        // Test that an unknown @KafkaClusterConstraint-annotated annotation
-        // is an impossible-to-satisfy constraint
-        @Test
-        public void ambiguousCluster(@BrokerCluster(numBrokers = 1) KafkaCluster cluster,
-                                     @BrokerCluster(numBrokers = 1) KafkaCluster cluster2,
-                                     Admin ambiguousAdmin) {
-            fail();
-        }
-    }
-
     @Test
     void verifyImpossibleConstraintResultsInException() {
         String methodName = "impossibleConstraint";
@@ -70,7 +59,18 @@ public class ExceptionalTest {
                                                 "io.kroxylicious.junit5.ImpossibleConstraint] was " +
                                                 "found (tried: [io.kroxylicious.junit5.InVMProvisioningStrategy, " +
                                                 "io.kroxylicious.junit5.TestcontainersProvisioningStrategy])"))));
-        ;
+    }
+
+    @ExtendWith(KafkaClusterExtension.class)
+    static class AmbiguousClusterCase {
+        // Test that an unknown @KafkaClusterConstraint-annotated annotation
+        // is an impossible-to-satisfy constraint
+        @Test
+        public void ambiguousCluster(@BrokerCluster(numBrokers = 1) KafkaCluster cluster,
+                                     @BrokerCluster(numBrokers = 1) KafkaCluster cluster2,
+                                     Admin ambiguousAdmin) {
+            fail();
+        }
     }
 
     @Test
@@ -90,6 +90,37 @@ public class ExceptionalTest {
                                         message("KafkaCluster to associate with parameter " +
                                                 "ambiguousAdmin is ambiguous, use @Name on the intended " +
                                                 "cluster and this element to disambiguate"))));
-        ;
+    }
+
+    @ExtendWith(KafkaClusterExtension.class)
+    static class DuplicateNameCase {
+        // throw if two clusters declared with same cluster id
+        @Test
+        public void duplicateName(
+                                  @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
+                                  @BrokerCluster(numBrokers = 2) @Name("A") KafkaCluster cluster2) {
+            fail();
+        }
+    }
+
+    @Test
+    void verifyDuplicateName() {
+        String methodName = "duplicateName";
+
+        Events impossibleConstraint = engine("junit-jupiter")
+                .selectors(DiscoverySelectors.selectClass(DuplicateNameCase.class))
+                .execute()
+                .allEvents();
+        impossibleConstraint.assertStatistics(s -> s.failed(1));
+        impossibleConstraint
+                .assertThatEvents().haveExactly(1,
+                        event(test(methodName),
+                                finishedWithFailure(
+                                        instanceOf(ParameterResolutionException.class),
+                                        message("Failed to resolve parameter " +
+                                                "[io.kroxylicious.cluster.KafkaCluster cluster2] in method " +
+                                                "[public void io.kroxylicious.junit5.ExceptionalTest$DuplicateNameCase.duplicateName(io.kroxylicious.cluster.KafkaCluster,io.kroxylicious.cluster.KafkaCluster)]: "
+                                                +
+                                                "A KafkaCluster-typed declaration with @Name(\"A\") is already in scope"))));
     }
 }

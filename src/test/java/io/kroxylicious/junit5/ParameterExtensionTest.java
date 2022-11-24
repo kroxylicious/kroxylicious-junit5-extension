@@ -9,7 +9,6 @@ import java.util.concurrent.ExecutionException;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -21,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @ExtendWith(KafkaClusterExtension.class)
@@ -100,15 +98,6 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         assertSameCluster(cluster1, admin1);
         assertSameCluster(cluster1, admin2);
         assertNotSame(admin1, admin2);
-    }
-
-    // throw if two clusters declared with same cluster id
-    @Test
-    @Disabled
-    public void twoClusterParametersWithSameId(
-                                               @BrokerCluster(numBrokers = 1) @ClusterId("0yG1FxVOTGWY7bcqV1UAzg") KafkaCluster cluster1,
-                                               @BrokerCluster(numBrokers = 2) @ClusterId("0yG1FxVOTGWY7bcqV1UAzg") KafkaCluster cluster2) {
-        assertSame(cluster1, cluster2);
     }
 
     @Test

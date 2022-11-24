@@ -449,7 +449,7 @@ public class KafkaClusterExtension implements
             Object o = store.get(clusterName);
             if (o != null) {
                 throw new ExtensionConfigurationException(
-                        "A " + KafkaCluster.class.getSimpleName() + "-typed declaration with @Name " + clusterName + " is already in scope");
+                        "A " + KafkaCluster.class.getSimpleName() + "-typed declaration with @Name(\"" + clusterName + "\") is already in scope");
             }
         }
         else {
