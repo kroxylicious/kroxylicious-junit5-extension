@@ -5,14 +5,12 @@
  */
 package io.kroxylicious.junit5;
 
-import java.io.File;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -65,33 +63,55 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
 
 import io.kroxylicious.cluster.KafkaCluster;
-import io.kroxylicious.cluster.KafkaClusterConfig;
-import io.kroxylicious.junit5.constraint.BrokerCluster;
-import io.kroxylicious.junit5.constraint.ClusterId;
-import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.KafkaClusterConstraint;
-import io.kroxylicious.junit5.constraint.SaslPlainAuth;
-import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
-import static org.junit.platform.commons.util.AnnotationUtils.findAnnotatedFields;
 import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
 
 /**
- * A Junit5 extension that allows declarative injection of a {@link KafkaCluster} into a test
- * via static or instance field(s) and/or parameters annotated
- * with {@link BrokerCluster @BrokerCluster}.
+ * A JUnit 5 extension that allows declarative injection of a {@link KafkaCluster} into a test
+ * via static or instance field(s) and/or parameters.
  *
- * Ssee {@link BrokerCluster @BrokerCluster} for usage examples.
+ * <p>A simple example looks like:</p>
+ * <pre>{@code
+ * import io.kroxylicious.junit5.KafkaClusterExtension;
+ * import org.apache.kafka.clients.producer.Producer;
+ * import org.apache.kafka.clients.producer.ProducerRecord;
+ * import org.junit.jupiter.api.Test;
+ * import org.junit.jupiter.api.extension.ExtendWith;
+ *
+ * @ExtendWith(KafkaClusterExtension.class) // <1>
+ * class MyTest {
+ *
+ *     KafkaCluster cluster; // <2>
+ *
+ *     @Test
+ *     public void testProducer(
+ *                 Producer<String, String> producer // <3>
+ *             ) throws Exception {
+ *         producer.send(new ProducerRecord<>("hello", "world")).get();
+ *     }
+ * }
+ * }</pre>
+ *
+ * <p>Notes:</p>
+ * <ol>
+ * <li>You have to tell Junit that you're using the extension using {@code @ExtendWith}.</li>
+ * <li>An instance field of type {@link KafkaCluster} will cause a new cluster to be provisioned for
+ * each test in the class. Alternatively you can use a parameter on a
+ * {@code @Test}-annotated method. If you use a {@code static} field then a single
+ * cluster will be provisioned for all the tests in the class.</li>
+ * <li>Your test methods can declare {@code Producer}, {@code Consumer} and {@code Admin}-typed parameters.
+ * They will be configured to bootstrap against the {@code cluster}.</li>
+ * </ol>
  */
 public class KafkaClusterExtension implements
         ParameterResolver, BeforeEachCallback,
@@ -133,8 +153,7 @@ public class KafkaClusterExtension implements
     @Override
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
         Class<?> type = parameterContext.getParameter().getType();
-        if (parameterContext.isAnnotated(BrokerCluster.class) &&
-                KafkaCluster.class.isAssignableFrom(type)) {
+        if (KafkaCluster.class.isAssignableFrom(type)) {
             return true;
         }
         else if (Admin.class.isAssignableFrom(type)) {
@@ -181,8 +200,7 @@ public class KafkaClusterExtension implements
 
     /**
      * Perform field injection for non-private, static fields
-     * of type {@link KafkaCluster} or {@link KafkaCluster} that are annotated
-     * with {@link BrokerCluster @BrokerCluster}.
+     * of type {@link KafkaCluster} or {@link KafkaCluster}.
      */
     @Override
     public void beforeAll(ExtensionContext context) throws Exception {
@@ -190,9 +208,8 @@ public class KafkaClusterExtension implements
     }
 
     /**
-     * Perform field injection for non-private, non-static fields (i.e.,
-     * instance fields) of type {@link Path} or {@link File} that are annotated
-     * with {@link TempDir @TempDir}.
+     * Perform field injection for non-private, instance fields
+     * of type {@link KafkaCluster} or {@link KafkaCluster}.
      */
     @Override
     public void beforeEach(ExtensionContext context) throws Exception {
@@ -208,10 +225,10 @@ public class KafkaClusterExtension implements
     }
 
     private void injectFields(ExtensionContext context, Object testInstance, Class<?> testClass, Predicate<Field> predicate) {
-        findAnnotatedFields(
+        findFields(
                 testClass,
-                BrokerCluster.class,
-                field -> predicate.test(field) && KafkaCluster.class.isAssignableFrom(field.getType()))
+                field -> predicate.test(field) && KafkaCluster.class.isAssignableFrom(field.getType()),
+                HierarchyTraversalMode.BOTTOM_UP)
                         .forEach(field -> {
                             assertSupportedType("field", field.getType());
                             try {
@@ -606,50 +623,9 @@ public class KafkaClusterExtension implements
         return constraints.stream().map(Class::getName).sorted().collect(Collectors.toList());
     }
 
-    public static KafkaClusterConfig kafkaClusterConfig(AnnotatedElement sourceElement) {
-        var builder = KafkaClusterConfig.builder()
-                .brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
-        if (sourceElement.isAnnotationPresent(KRaftCluster.class)
-                && sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
-            throw new ExtensionConfigurationException(
-                    "Either @" + KRaftCluster.class.getSimpleName() + " or @" + ZooKeeperCluster.class.getSimpleName() + " can be used, not both");
-        }
-        else if (sourceElement.isAnnotationPresent(KRaftCluster.class)) {
-            var kraft = sourceElement.getAnnotation(KRaftCluster.class);
-            builder.kraftMode(true)
-                    .kraftControllers(kraft.numControllers());
-        }
-        else if (sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
-            builder.kraftMode(false);
-            if (sourceElement.isAnnotationPresent(ClusterId.class)
-                    && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
-                throw new ExtensionConfigurationException("Specifying @" + ClusterId.class.getSimpleName() + " with @" +
-                        ZooKeeperCluster.class.getSimpleName() + " is not supported");
-            }
-        }
-        else {
-            builder.kraftMode(true).kraftControllers(1);
-        }
-
-        if (sourceElement.isAnnotationPresent(SaslPlainAuth.class)) {
-            var authn = sourceElement.getAnnotation(SaslPlainAuth.class);
-            builder.saslMechanism("PLAIN");
-            builder.users(Arrays.stream(authn.value())
-                    .collect(Collectors.toMap(
-                            SaslPlainAuth.UserPassword::user,
-                            SaslPlainAuth.UserPassword::password)));
-        }
-        if (sourceElement.isAnnotationPresent(ClusterId.class)
-                && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
-            builder.kafkaKraftClusterId(sourceElement.getAnnotation(ClusterId.class).value());
-        }
-        KafkaClusterConfig build = builder.build();
-        return build;
-    }
-
     private void assertSupportedType(String target, Class<?> type) {
         if (!KafkaCluster.class.isAssignableFrom(type)) {
-            throw new ExtensionConfigurationException("Can only resolve @" + BrokerCluster.class.getSimpleName() + " declarations of type "
+            throw new ExtensionConfigurationException("Can only resolve declarations of type "
                     + KafkaCluster.class + " but " + target + " has type " + type.getName());
         }
     }

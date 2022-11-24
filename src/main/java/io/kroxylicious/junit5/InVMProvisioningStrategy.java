@@ -18,8 +18,6 @@ import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.SaslPlainAuth;
 import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
-import static io.kroxylicious.junit5.KafkaClusterExtension.kafkaClusterConfig;
-
 public class InVMProvisioningStrategy implements KafkaClusterProvisioningStrategy {
 
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
@@ -41,7 +39,7 @@ public class InVMProvisioningStrategy implements KafkaClusterProvisioningStrateg
 
     @Override
     public KafkaCluster create(AnnotatedElement sourceElement, Class<? extends KafkaCluster> declarationType) {
-        KafkaClusterConfig config = kafkaClusterConfig(sourceElement);
+        KafkaClusterConfig config = KafkaClusterProvisioningStrategy.kafkaClusterConfig(sourceElement);
         return new InVMKafkaCluster(config);
     }
 

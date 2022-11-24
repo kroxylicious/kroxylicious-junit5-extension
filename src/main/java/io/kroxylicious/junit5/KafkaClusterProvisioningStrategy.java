@@ -7,10 +7,62 @@ package io.kroxylicious.junit5;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
+import org.junit.jupiter.api.extension.ExtensionConfigurationException;
 
 import io.kroxylicious.cluster.KafkaCluster;
+import io.kroxylicious.cluster.KafkaClusterConfig;
+import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.ClusterId;
+import io.kroxylicious.junit5.constraint.KRaftCluster;
+import io.kroxylicious.junit5.constraint.SaslPlainAuth;
+import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
 public interface KafkaClusterProvisioningStrategy {
+
+    public static KafkaClusterConfig kafkaClusterConfig(AnnotatedElement sourceElement) {
+        var builder = KafkaClusterConfig.builder()
+                .brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
+        if (sourceElement.isAnnotationPresent(KRaftCluster.class)
+                && sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
+            throw new ExtensionConfigurationException(
+                    "Either @" + KRaftCluster.class.getSimpleName() + " or @" + ZooKeeperCluster.class.getSimpleName() + " can be used, not both");
+        }
+        else if (sourceElement.isAnnotationPresent(KRaftCluster.class)) {
+            var kraft = sourceElement.getAnnotation(KRaftCluster.class);
+            builder.kraftMode(true)
+                    .kraftControllers(kraft.numControllers());
+        }
+        else if (sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
+            builder.kraftMode(false);
+            if (sourceElement.isAnnotationPresent(ClusterId.class)
+                    && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
+                throw new ExtensionConfigurationException("Specifying @" + ClusterId.class.getSimpleName() + " with @" +
+                        ZooKeeperCluster.class.getSimpleName() + " is not supported");
+            }
+        }
+        else {
+            builder.kraftMode(true).kraftControllers(1);
+        }
+
+        if (sourceElement.isAnnotationPresent(SaslPlainAuth.class)) {
+            var authn = sourceElement.getAnnotation(SaslPlainAuth.class);
+            builder.saslMechanism("PLAIN");
+            builder.users(Arrays.stream(authn.value())
+                    .collect(Collectors.toMap(
+                            SaslPlainAuth.UserPassword::user,
+                            SaslPlainAuth.UserPassword::password)));
+        }
+        if (sourceElement.isAnnotationPresent(ClusterId.class)
+                && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
+            builder.kafkaKraftClusterId(sourceElement.getAnnotation(ClusterId.class).value());
+        }
+        KafkaClusterConfig build = builder.build();
+        return build;
+    }
+
     // This implies that the extension knows how to create a config from the annotations
     // which implies hard-coded annotations
     // We actually need to know:
