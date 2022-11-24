@@ -100,14 +100,14 @@ public class KafkaClusterExtension implements
 
     static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
 
-        private final String clusterId;
+        private final String clusterName;
 
         private final T resource;
         private final AnnotatedElement sourceElement;
 
-        public Closeable(AnnotatedElement sourceElement, String clusterId, T resource) {
+        public Closeable(AnnotatedElement sourceElement, String clusterName, T resource) {
             this.sourceElement = sourceElement;
-            this.clusterId = clusterId;
+            this.clusterName = clusterName;
             this.resource = resource;
         }
 
@@ -117,7 +117,7 @@ public class KafkaClusterExtension implements
 
         @Override
         public void close() throws Throwable {
-            LOGGER.fine("Stopping '" + resource + "' with clusterId '" + clusterId + "' for " + sourceElement);
+            LOGGER.fine("Stopping '" + resource + "' with cluster name '" + clusterName + "' for " + sourceElement);
             resource.close();
         }
     }
@@ -544,7 +544,7 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private Closeable<KafkaCluster> createCluster(String clusterId, Class<? extends KafkaCluster> type, AnnotatedElement sourceElement) {
+    private Closeable<KafkaCluster> createCluster(String clusterName, Class<? extends KafkaCluster> type, AnnotatedElement sourceElement) {
         Set<Class<? extends Annotation>> constraints;
         if (AnnotationSupport.isAnnotated(sourceElement, KafkaClusterConstraint.class)) {
             constraints = Arrays.stream(sourceElement.getAnnotations())
@@ -555,8 +555,8 @@ public class KafkaClusterExtension implements
             constraints = Set.of();
         }
         var best = findBestProvisioningStrategy(constraints, type);
-        KafkaCluster c = best.create(clusterId, sourceElement, type);
-        return new Closeable<>(sourceElement, clusterId, c);
+        KafkaCluster c = best.create(sourceElement, type);
+        return new Closeable<>(sourceElement, clusterName, c);
     }
 
     static KafkaClusterProvisioningStrategy findBestProvisioningStrategy(
@@ -595,7 +595,7 @@ public class KafkaClusterExtension implements
         return constraints.stream().map(Class::getName).sorted().collect(Collectors.toList());
     }
 
-    public static KafkaClusterConfig kafkaClusterConfig(String clusterId, AnnotatedElement sourceElement) {
+    public static KafkaClusterConfig kafkaClusterConfig(AnnotatedElement sourceElement) {
         var builder = KafkaClusterConfig.builder()
                 .brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
         if (sourceElement.isAnnotationPresent(KRaftCluster.class)
@@ -630,7 +630,7 @@ public class KafkaClusterExtension implements
         }
         if (sourceElement.isAnnotationPresent(ClusterId.class)
                 && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
-            builder.kafkaKraftClusterId(clusterId);
+            builder.kafkaKraftClusterId(sourceElement.getAnnotation(ClusterId.class).value());
         }
         KafkaClusterConfig build = builder.build();
         return build;

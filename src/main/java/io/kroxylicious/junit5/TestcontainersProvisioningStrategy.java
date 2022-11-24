@@ -35,8 +35,8 @@ public class TestcontainersProvisioningStrategy implements KafkaClusterProvision
     }
 
     @Override
-    public KafkaCluster create(String clusterId, AnnotatedElement sourceElement, Class<? extends KafkaCluster> declarationType) {
-        KafkaClusterConfig config = kafkaClusterConfig(clusterId, sourceElement);
+    public KafkaCluster create(AnnotatedElement sourceElement, Class<? extends KafkaCluster> declarationType) {
+        KafkaClusterConfig config = kafkaClusterConfig(sourceElement);
         return new ContainerBasedKafkaCluster(config);
     }
 

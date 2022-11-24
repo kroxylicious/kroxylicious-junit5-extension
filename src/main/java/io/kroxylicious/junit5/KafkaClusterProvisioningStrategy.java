@@ -28,8 +28,7 @@ public interface KafkaClusterProvisioningStrategy {
 
     boolean supportsType(Class<? extends KafkaCluster> declarationType);
 
-    KafkaCluster create(String clusterId,
-                        AnnotatedElement sourceElement,
+    KafkaCluster create(AnnotatedElement sourceElement,
                         Class<? extends KafkaCluster> declarationType);
 
     // TODO logically the time depends on the configuration
