@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.System.Logger.Level;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -27,8 +28,6 @@ import java.util.stream.Stream;
 
 import org.junit.jupiter.api.TestInfo;
 import org.rnorth.ducttape.unreliables.Unreliables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
@@ -46,7 +45,7 @@ import lombok.SneakyThrows;
  */
 public class ContainerBasedKafkaCluster implements Startable, KafkaCluster {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ContainerBasedKafkaCluster.class);
+    private static final System.Logger LOGGER = System.getLogger(ContainerBasedKafkaCluster.class.getName());
     public static final int KAFKA_PORT = 9093;
     public static final int ZOOKEEPER_PORT = 2181;
 
@@ -67,7 +66,8 @@ public class ContainerBasedKafkaCluster implements Startable, KafkaCluster {
 
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
-            LOGGER.warn("As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
+            LOGGER.log(Level.WARNING,
+                    "As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
         }
     }
 
@@ -195,7 +195,7 @@ public class ContainerBasedKafkaCluster implements Startable, KafkaCluster {
             container.execInContainer(
                     "sh", "-c",
                     String.format("while [ ! -f %s ]; do sleep .1; done", kafkaClusterReadyFlag));
-            LOGGER.info("Container {} ready", container.getDockerImageName());
+            LOGGER.log(Level.INFO, "Container {0} ready", container.getDockerImageName());
             return true;
         });
     }

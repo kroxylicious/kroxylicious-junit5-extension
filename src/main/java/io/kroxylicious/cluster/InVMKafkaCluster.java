@@ -25,8 +25,6 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaRaftServer;
@@ -38,7 +36,7 @@ import scala.Option;
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
 public class InVMKafkaCluster implements KafkaCluster {
-    private static final Logger LOGGER = LoggerFactory.getLogger(InVMKafkaCluster.class);
+    private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;

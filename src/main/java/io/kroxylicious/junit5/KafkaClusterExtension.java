@@ -24,7 +24,6 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -75,6 +74,8 @@ import org.junit.platform.commons.util.ReflectionUtils;
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.cluster.KafkaClusterConfig;
 
+import static java.lang.System.Logger.Level.DEBUG;
+import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
 import static org.junit.platform.commons.util.AnnotationUtils.findAnnotatedFields;
 import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
@@ -90,7 +91,7 @@ public class KafkaClusterExtension implements
         ParameterResolver, BeforeEachCallback,
         BeforeAllCallback {
 
-    private static final Logger LOGGER = Logger.getLogger(KafkaClusterExtension.class.getName());
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterExtension.class.getName());
 
     private static final ExtensionContext.Namespace CLUSTER_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, KafkaCluster.class);
     private static final ExtensionContext.Namespace ADMIN_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, Admin.class);
@@ -117,7 +118,8 @@ public class KafkaClusterExtension implements
 
         @Override
         public void close() throws Throwable {
-            LOGGER.fine("Stopping '" + resource + "' with cluster name '" + clusterName + "' for " + sourceElement);
+            LOGGER.log(TRACE, "Stopping '{0}' with cluster name '{1}' for {2}",
+                    resource, clusterName, sourceElement);
             resource.close();
         }
     }
@@ -462,7 +464,8 @@ public class KafkaClusterExtension implements
                 (Class<Closeable<KafkaCluster>>) (Class) Closeable.class);
         Objects.requireNonNull(closeableCluster);
         KafkaCluster cluster = closeableCluster.get();
-        LOGGER.fine("Starting cluster " + clusterName + " for element " + sourceElement);
+        LOGGER.log(TRACE, "Starting cluster {0} for element {1}",
+                clusterName, sourceElement);
         cluster.start();
         return cluster;
     }
@@ -567,7 +570,8 @@ public class KafkaClusterExtension implements
                 .filter(strategy -> {
                     boolean supports = strategy.supportsType(declarationType);
                     if (!supports) {
-                        LOGGER.fine("Excluding " + strategy + " because it is not compatible with declaration of type " + declarationType.getName());
+                        LOGGER.log(DEBUG, "Excluding {0} because it is not compatible with declaration of type {1}",
+                                strategy, declarationType.getName());
                     }
                     return supports;
                 })
@@ -575,7 +579,8 @@ public class KafkaClusterExtension implements
                     for (Class<? extends Annotation> anno : constraints) {
                         boolean supports = strategy.supportsAnnotation(anno);
                         if (!supports) {
-                            LOGGER.warning("Excluding " + strategy + " because doesn't support " + anno.getName());
+                            LOGGER.log(DEBUG, "Excluding {0} because doesn't support {1}",
+                                    strategy, anno.getName());
                             return false;
                         }
                     }

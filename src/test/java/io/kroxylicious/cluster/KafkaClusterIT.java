@@ -24,8 +24,6 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -36,7 +34,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  */
 public class KafkaClusterIT {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaClusterIT.class);
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterIT.class.getName());
     private TestInfo testInfo;
 
     @Test

@@ -5,11 +5,10 @@
  */
 package io.kroxylicious.cluster;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static java.lang.System.Logger.Level.INFO;
 
 public class KafkaClusterFactory {
-    private static final Logger LOGGER = LoggerFactory.getLogger(KafkaClusterFactory.class);
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterFactory.class.getName());
 
     /**
      * environment variable specifying execution mode, IN_VM or CONTAINER.
@@ -40,7 +39,7 @@ public class KafkaClusterFactory {
         }
 
         var actual = builder.build();
-        LOGGER.info("Test cluster : {}", actual);
+        LOGGER.log(INFO, "Test cluster : {0}", actual);
 
         if (actual.getExecMode() == KafkaClusterExecutionMode.IN_VM) {
             return new InVMKafkaCluster(actual);
