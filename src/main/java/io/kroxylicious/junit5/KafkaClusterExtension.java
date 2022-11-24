@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -56,6 +57,7 @@ import org.apache.kafka.common.serialization.UUIDSerializer;
 import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -407,21 +409,20 @@ public class KafkaClusterExtension implements
                                                        String description) {
 
         ExtensionContext.Store store = extensionContext.getStore(CLUSTER_NAMESPACE);
-        String clusterId;
-        if (element.isAnnotationPresent(ClusterId.class)
-                && !element.getAnnotation(ClusterId.class).value().isEmpty()) {
-            String definedClusterId = element.getAnnotation(ClusterId.class).value();
-            if (definedClusterId.length() == 22) {
-                clusterId = definedClusterId;
-            }
-            else {
-                clusterId = findLastUsedClusterId(store, uuidsFrom(definedClusterId));
-            }
+        String clusterName;
+        if (element.isAnnotationPresent(Name.class)
+                && !element.getAnnotation(Name.class).value().isEmpty()) {
+            clusterName = element.getAnnotation(Name.class).value();
         }
         else {
-            clusterId = findLastUsedClusterId(store, uuidsFrom(STARTING_PREFIX));
+            clusterName = findLastUsedClusterId(store, uuidsFrom(STARTING_PREFIX));
+            if (!clusterName.equals(STARTING_PREFIX)) {
+                throw new AmbiguousKafkaClusterException(
+                        "KafkaCluster to associate with " + description + " is ambiguous, " +
+                                "use @Name on the intended cluster and this element to disambiguate");
+            }
         }
-        Closeable<KafkaCluster> last = store.get(clusterId,
+        Closeable<KafkaCluster> last = store.get(clusterName,
                 (Class<Closeable<KafkaCluster>>) (Class) Closeable.class);
         Objects.requireNonNull(last);
         return last.get();
@@ -441,33 +442,27 @@ public class KafkaClusterExtension implements
         // Can also choose where in the UUID space we start (i.e. don't use one of the UUID versions
         // which the user is likely to use when choosing their ID).
         ExtensionContext.Store store = extensionContext.getStore(CLUSTER_NAMESPACE);
-        String clusterId;
-        if (sourceElement.isAnnotationPresent(ClusterId.class)
-                && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
-            var declaredClusterId = sourceElement.getAnnotation(ClusterId.class).value();
-            if (declaredClusterId.length() == 22) {
-                clusterId = declaredClusterId;
-                Object o = store.get(clusterId);
-                if (o != null) {
-                    throw new ExtensionConfigurationException("The cluster with clusterId " + clusterId + " is already in scope");
-                }
-            }
-            else {
-                var clusterIdIter = uuidsFrom(declaredClusterId);
-                clusterId = findFirstUnusedClusterId(store, clusterIdIter);
+        String clusterName;
+        if (sourceElement.isAnnotationPresent(Name.class)
+                && !sourceElement.getAnnotation(Name.class).value().isEmpty()) {
+            clusterName = sourceElement.getAnnotation(Name.class).value();
+            Object o = store.get(clusterName);
+            if (o != null) {
+                throw new ExtensionConfigurationException(
+                        "A " + KafkaCluster.class.getSimpleName() + "-typed declaration with @Name " + clusterName + " is already in scope");
             }
         }
         else {
             var clusterIdIter = uuidsFrom(STARTING_PREFIX);
-            clusterId = findFirstUnusedClusterId(store, clusterIdIter);
+            clusterName = findFirstUnusedClusterId(store, clusterIdIter);
         }
 
-        Closeable<KafkaCluster> closeableCluster = store.getOrComputeIfAbsent(clusterId,
-                __ -> createCluster(clusterId, type, sourceElement),
+        Closeable<KafkaCluster> closeableCluster = store.getOrComputeIfAbsent(clusterName,
+                __ -> createCluster(clusterName, type, sourceElement),
                 (Class<Closeable<KafkaCluster>>) (Class) Closeable.class);
         Objects.requireNonNull(closeableCluster);
         KafkaCluster cluster = closeableCluster.get();
-        LOGGER.fine("Starting cluster " + clusterId + " for element " + sourceElement);
+        LOGGER.fine("Starting cluster " + clusterName + " for element " + sourceElement);
         cluster.start();
         return cluster;
     }
@@ -588,10 +583,16 @@ public class KafkaClusterExtension implements
                 })
                 .min(Comparator.comparing(KafkaClusterProvisioningStrategy::estimatedProvisioningTimeMs))
                 .orElseThrow(() -> {
-                    var strat = ServiceLoader.load(KafkaClusterProvisioningStrategy.class).stream().map(ServiceLoader.Provider::type).collect(Collectors.toList());
+                    var strategies = ServiceLoader.load(KafkaClusterProvisioningStrategy.class).stream().map(ServiceLoader.Provider::type).collect(Collectors.toList());
                     return new ExtensionConfigurationException("No provisioning strategy for a declaration of type " + declarationType.getName()
-                            + " and supporting all of " + constraints + " was found (tried: " + strat + ")");
+                            + " and supporting all of " + classNames(constraints) +
+                            " was found (tried: " + classNames(strategies) + ")");
                 });
+    }
+
+    @NotNull
+    private static List<String> classNames(Collection<? extends Class<?>> constraints) {
+        return constraints.stream().map(Class::getName).sorted().collect(Collectors.toList());
     }
 
     public static KafkaClusterConfig kafkaClusterConfig(String clusterId, AnnotatedElement sourceElement) {
