@@ -12,6 +12,11 @@ import java.util.Set;
 import io.kroxylicious.cluster.ContainerBasedKafkaCluster;
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.cluster.KafkaClusterConfig;
+import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.ClusterId;
+import io.kroxylicious.junit5.constraint.KRaftCluster;
+import io.kroxylicious.junit5.constraint.SaslPlainAuth;
+import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
 import static io.kroxylicious.junit5.KafkaClusterExtension.kafkaClusterConfig;
 

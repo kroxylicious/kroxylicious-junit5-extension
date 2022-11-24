@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.cluster.InVMKafkaCluster;
 import io.kroxylicious.cluster.KafkaCluster;
+import io.kroxylicious.junit5.constraint.BrokerCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;

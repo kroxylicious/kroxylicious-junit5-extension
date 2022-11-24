@@ -3,12 +3,14 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.kroxylicious.junit5;
+package io.kroxylicious.junit5.constraint;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+
+import io.kroxylicious.junit5.KafkaClusterProvisioningStrategy;
 
 /**
  * Meta-annotation for annotating annotation types which are constraints that need to be understood by

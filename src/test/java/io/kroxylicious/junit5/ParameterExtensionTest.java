@@ -14,6 +14,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.cluster.InVMKafkaCluster;
 import io.kroxylicious.cluster.KafkaCluster;
+import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.KRaftCluster;
+import io.kroxylicious.junit5.constraint.SaslPlainAuth;
+import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;

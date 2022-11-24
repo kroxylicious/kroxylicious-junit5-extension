@@ -14,6 +14,7 @@ import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.testkit.engine.Events;
 
 import io.kroxylicious.cluster.KafkaCluster;
+import io.kroxylicious.junit5.constraint.BrokerCluster;
 
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.testkit.engine.EngineTestKit.engine;
@@ -55,8 +56,8 @@ public class ExceptionalTest {
                                         instanceOf(ExtensionConfigurationException.class),
                                         message("No provisioning strategy for a declaration of " +
                                                 "type io.kroxylicious.cluster.KafkaCluster and supporting all " +
-                                                "of [io.kroxylicious.junit5.BrokerCluster, " +
-                                                "io.kroxylicious.junit5.ImpossibleConstraint] was " +
+                                                "of [io.kroxylicious.junit5.ImpossibleConstraint, " +
+                                                "io.kroxylicious.junit5.constraint.BrokerCluster] was " +
                                                 "found (tried: [io.kroxylicious.junit5.InVMProvisioningStrategy, " +
                                                 "io.kroxylicious.junit5.TestcontainersProvisioningStrategy])"))));
     }
