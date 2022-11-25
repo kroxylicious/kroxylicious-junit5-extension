@@ -160,9 +160,9 @@ public class KafkaClusterConfig {
     }
 
     private static void putConfig(Properties server, String key, String value) {
-        var old = server.put(key, value);
-        if (old != null) {
-            LOGGER.log(System.Logger.Level.WARNING, "Ignoring broker config {0}={1}", key, old);
+        var orig = server.put(key, value);
+        if (orig != null) {
+            throw new RuntimeException("Cannot override broker config '" + key + "=" + value + "' with new value " + orig);
         }
     }
 

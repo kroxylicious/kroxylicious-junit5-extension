@@ -8,6 +8,7 @@ package io.kroxylicious.junit5;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
@@ -71,7 +72,6 @@ import org.junit.platform.commons.util.ReflectionUtils;
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.junit5.constraint.KafkaClusterConstraint;
 
-import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
 import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
@@ -171,26 +171,35 @@ public class KafkaClusterExtension implements
     }
 
     @Override
-    public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-        Class<?> type = parameterContext.getParameter().getType();
+    public Object resolveParameter(
+                                   ParameterContext parameterContext,
+                                   ExtensionContext extensionContext)
+            throws ParameterResolutionException {
+        Parameter parameter = parameterContext.getParameter();
+        Class<?> type = parameter.getType();
+        LOGGER.log(TRACE,
+                "test {0}: Resolving parameter ({1} {2})",
+                extensionContext.getUniqueId(),
+                type.getSimpleName(),
+                parameter.getName());
         if (KafkaCluster.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(KafkaCluster.class);
-            return getCluster(parameterContext.getParameter(), paramType, extensionContext);
+            return getCluster(parameter, paramType, extensionContext);
         }
         else if (Admin.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Admin.class);
-            return getAdmin("parameter " + parameterContext.getParameter().getName(), parameterContext.getParameter(), paramType, extensionContext);
+            return getAdmin("parameter " + parameter.getName(), parameter, paramType, extensionContext);
         }
         else if (Producer.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Producer.class);
             Type paramGenericType = parameterContext.getDeclaringExecutable().getGenericParameterTypes()[parameterContext.getIndex()];
-            return getProducer("parameter " + parameterContext.getParameter().getName(), parameterContext.getParameter(), (Class) paramType, paramGenericType,
+            return getProducer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
                     extensionContext);
         }
         else if (Consumer.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Consumer.class);
             Type paramGenericType = parameterContext.getDeclaringExecutable().getGenericParameterTypes()[parameterContext.getIndex()];
-            return getConsumer("parameter " + parameterContext.getParameter().getName(), parameterContext.getParameter(), (Class) paramType, paramGenericType,
+            return getConsumer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
                     extensionContext);
         }
         else {
@@ -447,6 +456,10 @@ public class KafkaClusterExtension implements
                                 "use @Name on the intended cluster and this element to disambiguate");
             }
         }
+        LOGGER.log(TRACE, "test {0}: decl {1}: Looking up cluster {2}",
+                extensionContext.getUniqueId(),
+                element,
+                clusterName);
         Closeable<KafkaCluster> last = store.get(clusterName,
                 (Class<Closeable<KafkaCluster>>) (Class) Closeable.class);
         Objects.requireNonNull(last);
@@ -482,13 +495,21 @@ public class KafkaClusterExtension implements
             clusterName = findFirstUnusedClusterId(store, clusterIdIter);
         }
 
+        LOGGER.log(TRACE,
+                "test {0}: decl {1}: cluster ''{2}'': Looking up cluster",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                clusterName);
         Closeable<KafkaCluster> closeableCluster = store.getOrComputeIfAbsent(clusterName,
-                __ -> createCluster(clusterName, type, sourceElement),
+                __ -> createCluster(extensionContext, clusterName, type, sourceElement),
                 (Class<Closeable<KafkaCluster>>) (Class) Closeable.class);
         Objects.requireNonNull(closeableCluster);
         KafkaCluster cluster = closeableCluster.get();
-        LOGGER.log(TRACE, "Starting cluster {0} for element {1}",
-                clusterName, sourceElement);
+        LOGGER.log(TRACE,
+                "test {0}: decl {1}: cluster ''{2}'': Starting",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                clusterName);
         cluster.start();
         return cluster;
     }
@@ -526,6 +547,9 @@ public class KafkaClusterExtension implements
 
         return extensionContext.getStore(ADMIN_NAMESPACE)
                 .<Object, Closeable<Admin>> getOrComputeIfAbsent(sourceElement, __ -> {
+                    LOGGER.log(TRACE, "test {0}: decl {1}: Creating Admin",
+                            extensionContext.getUniqueId(),
+                            sourceElement);
                     return new Closeable<>(sourceElement, cluster.getClusterId(), Admin.create(cluster.getKafkaClientConfiguration()));
                 },
                         (Class<Closeable<Admin>>) (Class) Closeable.class)
@@ -538,12 +562,23 @@ public class KafkaClusterExtension implements
                                        Type genericType,
                                        ExtensionContext extensionContext) {
         Serializer<?> keySerializer = getSerializerFromGenericType(genericType, 0);
+        LOGGER.log(TRACE, "test {0}: decl {1}: key serializer {2}",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                keySerializer);
         Serializer<?> valueSerializer = getSerializerFromGenericType(genericType, 1);
+        LOGGER.log(TRACE, "test {0}: decl {1}: value serializer {2}",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                valueSerializer);
 
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
         return extensionContext.getStore(PRODUCER_NAMESPACE)
                 .<Object, Closeable<KafkaProducer<?, ?>>> getOrComputeIfAbsent(sourceElement, __ -> {
+                    LOGGER.log(TRACE, "test {0}: decl {1}: Creating KafkaProducer<>",
+                            extensionContext.getUniqueId(),
+                            sourceElement);
                     return new Closeable<>(sourceElement, cluster.getClusterId(), new KafkaProducer<>(cluster.getKafkaClientConfiguration(),
                             keySerializer, valueSerializer));
                 },
@@ -557,12 +592,23 @@ public class KafkaClusterExtension implements
                                        Type genericType,
                                        ExtensionContext extensionContext) {
         Deserializer<?> keySerializer = getDeserializerFromGenericType(genericType, 0);
+        LOGGER.log(TRACE, "test {0}: decl {1}: key deserializer {2}",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                keySerializer);
         Deserializer<?> valueSerializer = getDeserializerFromGenericType(genericType, 1);
+        LOGGER.log(TRACE, "test {0}: decl {1}: value deserializer {2}",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                valueSerializer);
 
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
         return extensionContext.getStore(CONSUMER_NAMESPACE)
                 .<Object, Closeable<KafkaConsumer<?, ?>>> getOrComputeIfAbsent(sourceElement, __ -> {
+                    LOGGER.log(TRACE, "test {0}: decl {1}: Creating KafkaConsumer<>",
+                            extensionContext.getUniqueId(),
+                            sourceElement);
                     return new Closeable<>(sourceElement, cluster.getClusterId(), new KafkaConsumer<>(cluster.getKafkaClientConfiguration(),
                             keySerializer, valueSerializer));
                 },
@@ -570,7 +616,13 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private Closeable<KafkaCluster> createCluster(String clusterName, Class<? extends KafkaCluster> type, AnnotatedElement sourceElement) {
+    private Closeable<KafkaCluster> createCluster(ExtensionContext extensionContext, String clusterName, Class<? extends KafkaCluster> type,
+                                                  AnnotatedElement sourceElement) {
+        LOGGER.log(TRACE,
+                "test {0}: decl: {1}: cluster ''{2}'': Creating new cluster",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                clusterName);
         Set<Class<? extends Annotation>> constraints;
         if (AnnotationSupport.isAnnotated(sourceElement, KafkaClusterConstraint.class)) {
             constraints = Arrays.stream(sourceElement.getAnnotations())
@@ -580,8 +632,25 @@ public class KafkaClusterExtension implements
         else {
             constraints = Set.of();
         }
+        LOGGER.log(TRACE,
+                "test {0}: decl: {1}: cluster ''{2}'': Constraints {3}",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                clusterName,
+                constraints);
         var best = findBestProvisioningStrategy(constraints, type);
+        LOGGER.log(TRACE,
+                "test {0}: decl: {1}: cluster ''{2}'': Chosen provisioning strategy: {3}",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                clusterName,
+                best);
         KafkaCluster c = best.create(sourceElement, type);
+        LOGGER.log(TRACE,
+                "test {0}: decl: {1}: cluster ''{2}'': Created",
+                extensionContext.getUniqueId(),
+                sourceElement,
+                clusterName);
         return new Closeable<>(sourceElement, clusterName, c);
     }
 
@@ -593,7 +662,7 @@ public class KafkaClusterExtension implements
                 .filter(strategy -> {
                     boolean supports = strategy.supportsType(declarationType);
                     if (!supports) {
-                        LOGGER.log(DEBUG, "Excluding {0} because it is not compatible with declaration of type {1}",
+                        LOGGER.log(TRACE, "Excluding {0} because it is not compatible with declaration of type {1}",
                                 strategy, declarationType.getName());
                     }
                     return supports;
@@ -602,7 +671,7 @@ public class KafkaClusterExtension implements
                     for (Class<? extends Annotation> anno : constraints) {
                         boolean supports = strategy.supportsAnnotation(anno);
                         if (!supports) {
-                            LOGGER.log(DEBUG, "Excluding {0} because doesn't support {1}",
+                            LOGGER.log(TRACE, "Excluding {0} because doesn't support {1}",
                                     strategy, anno.getName());
                             return false;
                         }

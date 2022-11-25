@@ -162,12 +162,6 @@
         <dependency>
             <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
             <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-api</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
-            <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <scope>test</scope>
         </dependency>
@@ -291,6 +285,7 @@
                     <version>3.0.0-M5</version>
                     <configuration>
                         <skipTests>${skipUTs}</skipTests>
+                        <trimStackTrace>false</trimStackTrace>
                     </configuration>
                 </plugin>
                 <plugin>

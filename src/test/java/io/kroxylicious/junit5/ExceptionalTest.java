@@ -15,6 +15,7 @@ import org.junit.platform.testkit.engine.Events;
 
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.BrokerConfig;
 
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.testkit.engine.EngineTestKit.engine;
@@ -36,7 +37,7 @@ public class ExceptionalTest {
         // is an impossible-to-satisfy constraint
         @Test
         public void impossibleConstraint() {
-            fail();
+            fail("Test execution shouldn't get this far");
         }
     }
 
@@ -68,9 +69,9 @@ public class ExceptionalTest {
         // is an impossible-to-satisfy constraint
         @Test
         public void ambiguousCluster(@BrokerCluster(numBrokers = 1) KafkaCluster cluster,
-                                     @BrokerCluster(numBrokers = 1) KafkaCluster cluster2,
+                                     @BrokerCluster(numBrokers = 1) KafkaCluster clustererberg,
                                      Admin ambiguousAdmin) {
-            fail();
+            fail("Test execution shouldn't get this far");
         }
     }
 
@@ -100,7 +101,7 @@ public class ExceptionalTest {
         public void duplicateName(
                                   @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
                                   @BrokerCluster(numBrokers = 2) @Name("A") KafkaCluster cluster2) {
-            fail();
+            fail("Test execution shouldn't get this far");
         }
     }
 
@@ -123,5 +124,38 @@ public class ExceptionalTest {
                                                 "[public void io.kroxylicious.junit5.ExceptionalTest$DuplicateNameCase.duplicateName(io.kroxylicious.cluster.KafkaCluster,io.kroxylicious.cluster.KafkaCluster)]: "
                                                 +
                                                 "A KafkaCluster-typed declaration with @Name(\"A\") is already in scope"))));
+    }
+
+    @ExtendWith(KafkaClusterExtension.class)
+    static class ProhibitedBrokerConfigCase {
+
+        // Test that the test author cannot mistakenly think they
+        // overrode a broker config used by the extension itself
+        @Test
+        public void prohibitedBrokerConfig(@BrokerConfig(name = "broker.id", value = "0") KafkaCluster cluster) {
+            fail("Test execution shouldn't get this far");
+        }
+    }
+
+    @Test
+    void verifyProhibitedBrokerConfig() {
+        String methodName = "prohibitedBrokerConfig";
+
+        Events impossibleConstraint = engine("junit-jupiter")
+                .selectors(DiscoverySelectors.selectClass(ProhibitedBrokerConfigCase.class))
+                .execute()
+                .allEvents();
+        impossibleConstraint.assertStatistics(s -> s.failed(1));
+        impossibleConstraint
+                .assertThatEvents().haveExactly(1,
+                        event(test(methodName),
+                                finishedWithFailure(
+                                        instanceOf(ParameterResolutionException.class),
+                                        message("Failed to resolve parameter " +
+                                                "[io.kroxylicious.cluster.KafkaCluster cluster] " +
+                                                "in method " +
+                                                "[public void io.kroxylicious.junit5.ExceptionalTest$ProhibitedBrokerConfigCase.prohibitedBrokerConfig(io.kroxylicious.cluster.KafkaCluster)]: "
+                                                +
+                                                "Cannot override broker config 'broker.id=0' with new value 0"))));
     }
 }

@@ -43,9 +43,10 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    public void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster cluster,
+    public void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
                               Admin admin)
             throws ExecutionException, InterruptedException {
+        assertSameCluster(clusterWithConfigs, admin);
         ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
         Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
         assertEquals("zstd", configs.get("compression.type").value());

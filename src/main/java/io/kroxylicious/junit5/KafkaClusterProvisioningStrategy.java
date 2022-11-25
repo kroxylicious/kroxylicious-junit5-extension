@@ -21,13 +21,19 @@ import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.SaslPlainAuth;
 import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
+import static java.lang.System.Logger.Level.TRACE;
+
 public interface KafkaClusterProvisioningStrategy {
 
     public static KafkaClusterConfig kafkaClusterConfig(AnnotatedElement sourceElement) {
+        System.Logger logger = System.getLogger(KafkaClusterProvisioningStrategy.class.getName());
         var builder = KafkaClusterConfig.builder();
 
         if (sourceElement.isAnnotationPresent(BrokerCluster.class)) {
             builder.brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
+        }
+        else {
+            builder.brokersNum(1);
         }
         if (sourceElement.isAnnotationPresent(KRaftCluster.class)
                 && sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
@@ -64,13 +70,19 @@ public interface KafkaClusterProvisioningStrategy {
             builder.kafkaKraftClusterId(sourceElement.getAnnotation(ClusterId.class).value());
         }
 
-        if (sourceElement.isAnnotationPresent(BrokerConfig.BrokerConfigs.class)) {
-            for (var config : sourceElement.getAnnotation(BrokerConfig.BrokerConfigs.class).value()) {
+        if (sourceElement.isAnnotationPresent(BrokerConfig.class)
+                || sourceElement.isAnnotationPresent(BrokerConfig.BrokerConfigs.class)) {
+            for (var config : sourceElement.getAnnotationsByType(BrokerConfig.class)) {
+                logger.log(TRACE, "decl {0}: Setting broker config {1}={2}", sourceElement, config.name(), config.value());
                 builder.brokerConfig(config.name(), config.value());
             }
         }
-        KafkaClusterConfig build = builder.build();
-        return build;
+        else {
+            logger.log(TRACE, "decl {0}: No broker configs", sourceElement);
+        }
+        KafkaClusterConfig clusterConfig = builder.build();
+        logger.log(TRACE, "decl {0}: Using config {1}", sourceElement, clusterConfig);
+        return clusterConfig;
     }
 
     // This implies that the extension knows how to create a config from the annotations
