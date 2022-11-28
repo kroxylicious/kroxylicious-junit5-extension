@@ -6,11 +6,9 @@
 package io.kroxylicious.junit5;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Collectors;
-
-import org.junit.jupiter.api.extension.ExtensionConfigurationException;
 
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.cluster.KafkaClusterConfig;
@@ -21,67 +19,43 @@ import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.SaslPlainAuth;
 import io.kroxylicious.junit5.constraint.ZooKeeperCluster;
 
-import static java.lang.System.Logger.Level.TRACE;
-
 public interface KafkaClusterProvisioningStrategy {
 
-    public static KafkaClusterConfig kafkaClusterConfig(AnnotatedElement sourceElement) {
+    public static KafkaClusterConfig kafkaClusterConfig(List<Annotation> annotations) {
         System.Logger logger = System.getLogger(KafkaClusterProvisioningStrategy.class.getName());
         var builder = KafkaClusterConfig.builder();
-
-        if (sourceElement.isAnnotationPresent(BrokerCluster.class)) {
-            builder.brokersNum(sourceElement.getAnnotation(BrokerCluster.class).numBrokers());
-        }
-        else {
-            builder.brokersNum(1);
-        }
-        if (sourceElement.isAnnotationPresent(KRaftCluster.class)
-                && sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
-            throw new ExtensionConfigurationException(
-                    "Either @" + KRaftCluster.class.getSimpleName() + " or @" + ZooKeeperCluster.class.getSimpleName() + " can be used, not both");
-        }
-        else if (sourceElement.isAnnotationPresent(KRaftCluster.class)) {
-            var kraft = sourceElement.getAnnotation(KRaftCluster.class);
-            builder.kraftMode(true)
-                    .kraftControllers(kraft.numControllers());
-        }
-        else if (sourceElement.isAnnotationPresent(ZooKeeperCluster.class)) {
-            builder.kraftMode(false);
-            if (sourceElement.isAnnotationPresent(ClusterId.class)
-                    && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
-                throw new ExtensionConfigurationException("Specifying @" + ClusterId.class.getSimpleName() + " with @" +
-                        ZooKeeperCluster.class.getSimpleName() + " is not supported");
+        builder.brokersNum(1);
+        for (Annotation annotation : annotations) {
+            if (annotation instanceof BrokerCluster) {
+                builder.brokersNum(((BrokerCluster) annotation).numBrokers());
             }
-        }
-        else {
-            builder.kraftMode(true).kraftControllers(1);
-        }
-
-        if (sourceElement.isAnnotationPresent(SaslPlainAuth.class)) {
-            var authn = sourceElement.getAnnotation(SaslPlainAuth.class);
-            builder.saslMechanism("PLAIN");
-            builder.users(Arrays.stream(authn.value())
-                    .collect(Collectors.toMap(
-                            SaslPlainAuth.UserPassword::user,
-                            SaslPlainAuth.UserPassword::password)));
-        }
-        if (sourceElement.isAnnotationPresent(ClusterId.class)
-                && !sourceElement.getAnnotation(ClusterId.class).value().isEmpty()) {
-            builder.kafkaKraftClusterId(sourceElement.getAnnotation(ClusterId.class).value());
-        }
-
-        if (sourceElement.isAnnotationPresent(BrokerConfig.class)
-                || sourceElement.isAnnotationPresent(BrokerConfig.BrokerConfigs.class)) {
-            for (var config : sourceElement.getAnnotationsByType(BrokerConfig.class)) {
-                logger.log(TRACE, "decl {0}: Setting broker config {1}={2}", sourceElement, config.name(), config.value());
-                builder.brokerConfig(config.name(), config.value());
+            if (annotation instanceof KRaftCluster) {
+                builder.kraftMode(true);
+                builder.kraftControllers(((KRaftCluster) annotation).numControllers());
             }
-        }
-        else {
-            logger.log(TRACE, "decl {0}: No broker configs", sourceElement);
+            if (annotation instanceof ZooKeeperCluster) {
+                builder.kraftMode(false);
+            }
+            if (annotation instanceof SaslPlainAuth) {
+                builder.saslMechanism("PLAIN");
+                builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
+                        .collect(Collectors.toMap(
+                                SaslPlainAuth.UserPassword::user,
+                                SaslPlainAuth.UserPassword::password)));
+            }
+            if (annotation instanceof ClusterId) {
+                builder.kafkaKraftClusterId(((ClusterId) annotation).value());
+            }
+            if (annotation instanceof BrokerConfig.List) {
+                for (var config : ((BrokerConfig.List) annotation).value()) {
+                    builder.brokerConfig(config.name(), config.value());
+                }
+            }
+            else if (annotation instanceof BrokerConfig) {
+                builder.brokerConfig(((BrokerConfig) annotation).name(), ((BrokerConfig) annotation).value());
+            }
         }
         KafkaClusterConfig clusterConfig = builder.build();
-        logger.log(TRACE, "decl {0}: Using config {1}", sourceElement, clusterConfig);
         return clusterConfig;
     }
 
@@ -92,7 +66,7 @@ public interface KafkaClusterProvisioningStrategy {
     // b. Find all provisioning strategies which support all the annotations on the decl
     // c. Filter for decl type
     // d. Move the creation of config from annotations into the strategy
-    boolean supportsAnnotation(Class<? extends Annotation> constraint);
+    boolean supportsAnnotation(Annotation constraint);
     // TODO this ^^ doesn't cope with the possibility that it's the combination of
     // constraints that's the problem
     // But having a per-constraint method is helpful for debugging
@@ -102,10 +76,11 @@ public interface KafkaClusterProvisioningStrategy {
 
     boolean supportsType(Class<? extends KafkaCluster> declarationType);
 
-    KafkaCluster create(AnnotatedElement sourceElement,
+    KafkaCluster create(List<Annotation> sourceElement,
                         Class<? extends KafkaCluster> declarationType);
 
     // TODO logically the time depends on the configuration
-    float estimatedProvisioningTimeMs();
+    float estimatedProvisioningTimeMs(List<Annotation> sourceElement,
+                                      Class<? extends KafkaCluster> declarationType);
 
 }

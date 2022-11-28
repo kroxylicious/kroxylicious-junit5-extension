@@ -6,13 +6,14 @@
 package io.kroxylicious.junit5;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
+import java.util.List;
 import java.util.Set;
 
 import io.kroxylicious.cluster.ContainerBasedKafkaCluster;
 import io.kroxylicious.cluster.KafkaCluster;
 import io.kroxylicious.cluster.KafkaClusterConfig;
 import io.kroxylicious.junit5.constraint.BrokerCluster;
+import io.kroxylicious.junit5.constraint.BrokerConfig;
 import io.kroxylicious.junit5.constraint.ClusterId;
 import io.kroxylicious.junit5.constraint.KRaftCluster;
 import io.kroxylicious.junit5.constraint.SaslPlainAuth;
@@ -23,13 +24,15 @@ public class TestcontainersProvisioningStrategy implements KafkaClusterProvision
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
             ClusterId.class,
             BrokerCluster.class,
+            BrokerConfig.class,
+            BrokerConfig.List.class,
             KRaftCluster.class,
             SaslPlainAuth.class,
             ZooKeeperCluster.class);
 
     @Override
-    public boolean supportsAnnotation(Class<? extends Annotation> constraint) {
-        return SUPPORTED_CONSTRAINTS.contains(constraint);
+    public boolean supportsAnnotation(Annotation constraint) {
+        return SUPPORTED_CONSTRAINTS.contains(constraint.annotationType());
     }
 
     @Override
@@ -38,13 +41,13 @@ public class TestcontainersProvisioningStrategy implements KafkaClusterProvision
     }
 
     @Override
-    public KafkaCluster create(AnnotatedElement sourceElement, Class<? extends KafkaCluster> declarationType) {
-        KafkaClusterConfig config = KafkaClusterProvisioningStrategy.kafkaClusterConfig(sourceElement);
+    public KafkaCluster create(List<Annotation> annotationList, Class<? extends KafkaCluster> declarationType) {
+        KafkaClusterConfig config = KafkaClusterProvisioningStrategy.kafkaClusterConfig(annotationList);
         return new ContainerBasedKafkaCluster(config);
     }
 
     @Override
-    public float estimatedProvisioningTimeMs() {
+    public float estimatedProvisioningTimeMs(List<Annotation> annotationList, Class<? extends KafkaCluster> declarationType) {
         return 1000;
     }
 }

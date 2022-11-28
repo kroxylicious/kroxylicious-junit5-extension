@@ -8,10 +8,12 @@ package io.kroxylicious.junit5;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
@@ -20,10 +22,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.ServiceLoader;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -57,19 +59,25 @@ import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
+import org.junit.jupiter.api.extension.Extension;
 import org.junit.jupiter.api.extension.ExtensionConfigurationException;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.ParameterResolver;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
 
 import io.kroxylicious.cluster.KafkaCluster;
+import io.kroxylicious.junit5.constraint.ConstraintsMethodSource;
+import io.kroxylicious.junit5.constraint.DimensionMethodSource;
 import io.kroxylicious.junit5.constraint.KafkaClusterConstraint;
 
 import static java.lang.System.Logger.Level.TRACE;
@@ -115,7 +123,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  */
 public class KafkaClusterExtension implements
         ParameterResolver, BeforeEachCallback,
-        BeforeAllCallback {
+        BeforeAllCallback, TestTemplateInvocationContextProvider {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterExtension.class.getName());
 
@@ -124,6 +132,246 @@ public class KafkaClusterExtension implements
     private static final ExtensionContext.Namespace PRODUCER_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, Producer.class);
     private static final ExtensionContext.Namespace CONSUMER_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, Consumer.class);
     public static final String STARTING_PREFIX = "WY9Br5K1vAfov_8jjJ3KUA";
+
+    @Override
+    public boolean supportsTestTemplate(ExtensionContext context) {
+        Parameter[] parameters = context.getRequiredTestMethod().getParameters();
+        for (var parameter : parameters) {
+            if (!supportsParameter(parameter)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<? extends List<? extends Object>> cartesianProduct(List<List<?>> domains) {
+        if (domains.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        return _cartesianProduct(0, domains);
+    }
+
+    private static List<? extends List<? extends Object>> _cartesianProduct(int index, List<List<?>> domains) {
+        List<List<Object>> ret = new ArrayList<>();
+        if (index == domains.size()) {
+            ret.add(new ArrayList<>(domains.size()));
+        }
+        else {
+            for (Object obj : domains.get(index)) {
+                for (List tuple : _cartesianProduct(index + 1, domains)) {
+                    tuple.add(0, obj);
+                    ret.add(tuple);
+                }
+            }
+        }
+        return ret;
+    }
+
+    @Override
+    public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(ExtensionContext context) {
+        Method testTemplateMethod = context.getRequiredTestMethod();
+        Parameter[] parameters = testTemplateMethod.getParameters();
+
+        Parameter parameter = parameters[0];// TODO the KafkaCluster might not be the first parameter
+        DimensionMethodSource[] freeConstraintsSource = parameter.getAnnotationsByType(DimensionMethodSource.class);
+
+        var lists = Arrays.stream(freeConstraintsSource).map(methodSource -> {
+            return invokeDimensionMethodSource(context, methodSource);
+        }).collect(Collectors.toList());
+        List<? extends List<Annotation>> cartesianProduct = lists.size() > 0 ? cartesianProduct((List) lists) : List.of();
+
+        ConstraintsMethodSource annotation = parameter.getAnnotation(ConstraintsMethodSource.class);
+        var constraints = annotation != null ? invokeConstraintsMethodSource(context, annotation) : List.<List<Annotation>> of();
+
+        return Stream.concat(cartesianProduct.stream(), constraints.stream())
+                .map((List<Annotation> additionalConstraints) -> {
+                    return new TestTemplateInvocationContext() {
+                        @Override
+                        public String getDisplayName(int invocationIndex) {
+                            List<?> list = invocationIndex > cartesianProduct.size() ? constraints.get(invocationIndex - cartesianProduct.size() - 1)
+                                    : cartesianProduct.get(invocationIndex - 1);
+                            return list.toString();
+                        }
+
+                        @Override
+                        public List<Extension> getAdditionalExtensions() {
+                            return List.of(new ParameterResolver() {
+                                @Override
+                                public boolean supportsParameter(ParameterContext parameterContext,
+                                                                 ExtensionContext extensionContext) {
+                                    return KafkaClusterExtension.supportsParameter(parameterContext.getParameter());
+                                }
+
+                                @Override
+                                public Object resolveParameter(ParameterContext parameterContext,
+                                                               ExtensionContext extensionContext) {
+                                    return KafkaClusterExtension.resolveParameter(parameterContext, extensionContext, additionalConstraints);
+                                }
+                            });
+                        }
+                    };
+                });
+    }
+
+    @NotNull
+    private static List<List<Annotation>> invokeConstraintsMethodSource(ExtensionContext context,
+                                                                        ConstraintsMethodSource methodSource) {
+        Method testTemplateMethod = context.getRequiredTestMethod();
+        Class<?> requiredTestClass = context.getRequiredTestClass();
+        Object source;
+        try {
+            Method sourceMethod = requiredTestClass.getDeclaredMethod(methodSource.value());
+            if (ReflectionUtils.isNotStatic(sourceMethod)) {
+                throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + ConstraintsMethodSource.class.getSimpleName() +
+                        " on " + requiredTestClass + " must be static");
+            }
+            else if (sourceMethod.getParameters().length != 0) {
+                throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + ConstraintsMethodSource.class.getSimpleName() +
+                        " on " + requiredTestClass + " cannot have any parameters");
+            }
+            Class<?> returnType = sourceMethod.getReturnType();
+            // check return type is Stream<? extends Annotation>
+            if (Stream.class.isAssignableFrom(returnType)) {
+                Type genericReturnType = sourceMethod.getGenericReturnType();
+                if (genericReturnType instanceof ParameterizedType) {
+                    if (Stream.class.equals(((ParameterizedType) genericReturnType).getRawType())
+                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
+                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                        throw returnTypeError(testTemplateMethod, methodSource.value(), ConstraintsMethodSource.class, requiredTestClass);
+                    }
+                }
+            }
+            else if (Collection.class.isAssignableFrom(returnType)) {
+                Type genericReturnType = sourceMethod.getGenericReturnType();
+                if (genericReturnType instanceof ParameterizedType) {
+                    if (Collection.class.equals(((ParameterizedType) genericReturnType).getRawType())
+                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
+                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                        throw returnTypeError(testTemplateMethod, methodSource.value(), ConstraintsMethodSource.class, requiredTestClass);
+                    }
+                }
+            }
+            else if (returnType.isArray()) {
+                var elementType = returnType.getComponentType();
+                if (!elementType.isAnnotation()) {
+                    throw returnTypeError(testTemplateMethod, methodSource.value(), ConstraintsMethodSource.class, requiredTestClass);
+                }
+            }
+            else {
+                throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
+                        " on " + requiredTestClass + " must return a Stream, a Collection, or an array with" +
+                        "Annotation type");
+            }
+
+            // TODO check that annotation is meta-annotated
+            source = sourceMethod.invoke(null);
+        }
+        catch (ReflectiveOperationException e) {
+            throw new ParameterResolutionException("Error invoking method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
+                    " on " + requiredTestClass, e);
+        }
+
+        return coerceToList(
+                methodSource.value(), ConstraintsMethodSource.class,
+                testTemplateMethod, requiredTestClass, source);
+    }
+
+    @NotNull
+    private static List<Annotation> invokeDimensionMethodSource(ExtensionContext context,
+                                                                DimensionMethodSource methodSource) {
+        Method testTemplateMethod = context.getRequiredTestMethod();
+        Class<?> requiredTestClass = context.getRequiredTestClass();
+        Object source;
+        try {
+            Method sourceMethod = requiredTestClass.getDeclaredMethod(methodSource.value());
+            if (ReflectionUtils.isNotStatic(sourceMethod)) {
+                throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
+                        " on " + requiredTestClass + " must be static");
+            }
+            else if (sourceMethod.getParameters().length != 0) {
+                throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
+                        " on " + requiredTestClass + " cannot have any parameters");
+            }
+            Class<?> returnType = sourceMethod.getReturnType();
+            // check return type is Stream<? extends Annotation>
+            if (Stream.class.isAssignableFrom(returnType)) {
+                Type genericReturnType = sourceMethod.getGenericReturnType();
+                if (genericReturnType instanceof ParameterizedType) {
+                    if (Stream.class.equals(((ParameterizedType) genericReturnType).getRawType())
+                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
+                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                        throw returnTypeError(testTemplateMethod, methodSource.value(), DimensionMethodSource.class, requiredTestClass);
+                    }
+                }
+            }
+            else if (Collection.class.isAssignableFrom(returnType)) {
+                Type genericReturnType = sourceMethod.getGenericReturnType();
+                if (genericReturnType instanceof ParameterizedType) {
+                    if (Collection.class.equals(((ParameterizedType) genericReturnType).getRawType())
+                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
+                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                        throw returnTypeError(testTemplateMethod, methodSource.value(), DimensionMethodSource.class, requiredTestClass);
+                    }
+                }
+            }
+            else if (returnType.isArray()) {
+                var elementType = returnType.getComponentType();
+                if (!elementType.isAnnotation()) {
+                    throw returnTypeError(testTemplateMethod, methodSource.value(), DimensionMethodSource.class, requiredTestClass);
+                }
+            }
+            else {
+                throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
+                        " on " + requiredTestClass + " must return a Stream, a Collection, or an array with" +
+                        "Annotation type");
+            }
+
+            // TODO check that annotation is meta-annotated
+            source = sourceMethod.invoke(null);
+        }
+        catch (ReflectiveOperationException e) {
+            throw new ParameterResolutionException("Error invoking method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
+                    " on " + requiredTestClass, e);
+        }
+
+        return coerceToList(
+                methodSource.value(), DimensionMethodSource.class,
+                testTemplateMethod, requiredTestClass, source);
+    }
+
+    @SuppressWarnings("unchecked")
+    @NotNull
+    private static <T> List<T> coerceToList(String methodName,
+                                            Class<? extends Annotation> annotationType,
+                                            Method testTemplateMethod, Class<?> requiredTestClass, Object source) {
+        List<T> list;
+        if (source instanceof Stream) {
+            list = ((Stream<T>) source).collect(Collectors.<T> toList());
+        }
+        else if (source instanceof List) {
+            list = (List<T>) source;
+        }
+        else if (source instanceof Collection) {
+            list = new ArrayList<>((Collection<T>) source);
+        }
+        else if (source instanceof Object[]) {
+            list = Arrays.asList((T[]) source);
+        }
+        else {
+            throw returnTypeError(testTemplateMethod, methodName, annotationType, requiredTestClass);
+        }
+        return list;
+    }
+
+    @NotNull
+    private static ParameterResolutionException returnTypeError(Method testTemplateMethod,
+                                                                String methodName,
+                                                                Class<? extends Annotation> annotationType,
+                                                                Class<?> requiredTestClass) {
+        return new ParameterResolutionException("Method " + methodName + " given in @" + annotationType.getSimpleName() +
+                " on " + testTemplateMethod.getName() + "() of " + requiredTestClass + " must return a Stream, a Collection, or an array with" +
+                "Annotation type");
+    }
 
     static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
 
@@ -152,7 +400,12 @@ public class KafkaClusterExtension implements
 
     @Override
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-        Class<?> type = parameterContext.getParameter().getType();
+        return !parameterContext.getDeclaringExecutable().isAnnotationPresent(TestTemplate.class)
+                && supportsParameter(parameterContext.getParameter());
+    }
+
+    private static boolean supportsParameter(Parameter parameter) {
+        Class<?> type = parameter.getType();
         if (KafkaCluster.class.isAssignableFrom(type)) {
             return true;
         }
@@ -175,6 +428,14 @@ public class KafkaClusterExtension implements
                                    ParameterContext parameterContext,
                                    ExtensionContext extensionContext)
             throws ParameterResolutionException {
+        return resolveParameter(parameterContext, extensionContext, List.of());
+    }
+
+    public static Object resolveParameter(
+                                          ParameterContext parameterContext,
+                                          ExtensionContext extensionContext,
+                                          List<Annotation> extraConstraints)
+            throws ParameterResolutionException {
         Parameter parameter = parameterContext.getParameter();
         Class<?> type = parameter.getType();
         LOGGER.log(TRACE,
@@ -184,7 +445,9 @@ public class KafkaClusterExtension implements
                 parameter.getName());
         if (KafkaCluster.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(KafkaCluster.class);
-            return getCluster(parameter, paramType, extensionContext);
+            var constraints = getConstraints(parameter);
+            constraints.addAll(extraConstraints);
+            return getCluster(parameter, paramType, constraints, extensionContext);
         }
         else if (Admin.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Admin.class);
@@ -241,7 +504,9 @@ public class KafkaClusterExtension implements
                         .forEach(field -> {
                             assertSupportedType("field", field.getType());
                             try {
-                                makeAccessible(field).set(testInstance, getCluster(field, field.getType().asSubclass(KafkaCluster.class), context));
+                                var f = makeAccessible(field);
+                                List<Annotation> constraints = getConstraints(f);
+                                f.set(testInstance, getCluster(field, field.getType().asSubclass(KafkaCluster.class), constraints, context));
                             }
                             catch (Throwable t) {
                                 ExceptionUtils.throwAsUncheckedException(t);
@@ -466,9 +731,10 @@ public class KafkaClusterExtension implements
         return last.get();
     }
 
-    private KafkaCluster getCluster(AnnotatedElement sourceElement,
-                                    Class<? extends KafkaCluster> type,
-                                    ExtensionContext extensionContext) {
+    private static KafkaCluster getCluster(AnnotatedElement sourceElement,
+                                           Class<? extends KafkaCluster> type,
+                                           List<Annotation> constraints,
+                                           ExtensionContext extensionContext) {
         // Semantic we want for clients without specified clusterId is "closest enclosing scope"
         // If we used generated keys A, B, C we could get this by iterating lookup from A, B until we found
         // and unused key, and using the last found
@@ -501,7 +767,9 @@ public class KafkaClusterExtension implements
                 sourceElement,
                 clusterName);
         Closeable<KafkaCluster> closeableCluster = store.getOrComputeIfAbsent(clusterName,
-                __ -> createCluster(extensionContext, clusterName, type, sourceElement),
+                __ -> {
+                    return createCluster(extensionContext, clusterName, type, sourceElement, constraints);
+                },
                 (Class<Closeable<KafkaCluster>>) (Class) Closeable.class);
         Objects.requireNonNull(closeableCluster);
         KafkaCluster cluster = closeableCluster.get();
@@ -514,7 +782,7 @@ public class KafkaClusterExtension implements
         return cluster;
     }
 
-    private String findFirstUnusedClusterId(ExtensionContext.Store store, Iterable<String> clusterIdIter) {
+    private static String findFirstUnusedClusterId(ExtensionContext.Store store, Iterable<String> clusterIdIter) {
         var it = clusterIdIter.iterator();
         while (true) {
             String clusterId = it.next();
@@ -538,10 +806,10 @@ public class KafkaClusterExtension implements
         }
     }
 
-    private Admin getAdmin(String description,
-                           AnnotatedElement sourceElement,
-                           Class<? extends Admin> type,
-                           ExtensionContext extensionContext) {
+    private static Admin getAdmin(String description,
+                                  AnnotatedElement sourceElement,
+                                  Class<? extends Admin> type,
+                                  ExtensionContext extensionContext) {
 
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
@@ -556,11 +824,11 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private Producer<?, ?> getProducer(String description,
-                                       AnnotatedElement sourceElement,
-                                       Class<? extends Producer<?, ?>> type,
-                                       Type genericType,
-                                       ExtensionContext extensionContext) {
+    private static Producer<?, ?> getProducer(String description,
+                                              AnnotatedElement sourceElement,
+                                              Class<? extends Producer<?, ?>> type,
+                                              Type genericType,
+                                              ExtensionContext extensionContext) {
         Serializer<?> keySerializer = getSerializerFromGenericType(genericType, 0);
         LOGGER.log(TRACE, "test {0}: decl {1}: key serializer {2}",
                 extensionContext.getUniqueId(),
@@ -586,11 +854,11 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private Consumer<?, ?> getConsumer(String description,
-                                       AnnotatedElement sourceElement,
-                                       Class<? extends Consumer<?, ?>> type,
-                                       Type genericType,
-                                       ExtensionContext extensionContext) {
+    private static Consumer<?, ?> getConsumer(String description,
+                                              AnnotatedElement sourceElement,
+                                              Class<? extends Consumer<?, ?>> type,
+                                              Type genericType,
+                                              ExtensionContext extensionContext) {
         Deserializer<?> keySerializer = getDeserializerFromGenericType(genericType, 0);
         LOGGER.log(TRACE, "test {0}: decl {1}: key deserializer {2}",
                 extensionContext.getUniqueId(),
@@ -616,22 +884,14 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private Closeable<KafkaCluster> createCluster(ExtensionContext extensionContext, String clusterName, Class<? extends KafkaCluster> type,
-                                                  AnnotatedElement sourceElement) {
+    private static Closeable<KafkaCluster> createCluster(ExtensionContext extensionContext, String clusterName, Class<? extends KafkaCluster> type,
+                                                         AnnotatedElement sourceElement,
+                                                         List<Annotation> constraints) {
         LOGGER.log(TRACE,
                 "test {0}: decl: {1}: cluster ''{2}'': Creating new cluster",
                 extensionContext.getUniqueId(),
                 sourceElement,
                 clusterName);
-        Set<Class<? extends Annotation>> constraints;
-        if (AnnotationSupport.isAnnotated(sourceElement, KafkaClusterConstraint.class)) {
-            constraints = Arrays.stream(sourceElement.getAnnotations())
-                    .map(Annotation::annotationType)
-                    .filter(at -> at.isAnnotationPresent(KafkaClusterConstraint.class)).collect(Collectors.toSet());
-        }
-        else {
-            constraints = Set.of();
-        }
         LOGGER.log(TRACE,
                 "test {0}: decl: {1}: cluster ''{2}'': Constraints {3}",
                 extensionContext.getUniqueId(),
@@ -645,7 +905,7 @@ public class KafkaClusterExtension implements
                 sourceElement,
                 clusterName,
                 best);
-        KafkaCluster c = best.create(sourceElement, type);
+        KafkaCluster c = best.create(constraints, type);
         LOGGER.log(TRACE,
                 "test {0}: decl: {1}: cluster ''{2}'': Created",
                 extensionContext.getUniqueId(),
@@ -654,8 +914,22 @@ public class KafkaClusterExtension implements
         return new Closeable<>(sourceElement, clusterName, c);
     }
 
+    @NotNull
+    private static ArrayList<Annotation> getConstraints(AnnotatedElement sourceElement) {
+        ArrayList<Annotation> constraints;
+        if (AnnotationSupport.isAnnotated(sourceElement, KafkaClusterConstraint.class)) {
+            constraints = Arrays.stream(sourceElement.getAnnotations())
+                    .filter(anno -> anno.annotationType().isAnnotationPresent(KafkaClusterConstraint.class))
+                    .collect(Collectors.toCollection(ArrayList::new));
+        }
+        else {
+            constraints = new ArrayList<>();
+        }
+        return constraints;
+    }
+
     static KafkaClusterProvisioningStrategy findBestProvisioningStrategy(
-                                                                         Set<? extends Class<? extends Annotation>> constraints,
+                                                                         List<Annotation> constraints,
                                                                          Class<? extends KafkaCluster> declarationType) {
         ServiceLoader<KafkaClusterProvisioningStrategy> loader = ServiceLoader.load(KafkaClusterProvisioningStrategy.class);
         return loader.stream().map(ServiceLoader.Provider::get)
@@ -668,21 +942,21 @@ public class KafkaClusterExtension implements
                     return supports;
                 })
                 .filter(strategy -> {
-                    for (Class<? extends Annotation> anno : constraints) {
+                    for (Annotation anno : constraints) {
                         boolean supports = strategy.supportsAnnotation(anno);
                         if (!supports) {
                             LOGGER.log(TRACE, "Excluding {0} because doesn't support {1}",
-                                    strategy, anno.getName());
+                                    strategy, anno);
                             return false;
                         }
                     }
                     return true;
                 })
-                .min(Comparator.comparing(KafkaClusterProvisioningStrategy::estimatedProvisioningTimeMs))
+                .min(Comparator.comparing(x -> x.estimatedProvisioningTimeMs(constraints, declarationType)))
                 .orElseThrow(() -> {
                     var strategies = ServiceLoader.load(KafkaClusterProvisioningStrategy.class).stream().map(ServiceLoader.Provider::type).collect(Collectors.toList());
                     return new ExtensionConfigurationException("No provisioning strategy for a declaration of type " + declarationType.getName()
-                            + " and supporting all of " + classNames(constraints) +
+                            + " and supporting all of " + constraints +
                             " was found (tried: " + classNames(strategies) + ")");
                 });
     }

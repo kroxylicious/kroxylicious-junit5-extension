@@ -57,8 +57,8 @@ public class ExceptionalTest {
                                         instanceOf(ExtensionConfigurationException.class),
                                         message("No provisioning strategy for a declaration of " +
                                                 "type io.kroxylicious.cluster.KafkaCluster and supporting all " +
-                                                "of [io.kroxylicious.junit5.ImpossibleConstraint, " +
-                                                "io.kroxylicious.junit5.constraint.BrokerCluster] was " +
+                                                "of [@io.kroxylicious.junit5.constraint.BrokerCluster(numBrokers=1), @io.kroxylicious.junit5.ImpossibleConstraint()] was "
+                                                +
                                                 "found (tried: [io.kroxylicious.junit5.InVMProvisioningStrategy, " +
                                                 "io.kroxylicious.junit5.TestcontainersProvisioningStrategy])"))));
     }

@@ -20,7 +20,8 @@ import io.kroxylicious.cluster.KafkaCluster;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
-@Repeatable(BrokerConfig.BrokerConfigs.class)
+@Repeatable(BrokerConfig.List.class)
+@KafkaClusterConstraint
 public @interface BrokerConfig {
     /** The name of the <a href="https://kafka.apache.org/documentation.html#brokerconfigs">broker configuration parameter</a>. */
     String name();
@@ -30,7 +31,8 @@ public @interface BrokerConfig {
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.FIELD, ElementType.PARAMETER })
-    @interface BrokerConfigs {
+    @KafkaClusterConstraint
+    @interface List {
         BrokerConfig[] value();
     }
 }
