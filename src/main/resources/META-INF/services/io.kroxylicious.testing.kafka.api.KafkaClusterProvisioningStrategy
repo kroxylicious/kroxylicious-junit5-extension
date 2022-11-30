@@ -1,0 +1,2 @@
+io.kroxylicious.testing.kafka.invm.InVMProvisioningStrategy
+io.kroxylicious.testing.kafka.testcontainers.TestcontainersProvisioningStrategy

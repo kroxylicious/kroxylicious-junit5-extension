@@ -11,21 +11,24 @@ As such it allows you to write very flexible tests that abstract over different 
 Here's a minimal example:
 
 ```java
-import io.kroxylicious.junit5.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
+
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(KafkaClusterExtension.class) // <1>
 class MyTest {
-    
+
     KafkaCluster cluster; // <2>
 
     @Test
     public void testProducer(
-                    Producer<String, String> producer // <3>
-            ) throws Exception {
+            Producer<String, String> producer // <3>
+    ) throws Exception {
         producer.send(new ProducerRecord<>("hello", "world")).get();
     }
 }
@@ -72,13 +75,13 @@ You can also use test templates to execute the same test over a number of differ
 ```java
 import java.util.stream.Stream;
 
-import io.kroxylicious.junit5.constraint.ConstraintUtils;
+import io.kroxylicious.testing.kafka.common.ConstraintUtils;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.junit5ext.DimensionMethodSource;
+
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-
-import io.kroxylicious.cluster.KafkaCluster;
-import io.kroxylicious.junit5.constraint.BrokerCluster;
-import io.kroxylicious.junit5.constraint.DimensionMethodSource;
 
 import static io.kroxylicious.junit5.constraint.ConstraintUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -112,14 +115,14 @@ You can use multiple instances of `@DimensionMethodSource`. In that case every c
 ```java
 import java.util.stream.Stream;
 
-import io.kroxylicious.junit5.constraint.ConstraintUtils;
+import io.kroxylicious.testing.kafka.common.ConstraintUtils;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.junit5ext.DimensionMethodSource;
+
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.apache.kafka.clients.admin.Admin;
 
-import io.kroxylicious.cluster.KafkaCluster;
-import io.kroxylicious.junit5.constraint.BrokerCluster;
-import io.kroxylicious.junit5.constraint.DimensionMethodSource;
+import org.apache.kafka.clients.admin.Admin;
 
 import static io.kroxylicious.junit5.constraint.ConstraintUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -154,14 +157,13 @@ Alternatively if you don't need to test _every_ combination, you could use a `@C
 ```java
 import java.util.stream.Stream;
 
-import io.kroxylicious.junit5.constraint.ConstraintUtils;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+
 import org.apache.kafka.clients.admin.Admin;
 
-import io.kroxylicious.cluster.KafkaCluster;
-import io.kroxylicious.junit5.constraint.BrokerCluster;
-import io.kroxylicious.junit5.constraint.ConstraintsMethodSource;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.junit5ext.ConstraintsMethodSource;
 
 import static io.kroxylicious.junit5.constraint.ConstraintUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -169,7 +171,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @ExtendWith(KafkaClusterExtension.class)
 public class TemplateTest {
     @TestTemplate
-    public void testTuples(@ConstraintsMethodSource("tuples") 
+    public void testTuples(@ConstraintsMethodSource("tuples")
                            KafkaCluster cluster,
                            Admin admin)
             throws Exception {
