@@ -38,6 +38,7 @@ public interface KafkaClusterProvisioningStrategy {
             }
             if (annotation instanceof SaslPlainAuth) {
                 builder.saslMechanism("PLAIN");
+                builder.securityProtocol("SASL_PLAINTEXT");
                 builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
                         .collect(Collectors.toMap(
                                 SaslPlainAuth.UserPassword::user,

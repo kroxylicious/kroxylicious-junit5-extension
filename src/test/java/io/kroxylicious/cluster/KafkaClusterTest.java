@@ -5,6 +5,9 @@
  */
 package io.kroxylicious.cluster;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +24,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -32,14 +36,18 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Test case that simply exercises the ability to control the kafka cluster from the test.
  * It intentional that this test does not involve the proxy.
  */
-public class KafkaClusterIT {
+public class KafkaClusterTest {
 
-    private static final System.Logger LOGGER = System.getLogger(KafkaClusterIT.class.getName());
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
     private TestInfo testInfo;
+    private KeytoolCertificateGenerator keytoolCertificateGenerator;
 
     @Test
     public void kafkaClusterKraftMode() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder().testInfo(testInfo).kraftMode(true).build())) {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(true)
+                .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -47,7 +55,10 @@ public class KafkaClusterIT {
 
     @Test
     public void kafkaClusterZookeeperMode() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder().testInfo(testInfo).kraftMode(false).build())) {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(false)
+                .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -56,7 +67,11 @@ public class KafkaClusterIT {
     @Test
     public void kafkaTwoNodeClusterKraftMode() throws Exception {
         int brokersNum = 2;
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder().testInfo(testInfo).brokersNum(brokersNum).kraftMode(true).build())) {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(true)
+                .build())) {
             assumeTrue(cluster instanceof ContainerBasedKafkaCluster, "KAFKA-14287: kraft timing out on shutdown in multinode case");
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -66,7 +81,11 @@ public class KafkaClusterIT {
     @Test
     public void kafkaTwoNodeClusterZookeeperMode() throws Exception {
         int brokersNum = 2;
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder().testInfo(testInfo).brokersNum(brokersNum).kraftMode(false).build())) {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(false)
+                .build())) {
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
         }
@@ -74,8 +93,13 @@ public class KafkaClusterIT {
 
     @Test
     public void kafkaClusterKraftModeWithAuth() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(
-                KafkaClusterConfig.builder().kraftMode(true).testInfo(testInfo).saslMechanism("PLAIN").user("guest", "guest").build())) {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(true)
+                .testInfo(testInfo)
+                .securityProtocol("SASL_PLAINTEXT")
+                .saslMechanism("PLAIN")
+                .user("guest", "guest")
+                .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -83,8 +107,69 @@ public class KafkaClusterIT {
 
     @Test
     public void kafkaClusterZookeeperModeWithAuth() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(
-                KafkaClusterConfig.builder().testInfo(testInfo).kraftMode(false).saslMechanism("PLAIN").user("guest", "guest").build())) {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(false)
+                .securityProtocol("SASL_PLAINTEXT")
+                .saslMechanism("PLAIN")
+                .user("guest", "guest")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterKraftModeSASL_SSL() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .kraftMode(true)
+                .securityProtocol("SASL_SSL")
+                .saslMechanism("PLAIN")
+                .user("guest", "guest")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterKraftModeSSL() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .kraftMode(true)
+                .securityProtocol("SSL")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterZookeeperModeSASL_SSL() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .kraftMode(false)
+                .securityProtocol("SASL_SSL")
+                .saslMechanism("PLAIN")
+                .user("guest", "guest")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterZookeeperModeSSL() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .kraftMode(false)
+                .securityProtocol("SSL")
+                .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -142,7 +227,14 @@ public class KafkaClusterIT {
     }
 
     @BeforeEach
-    void before(TestInfo testInfo) {
+    void before(TestInfo testInfo) throws IOException {
         this.testInfo = testInfo;
+        this.keytoolCertificateGenerator = new KeytoolCertificateGenerator();
+    }
+
+    @AfterEach
+    void after() {
+        Path filePath = Paths.get(keytoolCertificateGenerator.getCertLocation());
+        filePath.toFile().deleteOnExit();
     }
 }
