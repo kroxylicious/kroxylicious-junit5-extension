@@ -172,7 +172,7 @@ public class KafkaClusterExtension implements
         Method testTemplateMethod = context.getRequiredTestMethod();
         Parameter[] parameters = testTemplateMethod.getParameters();
 
-        Parameter parameter = parameters[0];// TODO the KafkaCluster might not be the first parameter
+        Parameter parameter = Arrays.stream(parameters).filter(p -> KafkaCluster.class.isAssignableFrom(p.getType())).findFirst().get();
         DimensionMethodSource[] freeConstraintsSource = parameter.getAnnotationsByType(DimensionMethodSource.class);
 
         var lists = Arrays.stream(freeConstraintsSource).map(methodSource -> {
@@ -271,9 +271,11 @@ public class KafkaClusterExtension implements
                     " on " + requiredTestClass, e);
         }
 
-        return coerceToList(
+        return KafkaClusterExtension.<List<Annotation>> coerceToList(
                 methodSource.value(), ConstraintsMethodSource.class,
-                testTemplateMethod, requiredTestClass, source);
+                testTemplateMethod, requiredTestClass, source).stream()
+                .map(list -> filterAnnotations(list, KafkaClusterConstraint.class))
+                .collect(Collectors.toList());
     }
 
     @NotNull
@@ -326,7 +328,6 @@ public class KafkaClusterExtension implements
                         "Annotation type");
             }
 
-            // TODO check that annotation is meta-annotated
             source = sourceMethod.invoke(null);
         }
         catch (ReflectiveOperationException e) {
@@ -334,9 +335,9 @@ public class KafkaClusterExtension implements
                     " on " + requiredTestClass, e);
         }
 
-        return coerceToList(
+        return filterAnnotations(coerceToList(
                 methodSource.value(), DimensionMethodSource.class,
-                testTemplateMethod, requiredTestClass, source);
+                testTemplateMethod, requiredTestClass, source), KafkaClusterConstraint.class);
     }
 
     @SuppressWarnings("unchecked")
@@ -445,7 +446,7 @@ public class KafkaClusterExtension implements
                 parameter.getName());
         if (KafkaCluster.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(KafkaCluster.class);
-            var constraints = getConstraints(parameter);
+            var constraints = getConstraintAnnotations(parameter, KafkaClusterConstraint.class);
             constraints.addAll(extraConstraints);
             return getCluster(parameter, paramType, constraints, extensionContext);
         }
@@ -504,9 +505,10 @@ public class KafkaClusterExtension implements
                         .forEach(field -> {
                             assertSupportedType("field", field.getType());
                             try {
-                                var f = makeAccessible(field);
-                                List<Annotation> constraints = getConstraints(f);
-                                f.set(testInstance, getCluster(field, field.getType().asSubclass(KafkaCluster.class), constraints, context));
+                                var accessibleField = makeAccessible(field);
+                                List<Annotation> constraints = getConstraintAnnotations(accessibleField, KafkaClusterConstraint.class);
+                                accessibleField.set(testInstance,
+                                        getCluster(accessibleField, accessibleField.getType().asSubclass(KafkaCluster.class), constraints, context));
                             }
                             catch (Throwable t) {
                                 ExceptionUtils.throwAsUncheckedException(t);
@@ -914,17 +916,43 @@ public class KafkaClusterExtension implements
         return new Closeable<>(sourceElement, clusterName, c);
     }
 
+    /**
+     * @param sourceElement The source element
+     * @param metaAnnotationType The meta-annotation
+     * @return A mutable list of annotations from the source element that are meta-annotated with
+     * the given {@code metaAnnotationType}.
+     */
     @NotNull
-    private static ArrayList<Annotation> getConstraints(AnnotatedElement sourceElement) {
+    private static ArrayList<Annotation> getConstraintAnnotations(AnnotatedElement sourceElement, Class<? extends Annotation> metaAnnotationType) {
         ArrayList<Annotation> constraints;
-        if (AnnotationSupport.isAnnotated(sourceElement, KafkaClusterConstraint.class)) {
-            constraints = Arrays.stream(sourceElement.getAnnotations())
-                    .filter(anno -> anno.annotationType().isAnnotationPresent(KafkaClusterConstraint.class))
-                    .collect(Collectors.toCollection(ArrayList::new));
+        if (AnnotationSupport.isAnnotated(sourceElement, metaAnnotationType)) {
+            Annotation[] annotations = sourceElement.getAnnotations();
+            constraints = filterAnnotations(annotations, metaAnnotationType);
         }
         else {
             constraints = new ArrayList<>();
         }
+        return constraints;
+    }
+
+    @NotNull
+    private static ArrayList<Annotation> filterAnnotations(List<Annotation> annotations,
+                                                           Class<? extends Annotation> metaAnnotationType) {
+        return filterAnnotations(annotations.stream(), metaAnnotationType);
+    }
+
+    @NotNull
+    private static ArrayList<Annotation> filterAnnotations(Annotation[] annotations,
+                                                           Class<? extends Annotation> metaAnnotationType) {
+        return filterAnnotations(Arrays.stream(annotations), metaAnnotationType);
+    }
+
+    @NotNull
+    private static ArrayList<Annotation> filterAnnotations(Stream<Annotation> annotations,
+                                                           Class<? extends Annotation> metaAnnotationType) {
+        ArrayList<Annotation> constraints = annotations
+                .filter(anno -> anno.annotationType().isAnnotationPresent(metaAnnotationType))
+                .collect(Collectors.toCollection(ArrayList::new));
         return constraints;
     }
 

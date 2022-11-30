@@ -86,7 +86,7 @@ public class KafkaClusterConfig {
 
             var externalListenerTransport = saslMechanism == null ? "PLAINTEXT" : "SASL_PLAINTEXT";
 
-            var protocolMap = new TreeMap<>();
+            var protocolMap = new TreeMap<String, String>();
             var listeners = new TreeMap<>();
             var advertisedListeners = new TreeMap<>();
             protocolMap.put("EXTERNAL", externalListenerTransport);
