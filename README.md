@@ -54,7 +54,7 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 
 When multiple constraints are provided they will _all_ be satisfied.
 
-The cluster that will be provisioned using the fastest available mechanism, because your development inner loop is a precious thing.
+The cluster will be provisioned using the fastest available mechanism, because your development inner loop is a precious thing.
 
 ## Provisioning mechanisms
 
@@ -65,8 +65,6 @@ The following provisioning mechanisms are currently supported:
 
 Which kind of cluster is chosen depends on the requirements of your test.
 For example, using containers allows to easily test against different broker versions. 
-
-Other provisioning mechanisms will be added in the future (e.g. provisioning a cluster within Kubernetes using [Strimzi](https://strimzi.io/)).
 
 ## Template tests
 
@@ -192,3 +190,9 @@ This will produce tests as follows:
 * 1 broker, KRaft-based
 * 3 brokers, KRaft-based
 * 3 brokers, ZK-based
+
+## Custom cluster provisioning and constraints
+
+Provisioning mechanisms can be provided externally by implementing `io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy` and declaring it as a [Java service](https://www.baeldung.com/java-spi) (e.g. in a  `META-INF/services/io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy` file that is available on the test-time classpath).
+
+You can also provide your own constraint annotation types by annotating them with the `@io.kroxylicious.testing.kafka.api.KafkaClusterConstraint` meta-annotation. Such custom constraint annotations will only be understood by your custom provisioning strategy, so the in-JVM and testcontainers-based clusters provided by this project then can't be used.
