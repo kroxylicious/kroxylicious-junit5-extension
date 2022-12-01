@@ -6,8 +6,10 @@
 package io.kroxylicious.testing.kafka.common;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,7 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.junit.jupiter.api.TestInfo;
 
+import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
 import lombok.Builder;
 import lombok.Getter;
@@ -73,6 +76,45 @@ public class KafkaClusterConfig {
 
     @Singular
     private final Map<String, String> brokerConfigs;
+
+    public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
+        System.Logger logger = System.getLogger(KafkaClusterProvisioningStrategy.class.getName());
+        var builder = builder();
+        builder.brokersNum(1);
+        for (Annotation annotation : annotations) {
+            if (annotation instanceof BrokerCluster) {
+                builder.brokersNum(((BrokerCluster) annotation).numBrokers());
+            }
+            if (annotation instanceof KRaftCluster) {
+                builder.kraftMode(true);
+                builder.kraftControllers(((KRaftCluster) annotation).numControllers());
+            }
+            if (annotation instanceof ZooKeeperCluster) {
+                builder.kraftMode(false);
+            }
+            if (annotation instanceof SaslPlainAuth) {
+                builder.saslMechanism("PLAIN");
+                builder.securityProtocol("SASL_PLAINTEXT");
+                builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
+                        .collect(Collectors.toMap(
+                                SaslPlainAuth.UserPassword::user,
+                                SaslPlainAuth.UserPassword::password)));
+            }
+            if (annotation instanceof ClusterId) {
+                builder.kafkaKraftClusterId(((ClusterId) annotation).value());
+            }
+            if (annotation instanceof BrokerConfig.List) {
+                for (var config : ((BrokerConfig.List) annotation).value()) {
+                    builder.brokerConfig(config.name(), config.value());
+                }
+            }
+            else if (annotation instanceof BrokerConfig) {
+                builder.brokerConfig(((BrokerConfig) annotation).name(), ((BrokerConfig) annotation).value());
+            }
+        }
+        KafkaClusterConfig clusterConfig = builder.build();
+        return clusterConfig;
+    }
 
     public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier, Supplier<Endpoint> zookeeperEndpointSupplier) {
         List<ConfigHolder> properties = new ArrayList<>();

@@ -17,7 +17,22 @@ import java.lang.annotation.Target;
  * to provide a list of constraint lists over which the test will parameterized.
  * The annotation should be used on a {@code KafkaCluster}-typed parameter of a
  * {@code TestTemplate}-annotated method.
- * The referenced method much be {@code static} and package- or {@code public}ly-accessible.
+ * The referenced method must be {@code static} and package- or {@code public}ly-accessible.
+ *
+ * <p>For example</p>
+ * <pre>{@code
+ * static Stream<List<Annotation>> clusters() {
+ *     return Stream.of(
+ *         List.of(ConstraintUtils.brokerCluster(1), ConstraintUtils.kraftCluster(1)),
+ *         List.of(ConstraintUtils.brokerCluster(3), ConstraintUtils.kraftCluster(1)),
+ *         List.of(ConstraintUtils.brokerCluster(3), ConstraintUtils.zooKeeperCluster()));
+ * }
+ *
+ * @TestTemplate
+ * void matrixTest(@ConstraintMethodSource("clusters") KafkaCluster cluster) {
+ *     // ....
+ * }
+ * </pre>
  *
  * <p>If you want to execute a tests for each of the Cartesian product
  * of a number of dimensions you might find {@link DimensionMethodSource @DimensionMethodSource}

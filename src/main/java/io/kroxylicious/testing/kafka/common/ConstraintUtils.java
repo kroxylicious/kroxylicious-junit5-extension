@@ -13,6 +13,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Functions for creating constraint instances without reflecting on annotated members.
+ */
 public class ConstraintUtils {
     private ConstraintUtils() {
 

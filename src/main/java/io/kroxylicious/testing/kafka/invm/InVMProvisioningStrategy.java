@@ -42,7 +42,7 @@ public class InVMProvisioningStrategy implements KafkaClusterProvisioningStrateg
 
     @Override
     public KafkaCluster create(List<Annotation> annotationList, Class<? extends KafkaCluster> declarationType) {
-        KafkaClusterConfig config = KafkaClusterProvisioningStrategy.kafkaClusterConfig(annotationList);
+        KafkaClusterConfig config = KafkaClusterConfig.fromConstraints(annotationList);
         return new InVMKafkaCluster(config);
     }
 

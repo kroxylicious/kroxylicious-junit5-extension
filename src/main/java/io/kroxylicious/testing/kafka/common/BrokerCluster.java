@@ -12,7 +12,6 @@ import java.lang.annotation.Target;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
-import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
 
 /**
  * {@code @BrokerCluster} can be used to annotate a field in a test class or a
@@ -70,8 +69,6 @@ import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
  *     }
  * }
  * }</pre>
- *
- * @see KafkaClusterExtension
  */
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
