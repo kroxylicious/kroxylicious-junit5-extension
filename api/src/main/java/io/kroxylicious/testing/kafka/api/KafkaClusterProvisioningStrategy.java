@@ -8,30 +8,40 @@ package io.kroxylicious.testing.kafka.api;
 import java.lang.annotation.Annotation;
 import java.util.List;
 
+/**
+ * Service interface for provisioning.
+ */
 public interface KafkaClusterProvisioningStrategy {
 
-    // This implies that the extension knows how to create a config from the annotations
-    // which implies hard-coded annotations
-    // We actually need to know:
-    // a. Which annotations are constraints (meta-annotation)
-    // b. Find all provisioning strategies which support all the annotations on the decl
-    // c. Filter for decl type
-    // d. Move the creation of config from annotations into the strategy
+    /**
+     * @param constraint A {@link KafkaClusterConstraint}-annotated constraint annotation.
+     * @return Whether this provisioning strategy supports/understands the given {@code constraint}.
+     */
     boolean supportsAnnotation(Annotation constraint);
-    // TODO this ^^ doesn't cope with the possibility that it's the combination of
-    // constraints that's the problem
-    // But having a per-constraint method is helpful for debugging
-    // why a provisioner got ruled out
-    // To fix that create() should be allowed to throw or otherwise express the inability
-    // to actually consume the whole config.
 
+    /**
+     * @param declarationType The specific subtype of {@link KafkaCluster}
+     * @return Whether this provisioning strategy supports creating instances that
+     * are a subclass of the given {@code declarationType}.
+     */
     boolean supportsType(Class<? extends KafkaCluster> declarationType);
 
-    KafkaCluster create(List<Annotation> sourceElement,
-                        Class<? extends KafkaCluster> declarationType);
-
-    // TODO logically the time depends on the configuration
-    float estimatedProvisioningTimeMs(List<Annotation> sourceElement,
+    /**
+     * Estminate the time it would take to provision a cluster with the given configuration.
+     * @param constraints The {@link KafkaClusterConstraint}-annotated constraint annotations
+     * @param declarationType The specific subtype of {@link KafkaCluster} to be created.
+     * @return The estimated provisioning time (including the time taken for {@link KafkaCluster#start()}.
+     */
+    float estimatedProvisioningTimeMs(List<Annotation> constraints,
                                       Class<? extends KafkaCluster> declarationType);
+
+    /**
+     * Create a {@link KafkaCluster} instance with the given configuration.
+     * @param constraints The constraints.
+     * @param declarationType The subtype.
+     * @return The created instance.
+     */
+    KafkaCluster create(List<Annotation> constraints,
+                        Class<? extends KafkaCluster> declarationType);
 
 }

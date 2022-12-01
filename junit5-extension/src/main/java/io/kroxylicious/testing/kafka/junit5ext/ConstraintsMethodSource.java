@@ -32,7 +32,7 @@ import java.lang.annotation.Target;
  * void matrixTest(@ConstraintMethodSource("clusters") KafkaCluster cluster) {
  *     // ....
  * }
- * </pre>
+ * }</pre>
  *
  * <p>If you want to execute a tests for each of the Cartesian product
  * of a number of dimensions you might find {@link DimensionMethodSource @DimensionMethodSource}

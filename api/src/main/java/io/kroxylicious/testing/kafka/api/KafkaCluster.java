@@ -8,6 +8,14 @@ package io.kroxylicious.testing.kafka.api;
 
 import java.util.Map;
 
+/**
+ * A KafkaCluster, from which is it possible to create/connect clients.
+ * Clients can be created using {@link #getKafkaClientConfiguration()} or
+ * {@link #getKafkaClientConfiguration(String, String)}.
+ *
+ * The cluster needs to be {@link #start() start}ed prior to use,
+ * and should be {@link #close() close}d after use.
+ */
 public interface KafkaCluster extends AutoCloseable {
     /**
      * starts the cluster.
@@ -33,7 +41,7 @@ public interface KafkaCluster extends AutoCloseable {
 
     /**
      * Gets the kafka configuration for making connections to this cluster as required by the
-     * {@link org.apache.kafka.clients.admin.AdminClient}, {@link org.apache.kafka.clients.producer.Producer} etc.
+     * {@code org.apache.kafka.clients.admin.AdminClient}, {@code org.apache.kafka.clients.producer.Producer} etc.
      * Details such the bootstrap and SASL configuration are provided automatically.
      * The returned map is guaranteed to be mutable and is unique to the caller.
      *
@@ -43,7 +51,7 @@ public interface KafkaCluster extends AutoCloseable {
 
     /**
      * Gets the kafka configuration for making connections to this cluster as required by the
-     * {@link org.apache.kafka.clients.admin.AdminClient}, {@link org.apache.kafka.clients.producer.Producer} etc.
+     * {@code org.apache.kafka.clients.admin.AdminClient}, {@code org.apache.kafka.clients.producer.Producer} etc.
      * Details such the bootstrap and SASL configuration are provided automatically.
      * The returned map is guaranteed to be mutable and is unique to the caller.
      *

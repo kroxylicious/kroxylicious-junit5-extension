@@ -17,7 +17,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  * {@link org.apache.kafka.clients.producer.Producer} etc.
  * when there are multiple {@code KafkaClusters} in scope.</p>
  *
- * <p><For example, consider the following declaration:
+ * <p>For example, consider the following declaration:</p>
  *
  * <pre>{@code
  * KafkaCluster clusterA;
