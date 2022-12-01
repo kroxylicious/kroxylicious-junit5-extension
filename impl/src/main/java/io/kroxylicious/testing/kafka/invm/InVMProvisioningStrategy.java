@@ -6,6 +6,7 @@
 package io.kroxylicious.testing.kafka.invm;
 
 import java.lang.annotation.Annotation;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
@@ -47,7 +48,7 @@ public class InVMProvisioningStrategy implements KafkaClusterProvisioningStrateg
     }
 
     @Override
-    public float estimatedProvisioningTimeMs(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
-        return 500;
+    public Duration estimatedProvisioningTimeMs(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
+        return Duration.ofMillis(500);
     }
 }

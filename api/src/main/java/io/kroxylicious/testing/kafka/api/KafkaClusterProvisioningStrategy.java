@@ -6,6 +6,7 @@
 package io.kroxylicious.testing.kafka.api;
 
 import java.lang.annotation.Annotation;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -32,7 +33,7 @@ public interface KafkaClusterProvisioningStrategy {
      * @param declarationType The specific subtype of {@link KafkaCluster} to be created.
      * @return The estimated provisioning time (including the time taken for {@link KafkaCluster#start()}.
      */
-    float estimatedProvisioningTimeMs(List<Annotation> constraints,
+    Duration estimatedProvisioningTimeMs(List<Annotation> constraints,
                                       Class<? extends KafkaCluster> declarationType);
 
     /**
