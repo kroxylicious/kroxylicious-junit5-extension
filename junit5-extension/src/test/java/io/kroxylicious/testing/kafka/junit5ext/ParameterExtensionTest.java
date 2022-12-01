@@ -7,6 +7,7 @@ package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
@@ -20,15 +21,19 @@ import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
+import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
+import kafka.server.KafkaConfig;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(KafkaClusterExtension.class)
 public class ParameterExtensionTest extends AbstractExtensionTest {
@@ -156,6 +161,28 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("eve", "quux")),
                 "Expect unknown user to throw");
         assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    }
+
+    @Test
+    public void tlsClusterParameter(
+                                    @Tls @BrokerCluster(numBrokers = 1) KafkaCluster cluster,
+                                    Admin admin)
+            throws ExecutionException, InterruptedException {
+        String bootstrapServer = cluster.getBootstrapServers();
+        assertFalse(bootstrapServer.contains(","), "expect a single bootstrap server");
+        var listenerPattern = Pattern.compile("(?<listenerName>[a-zA-Z]+)://" + Pattern.quote(bootstrapServer));
+        ConfigResource broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
+        Config brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
+        String advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
+        // e.g. advertisedListener = "EXTERNAL://localhost:37565,INTERNAL://localhost:35173"
+        var matcher = listenerPattern.matcher(advertisedListener);
+        assertTrue(matcher.find(),
+                "Expected '" + advertisedListener + "' to contain a match for " + listenerPattern.pattern());
+        var listenerName = matcher.group("listenerName");
+        String protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
+        assertTrue(protocolMap.contains(listenerName + ":SSL"),
+                "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL");
+
     }
 
 }

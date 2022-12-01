@@ -7,32 +7,16 @@ package io.kroxylicious.testing.kafka.testcontainers;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
-import java.util.Set;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
-import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.common.BrokerConfig;
-import io.kroxylicious.testing.kafka.common.ClusterId;
-import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
-import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 
 public class TestcontainersProvisioningStrategy implements KafkaClusterProvisioningStrategy {
 
-    private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
-            ClusterId.class,
-            BrokerCluster.class,
-            BrokerConfig.class,
-            BrokerConfig.List.class,
-            KRaftCluster.class,
-            SaslPlainAuth.class,
-            ZooKeeperCluster.class);
-
     @Override
     public boolean supportsAnnotation(Annotation constraint) {
-        return SUPPORTED_CONSTRAINTS.contains(constraint.annotationType());
+        return KafkaClusterConfig.supportsConstraint(constraint.annotationType());
     }
 
     @Override

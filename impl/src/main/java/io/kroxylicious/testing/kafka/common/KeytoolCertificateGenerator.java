@@ -10,6 +10,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -28,8 +29,14 @@ public class KeytoolCertificateGenerator {
     private final Path certFilePath;
     private final System.Logger log = System.getLogger(KeytoolCertificateGenerator.class.getName());
 
-    public KeytoolCertificateGenerator() throws IOException {
-        Path certsDirectory = Files.createTempDirectory("kproxy");
+    public KeytoolCertificateGenerator() {
+        Path certsDirectory = null;
+        try {
+            certsDirectory = Files.createTempDirectory("kproxy");
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         certsDirectory.toFile().deleteOnExit();
         certFilePath = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.jks");
     }
