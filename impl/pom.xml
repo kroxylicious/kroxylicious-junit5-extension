@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright Kroxylicious Authors.
+
+    Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.kroxylicious</groupId>
+        <artifactId>testing-parent</artifactId>
+        <version>0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>testing-impl</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Kroxylicious Testing Impl</name>
+    <description>
+    Provides two implementations of KafkaCluster and some common constraint annotations for clusters.
+    </description>
+
+
+    <dependencies>
+        <dependency>
+            <groupId>io.kroxylicious</groupId>
+            <artifactId>testing-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka_2.13</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-server-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-log4j12</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>log4j</groupId>
+                    <artifactId>log4j</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>${lombok.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj-core.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>18.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.rnorth.duct-tape</groupId>
+            <artifactId>duct-tape</artifactId>
+            <version>1.0.8</version>
+        </dependency>
+        <dependency>
+            <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Route our use of System.Logger to log4j2 -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-jpl</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- Route Kafka an ZooKeepers use of slf4j to log4j2 -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    
+</project>

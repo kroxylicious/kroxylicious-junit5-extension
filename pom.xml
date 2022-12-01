@@ -11,10 +11,30 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.kroxylicious.test</groupId>
-    <artifactId>kafka-cluster</artifactId>
+    <groupId>io.kroxylicious</groupId>
+    <artifactId>testing-parent</artifactId>
     <version>0.1-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    <packaging>pom</packaging>
+
+    <name>Kroxylicious Testing Parent</name>
+    <description>Provisioning of Kafka clusters</description>
+    <inceptionYear>2022</inceptionYear>
+    <url>https://github.com/kroxylicious/kroxylicious-junit5-extension</url>
+
+    <licenses>
+        <license>
+            <name>Apache-2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <modules>
+        <module>api</module>
+        <module>impl</module>
+        <module>junit5-extension</module>
+        <module>integration-test</module>
+    </modules>
 
     <properties>
         <java.version>11</java.version>
@@ -37,19 +57,6 @@
         <zookeeper.version>3.6.3</zookeeper.version>
         <log4j.version>2.19.0</log4j.version>
     </properties>
-
-    <name>Kroxylicious Cluster Parent</name>
-    <description>Provisioning of Kafka clusters</description>
-    <inceptionYear>2022</inceptionYear>
-    <url>https://github.com/kroxylicious</url>
-
-    <licenses>
-        <license>
-            <name>Apache-2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
 
     <dependencyManagement>
         <dependencies>
@@ -74,10 +81,6 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-        </dependencies>
-    </dependencyManagement>
-
-    <dependencies>
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
@@ -108,76 +111,8 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>kafka</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-            <version>${assertj-core.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <version>${junit.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.platform</groupId>
-            <artifactId>junit-platform-suite-engine</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.platform</groupId>
-            <artifactId>junit-platform-testkit</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains</groupId>
-            <artifactId>annotations</artifactId>
-            <version>18.0.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.rnorth.duct-tape</groupId>
-            <artifactId>duct-tape</artifactId>
-            <version>1.0.8</version>
-        </dependency>
-        <dependency>
-            <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <!-- Route our use of System.Logger to log4j2 -->
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-jpl</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <!-- Route Kafka an ZooKeepers use of slf4j to log4j2 -->
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-slf4j-impl</artifactId>
-            <scope>test</scope>
-        </dependency>
-    </dependencies>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <!-- Keep alphabetic order -->
@@ -188,14 +123,11 @@
                     <artifactId>license-maven-plugin</artifactId>
                     <version>4.1</version>
                     <configuration>
-                        <header>${project.basedir}/etc/license.txt</header>
+                        <header>${session.executionRootDirectory}/etc/license.txt</header>
                         <strictCheck>true</strictCheck>
                         <excludes>
                             <exclude>LICENSE.txt</exclude>
                             <exclude>**/.dontdelete</exclude>
-                            <!-- Need to keep original copyright for Vert.x classes -->
-                            <exclude>src/main/java/io/kroxylicious/proxy/future/**</exclude>
-                            <exclude>src/main/java/io/kroxylicious/proxy/internal/future/**</exclude>
                         </excludes>
                     </configuration>
                 </plugin>
@@ -204,7 +136,7 @@
                     <artifactId>formatter-maven-plugin</artifactId>
                     <version>2.16.0</version>
                     <configuration>
-                        <configFile>${project.basedir}/etc/eclipse-formatter-config.xml</configFile>
+                        <configFile>${session.executionRootDirectory}/etc/eclipse-formatter-config.xml</configFile>
                     </configuration>
                 </plugin>
                 <plugin>
