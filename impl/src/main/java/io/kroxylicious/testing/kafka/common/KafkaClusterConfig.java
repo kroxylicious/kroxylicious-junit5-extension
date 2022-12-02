@@ -86,6 +86,8 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslPlainAuth.class,
+            User.class,
+            User.List.class,
             ZooKeeperCluster.class);
 
     public static boolean supportsConstraint(Class<? extends Annotation> annotation) {
@@ -116,10 +118,14 @@ public class KafkaClusterConfig {
             if (annotation instanceof SaslPlainAuth) {
                 builder.saslMechanism("PLAIN");
                 sasl = true;
-                builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
-                        .collect(Collectors.toMap(
-                                SaslPlainAuth.UserPassword::user,
-                                SaslPlainAuth.UserPassword::password)));
+            }
+            if (annotation instanceof User) {
+                builder.user(((User) annotation).user(), ((User) annotation).password());
+            }
+            if (annotation instanceof User.List) {
+                Arrays.stream(((User.List) annotation).value()).forEach(user -> {
+                    builder.user(user.user(), user.password());
+                });
             }
             if (annotation instanceof ClusterId) {
                 builder.kafkaKraftClusterId(((ClusterId) annotation).value());

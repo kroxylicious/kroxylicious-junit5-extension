@@ -22,6 +22,7 @@ import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
+import io.kroxylicious.testing.kafka.common.User;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import kafka.server.KafkaConfig;
@@ -141,11 +142,25 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    public void saslPlainAuthenticatingClusterParameter(
-                                                        @BrokerCluster @SaslPlainAuth({
-                                                                @SaslPlainAuth.UserPassword(user = "alice", password = "foo"),
-                                                                @SaslPlainAuth.UserPassword(user = "bob", password = "bar")
-                                                        }) KafkaCluster cluster)
+    public void saslPlainAuthenticatingClusterParameterOneUser(
+                                                               @BrokerCluster @SaslPlainAuth @User(user = "alice", password = "foo") KafkaCluster cluster)
+            throws ExecutionException, InterruptedException {
+        var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
+        assertEquals(1, dc.nodes().get().size());
+        assertEquals(cluster.getClusterId(), dc.clusterId().get());
+
+        var ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("alice", "FOO")),
+                "Expect bad password to throw");
+        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+
+        ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("eve", "quux")),
+                "Expect unknown user to throw");
+        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    }
+
+    @Test
+    public void saslPlainAuthenticatingClusterParameterTwoUsers(
+                                                                @BrokerCluster @SaslPlainAuth @User(user = "alice", password = "foo") @User(user = "bob", password = "bar") KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
         var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
         assertEquals(1, dc.nodes().get().size());
