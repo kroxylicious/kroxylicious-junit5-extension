@@ -6,6 +6,7 @@
 package io.kroxylicious.testing.kafka.testcontainers;
 
 import java.lang.annotation.Annotation;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
@@ -47,7 +48,7 @@ public class TestcontainersProvisioningStrategy implements KafkaClusterProvision
     }
 
     @Override
-    public float estimatedProvisioningTimeMs(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
-        return 1000;
+    public Duration estimatedProvisioningTimeMs(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
+        return Duration.ofSeconds(1);
     }
 }
