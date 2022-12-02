@@ -14,6 +14,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  * You can disambiguate the cluster using {@link Name} annotations.
  */
 public class AmbiguousKafkaClusterException extends ParameterResolutionException {
+
     public AmbiguousKafkaClusterException(String message) {
         super(message);
     }

@@ -41,13 +41,13 @@ public class TestcontainersProvisioningStrategy implements KafkaClusterProvision
     }
 
     @Override
-    public KafkaCluster create(List<Annotation> annotationList, Class<? extends KafkaCluster> declarationType) {
-        KafkaClusterConfig config = KafkaClusterConfig.fromConstraints(annotationList);
+    public KafkaCluster create(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
+        KafkaClusterConfig config = KafkaClusterConfig.fromConstraints(constraints);
         return new TestcontainersKafkaCluster(config);
     }
 
     @Override
-    public float estimatedProvisioningTimeMs(List<Annotation> annotationList, Class<? extends KafkaCluster> declarationType) {
+    public float estimatedProvisioningTimeMs(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
         return 1000;
     }
 }
