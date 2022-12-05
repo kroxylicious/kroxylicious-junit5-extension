@@ -6,26 +6,6 @@
 
 package io.kroxylicious.testing.kafka.invm;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import org.apache.kafka.common.utils.Time;
-import org.apache.zookeeper.server.ServerCnxnFactory;
-import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
-
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -34,7 +14,31 @@ import kafka.server.KafkaRaftServer;
 import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.utils.Time;
+import org.apache.zookeeper.server.ServerCnxnFactory;
+import org.apache.zookeeper.server.ZooKeeperServer;
+import org.jetbrains.annotations.NotNull;
+import org.rnorth.ducttape.unreliables.Unreliables;
 import scala.Option;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
@@ -73,8 +77,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
                 zooServer = new ZooKeeperServer(snapshotDir.toFile(), logDir.toFile(), 500);
                 zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("localhost", zookeeperPort);
-            }
-            else {
+            } else {
                 zooFactory = null;
                 zooServer = null;
                 zookeeperEndpointSupplier = null;
@@ -109,8 +112,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
             servers = clusterConfig.getBrokerConfigs(kafkaEndpointsSupplier, zookeeperEndpointSupplier).map(this::buildKafkaServer).collect(Collectors.toList());
 
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
@@ -128,8 +130,7 @@ public class InVMKafkaCluster implements KafkaCluster {
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
             StorageTool.formatCommand(System.out, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
             return new KafkaRaftServer(config, Time.SYSTEM, threadNamePrefix);
-        }
-        else {
+        } else {
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
 
         }
@@ -150,18 +151,22 @@ public class InVMKafkaCluster implements KafkaCluster {
         if (zooFactory != null) {
             try {
                 zooFactory.startup(zooServer);
-            }
-            catch (IOException e) {
+            } catch (IOException e) {
                 throw new UncheckedIOException(e);
-            }
-            catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
         }
 
         servers.stream().parallel().forEach(Server::startup);
-
+        //TODO expose timeout. Annotations? Provisioning Strategy duration?
+        final Admin admin = Admin.create(clusterConfig.getConnectConfigForCluster(getBootstrapServers()));
+        Unreliables.retryUntilTrue(10, TimeUnit.SECONDS, () -> {
+            final Collection<Node> nodeCollection = admin.describeCluster().nodes().get(1, TimeUnit.SECONDS);
+            LOGGER.log(System.Logger.Level.INFO, "described cluster: {0} and found {1} nodes", clusterConfig.clusterId(), nodeCollection.size());
+            return clusterConfig.getBrokersNum() == nodeCollection.size();
+        });
     }
 
     @Override
@@ -191,14 +196,12 @@ public class InVMKafkaCluster implements KafkaCluster {
             try {
                 servers.stream().parallel().forEach(Server::shutdown);
                 bootstraps.clear();
-            }
-            finally {
+            } finally {
                 if (zooServer != null) {
                     zooServer.shutdown(true);
                 }
             }
-        }
-        finally {
+        } finally {
             if (tempDirectory.toFile().exists()) {
                 try (var s = Files.walk(tempDirectory)
                         .sorted(Comparator.reverseOrder())

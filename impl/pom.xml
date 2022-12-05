@@ -97,7 +97,6 @@
         <dependency>
             <groupId>org.rnorth.duct-tape</groupId>
             <artifactId>duct-tape</artifactId>
-            <version>1.0.8</version>
         </dependency>
         <dependency>
             <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
