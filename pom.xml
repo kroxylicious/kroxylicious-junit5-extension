@@ -53,7 +53,7 @@
         <kafka.version>3.3.1</kafka.version>
         <testcontainers.version>1.17.6</testcontainers.version>
         <lombok.version>1.18.24</lombok.version>
-        <assertj-core.version>3.22.0</assertj-core.version>
+        <assertj-core.version>3.23.1</assertj-core.version>
         <zookeeper.version>3.6.3</zookeeper.version>
         <log4j.version>2.19.0</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
@@ -121,6 +121,11 @@
                 <groupId>org.rnorth.duct-tape</groupId>
                 <artifactId>duct-tape</artifactId>
                 <version>1.0.8</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj-core.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

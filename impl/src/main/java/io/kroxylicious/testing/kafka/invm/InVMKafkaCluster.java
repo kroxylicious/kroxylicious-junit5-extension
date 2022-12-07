@@ -39,6 +39,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
@@ -51,6 +52,7 @@ public class InVMKafkaCluster implements KafkaCluster {
     private final ZooKeeperServer zooServer;
     private final List<Server> servers;
     private final List<String> bootstraps = new ArrayList<>();
+    private final Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier;
 
     public InVMKafkaCluster(KafkaClusterConfig clusterConfig) {
         this.clusterConfig = clusterConfig;
@@ -83,7 +85,7 @@ public class InVMKafkaCluster implements KafkaCluster {
                 zookeeperEndpointSupplier = null;
             }
 
-            Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
+            kafkaEndpointsSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
                 final List<Integer> clientPorts = ports.subList(0, clusterConfig.getBrokersNum());
                 final List<Integer> interBrokerPorts = ports.subList(clusterConfig.getBrokersNum(), 2 * clusterConfig.getBrokersNum());
                 final List<Integer> controllerPorts = ports.subList(clusterConfig.getBrokersNum() * 2, ports.size());
@@ -160,13 +162,28 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
 
         servers.stream().parallel().forEach(Server::startup);
-        //TODO expose timeout. Annotations? Provisioning Strategy duration?
-        final Admin admin = Admin.create(clusterConfig.getConnectConfigForCluster(getBootstrapServers()));
-        Unreliables.retryUntilTrue(10, TimeUnit.SECONDS, () -> {
-            final Collection<Node> nodeCollection = admin.describeCluster().nodes().get(1, TimeUnit.SECONDS);
-            LOGGER.log(System.Logger.Level.INFO, "described cluster: {0} and found {1} nodes", clusterConfig.clusterId(), nodeCollection.size());
-            return clusterConfig.getBrokersNum() == nodeCollection.size();
-        });
+        final String internalBootstrap = getInternalBootstrap();
+
+        // TODO expose timeout. Annotations? Provisioning Strategy duration?
+        try (var admin = Admin.create(clusterConfig.getConnectConfigForInternalListener(internalBootstrap))) {
+            Unreliables.retryUntilTrue(10, TimeUnit.SECONDS, () -> {
+                final Collection<Node> nodeCollection = admin.describeCluster().nodes().get(1, TimeUnit.SECONDS);
+                LOGGER.log(System.Logger.Level.INFO, "described cluster: {0} and found {1} nodes in: {2}", clusterConfig.clusterId(), nodeCollection.size(),
+                        nodeCollection);
+                return clusterConfig.getBrokersNum() == nodeCollection.size();
+            });
+        }
+    }
+
+    @NotNull
+    private String getInternalBootstrap() {
+        final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints = kafkaEndpointsSupplier.get();
+        final String internalBootstrap = IntStream.range(0, clusterConfig.getBrokersNum())
+                .mapToObj(kafkaEndpoints::getInterBrokerEndpoint)
+                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::getConnect)
+                .map(KafkaClusterConfig.KafkaEndpoints.Endpoint::toString)
+                .collect(Collectors.joining(","));
+        return internalBootstrap;
     }
 
     @Override
@@ -196,12 +213,14 @@ public class InVMKafkaCluster implements KafkaCluster {
             try {
                 servers.stream().parallel().forEach(Server::shutdown);
                 bootstraps.clear();
-            } finally {
+            }
+            finally {
                 if (zooServer != null) {
                     zooServer.shutdown(true);
                 }
             }
-        } finally {
+        }
+        finally {
             if (tempDirectory.toFile().exists()) {
                 try (var s = Files.walk(tempDirectory)
                         .sorted(Comparator.reverseOrder())
