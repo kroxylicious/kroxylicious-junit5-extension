@@ -6,7 +6,9 @@
 
 package io.kroxylicious.testing.kafka.api;
 
+import java.time.Duration;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * A KafkaCluster, from which is it possible to create/connect clients.
@@ -60,4 +62,9 @@ public interface KafkaCluster extends AutoCloseable {
      * @return mutable configuration map
      */
     Map<String, Object> getKafkaClientConfiguration(String user, String password);
+
+    /**
+     *
+     */
+    assertEachBrokerDescibesCluster(Predicate<org.apache.kafka.clients.admin.DescribeClusterResult> descibeClusterResultMatcher, Duration timeout);
 }

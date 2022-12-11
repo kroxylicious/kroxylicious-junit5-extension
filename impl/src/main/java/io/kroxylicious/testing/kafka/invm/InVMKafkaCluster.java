@@ -6,26 +6,6 @@
 
 package io.kroxylicious.testing.kafka.invm;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.InetSocketAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import org.apache.kafka.common.utils.Time;
-import org.apache.zookeeper.server.ServerCnxnFactory;
-import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
-
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -34,7 +14,33 @@ import kafka.server.KafkaRaftServer;
 import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.DescribeClusterResult;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.utils.Time;
+import org.apache.zookeeper.server.ServerCnxnFactory;
+import org.apache.zookeeper.server.ZooKeeperServer;
+import org.jetbrains.annotations.NotNull;
+import org.rnorth.ducttape.unreliables.Unreliables;
 import scala.Option;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
@@ -47,6 +53,7 @@ public class InVMKafkaCluster implements KafkaCluster {
     private final ZooKeeperServer zooServer;
     private final List<Server> servers;
     private final List<String> bootstraps = new ArrayList<>();
+    private final Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier;
 
     public InVMKafkaCluster(KafkaClusterConfig clusterConfig) {
         this.clusterConfig = clusterConfig;
@@ -73,14 +80,13 @@ public class InVMKafkaCluster implements KafkaCluster {
 
                 zooServer = new ZooKeeperServer(snapshotDir.toFile(), logDir.toFile(), 500);
                 zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("localhost", zookeeperPort);
-            }
-            else {
+            } else {
                 zooFactory = null;
                 zooServer = null;
                 zookeeperEndpointSupplier = null;
             }
 
-            Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
+            kafkaEndpointsSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
                 final List<Integer> clientPorts = ports.subList(0, clusterConfig.getBrokersNum());
                 final List<Integer> interBrokerPorts = ports.subList(clusterConfig.getBrokersNum(), 2 * clusterConfig.getBrokersNum());
                 final List<Integer> controllerPorts = ports.subList(clusterConfig.getBrokersNum() * 2, ports.size());
@@ -109,8 +115,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
             servers = clusterConfig.getBrokerConfigs(kafkaEndpointsSupplier, zookeeperEndpointSupplier).map(this::buildKafkaServer).collect(Collectors.toList());
 
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
@@ -128,8 +133,7 @@ public class InVMKafkaCluster implements KafkaCluster {
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
             StorageTool.formatCommand(System.out, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
             return new KafkaRaftServer(config, Time.SYSTEM, threadNamePrefix);
-        }
-        else {
+        } else {
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
 
         }
@@ -150,11 +154,9 @@ public class InVMKafkaCluster implements KafkaCluster {
         if (zooFactory != null) {
             try {
                 zooFactory.startup(zooServer);
-            }
-            catch (IOException e) {
+            } catch (IOException e) {
                 throw new UncheckedIOException(e);
-            }
-            catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
@@ -162,6 +164,36 @@ public class InVMKafkaCluster implements KafkaCluster {
 
         servers.stream().parallel().forEach(Server::startup);
 
+        // TODO expose timeout. Annotations? Provisioning Strategy duration?
+        final Map<String, Object> connectionConfig = clusterConfig.getConnectConfigForInternalListener(getInternalBootstrap());
+        final int timeout = 10;
+        final TimeUnit timeUnit = TimeUnit.SECONDS;
+        final Integer expectedBrokerCount = clusterConfig.getBrokersNum();
+        ensureExpectedBrokerCountInCluster(connectionConfig, timeout, timeUnit, expectedBrokerCount);
+    }
+
+    public void ensureExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
+        try (var admin = Admin.create(connectionConfig)) {
+            Unreliables.retryUntilTrue(timeout, timeUnit, () -> {
+                final DescribeClusterResult describeClusterResult = admin.describeCluster();
+                final Collection<Node> nodeCollection = describeClusterResult.nodes().get(1, TimeUnit.SECONDS);
+                LOGGER.log(System.Logger.Level.INFO, "described cluster: {0} and found {1} nodes in: {2}", describeClusterResult.clusterId(),
+                        nodeCollection.size(),
+                        nodeCollection);
+                return expectedBrokerCount == nodeCollection.size();
+            });
+        }
+    }
+
+    @NotNull
+    private String getInternalBootstrap() {
+        final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints = kafkaEndpointsSupplier.get();
+        final String internalBootstrap = IntStream.range(0, clusterConfig.getBrokersNum())
+                .mapToObj(kafkaEndpoints::getInterBrokerEndpoint)
+                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::getConnect)
+                .map(KafkaClusterConfig.KafkaEndpoints.Endpoint::toString)
+                .collect(Collectors.joining(","));
+        return internalBootstrap;
     }
 
     @Override

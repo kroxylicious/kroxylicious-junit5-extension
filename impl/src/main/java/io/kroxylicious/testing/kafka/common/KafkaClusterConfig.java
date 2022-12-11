@@ -272,10 +272,16 @@ public class KafkaClusterConfig {
         }
     }
 
+    public Map<String, Object> getConnectConfigForInternalListener(String bootstrapServers) {
+        return getConnectConfigForCluster(bootstrapServers, null, null, null, null);
+    }
+
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password) {
+        return getConnectConfigForCluster(bootstrapServers, user, password, getSaslMechanism(), getSecurityProtocol());
+    }
+
+    public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password, String saslMechanism, String securityProtocol) {
         Map<String, Object> kafkaConfig = new HashMap<>();
-        String saslMechanism = getSaslMechanism();
-        String securityProtocol = getSecurityProtocol();
 
         if (securityProtocol != null) {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);

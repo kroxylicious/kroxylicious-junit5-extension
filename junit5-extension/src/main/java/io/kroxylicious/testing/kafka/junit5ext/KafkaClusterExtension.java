@@ -999,4 +999,10 @@ public class KafkaClusterExtension implements
                     + KafkaCluster.class + " but " + target + " has type " + type.getName());
         }
     }
+
+    private class Utils {
+        public void assertNodeCount() {
+
+        }
+    }
 }

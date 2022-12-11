@@ -13,6 +13,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -77,8 +78,8 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         assertEquals(1, dc1.nodes().get().size());
         assertEquals(cluster1.getClusterId(), dc1.clusterId().get());
         var dc2 = describeCluster(cluster2.getKafkaClientConfiguration());
-        assertEquals(2, dc2.nodes().get().size());
-        assertEquals(cluster2.getClusterId(), dc2.clusterId().get());
+        Assertions.assertThat(dc2.clusterId().get()).isEqualTo(cluster2.getClusterId());
+        Assertions.assertThat(dc2.nodes().get()).hasSize(2);
     }
 
     // @Name is not required here because there's no ambiguity
