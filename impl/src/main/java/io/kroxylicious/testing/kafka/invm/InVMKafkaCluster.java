@@ -15,6 +15,7 @@ import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
@@ -162,15 +163,24 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
 
         servers.stream().parallel().forEach(Server::startup);
-        final String internalBootstrap = getInternalBootstrap();
 
         // TODO expose timeout. Annotations? Provisioning Strategy duration?
-        try (var admin = Admin.create(clusterConfig.getConnectConfigForInternalListener(internalBootstrap))) {
-            Unreliables.retryUntilTrue(10, TimeUnit.SECONDS, () -> {
-                final Collection<Node> nodeCollection = admin.describeCluster().nodes().get(1, TimeUnit.SECONDS);
-                LOGGER.log(System.Logger.Level.INFO, "described cluster: {0} and found {1} nodes in: {2}", clusterConfig.clusterId(), nodeCollection.size(),
+        final Map<String, Object> connectionConfig = clusterConfig.getConnectConfigForInternalListener(getInternalBootstrap());
+        final int timeout = 10;
+        final TimeUnit timeUnit = TimeUnit.SECONDS;
+        final Integer expectedBrokerCount = clusterConfig.getBrokersNum();
+        ensureExpectedBrokerCountInCluster(connectionConfig, timeout, timeUnit, expectedBrokerCount);
+    }
+
+    public void ensureExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
+        try (var admin = Admin.create(connectionConfig)) {
+            Unreliables.retryUntilTrue(timeout, timeUnit, () -> {
+                final DescribeClusterResult describeClusterResult = admin.describeCluster();
+                final Collection<Node> nodeCollection = describeClusterResult.nodes().get(1, TimeUnit.SECONDS);
+                LOGGER.log(System.Logger.Level.INFO, "described cluster: {0} and found {1} nodes in: {2}", describeClusterResult.clusterId(),
+                        nodeCollection.size(),
                         nodeCollection);
-                return clusterConfig.getBrokersNum() == nodeCollection.size();
+                return expectedBrokerCount == nodeCollection.size();
             });
         }
     }
