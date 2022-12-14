@@ -31,6 +31,8 @@ import org.junit.jupiter.api.TestInfo;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -78,6 +80,20 @@ public class KafkaClusterTest {
             assumeTrue(cluster instanceof TestcontainersKafkaCluster, "KAFKA-14287: kraft timing out on shutdown in multinode case");
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
+        }
+    }
+
+    @TestTemplate
+    @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
+    public void kafkaTwoNodeClusterTemplate(KafkaClusterTestCase testCase) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(testCase.getBrokersNum())
+                .kraftMode(testCase.isKraftMode())
+                .kafkaVersion(testCase.getVersion())
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(testCase.getBrokersNum(), cluster);
         }
     }
 

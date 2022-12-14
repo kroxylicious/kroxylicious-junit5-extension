@@ -55,6 +55,11 @@ public class KafkaClusterConfig {
     private final Boolean kraftMode;
 
     /**
+     * Kafka version to be used for deploying kafka in container mode. i.e. 3.3.1
+     */
+    private final String kafkaVersion;
+
+    /**
      * name of SASL mechanism to be configured on kafka for the external listener, if null, anonymous communication
      * will be used.
      */
