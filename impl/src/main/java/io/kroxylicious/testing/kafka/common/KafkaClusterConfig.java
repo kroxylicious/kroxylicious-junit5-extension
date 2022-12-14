@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -82,10 +83,26 @@ public class KafkaClusterConfig {
     @Singular
     private final Map<String, String> brokerConfigs;
 
+    private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
+            ClusterId.class,
+            BrokerCluster.class,
+            BrokerConfig.class,
+            BrokerConfig.List.class,
+            KRaftCluster.class,
+            Tls.class,
+            SaslPlainAuth.class,
+            ZooKeeperCluster.class);
+
+    public static boolean supportsConstraint(Class<? extends Annotation> annotation) {
+        return SUPPORTED_CONSTRAINTS.contains(annotation);
+    }
+
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
         System.Logger logger = System.getLogger(KafkaClusterProvisioningStrategy.class.getName());
         var builder = builder();
         builder.brokersNum(1);
+        boolean sasl = false;
+        boolean tls = false;
         for (Annotation annotation : annotations) {
             if (annotation instanceof BrokerCluster) {
                 builder.brokersNum(((BrokerCluster) annotation).numBrokers());
@@ -97,9 +114,13 @@ public class KafkaClusterConfig {
             if (annotation instanceof ZooKeeperCluster) {
                 builder.kraftMode(false);
             }
+            if (annotation instanceof Tls) {
+                tls = true;
+                builder.keytoolCertificateGenerator(new KeytoolCertificateGenerator());
+            }
             if (annotation instanceof SaslPlainAuth) {
                 builder.saslMechanism("PLAIN");
-                builder.securityProtocol("SASL_PLAINTEXT");
+                sasl = true;
                 builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
                         .collect(Collectors.toMap(
                                 SaslPlainAuth.UserPassword::user,
@@ -117,6 +138,7 @@ public class KafkaClusterConfig {
                 builder.brokerConfig(((BrokerConfig) annotation).name(), ((BrokerConfig) annotation).value());
             }
         }
+        builder.securityProtocol((sasl ? "SASL_" : "") + (tls ? "SSL" : "PLAINTEXT"));
         KafkaClusterConfig clusterConfig = builder.build();
         return clusterConfig;
     }
