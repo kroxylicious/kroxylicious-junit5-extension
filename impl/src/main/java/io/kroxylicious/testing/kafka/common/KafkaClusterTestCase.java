@@ -1,9 +1,9 @@
 package io.kroxylicious.testing.kafka.common;
 
 public class KafkaClusterTestCase {
-    private String displayName;
-    private int brokersNum;
-    private boolean kraftMode;
+    private final String displayName;
+    private final int brokersNum;
+    private final boolean kraftMode;
     private String version;
 
     public KafkaClusterTestCase(String displayName, int brokersNum, boolean kraftMode, String version) {
@@ -17,23 +17,12 @@ public class KafkaClusterTestCase {
         return displayName;
     }
 
-    public void setDisplayName(String displayName) {
-        this.displayName = displayName;
-    }
     public int getBrokersNum() {
         return brokersNum;
     }
 
-    public void setBrokersNum(int brokersNum) {
-        this.brokersNum = brokersNum;
-    }
-
     public boolean isKraftMode() {
         return kraftMode;
-    }
-
-    public void setKraftMode(boolean kraftMode) {
-        this.kraftMode = kraftMode;
     }
 
     public String getVersion() {
