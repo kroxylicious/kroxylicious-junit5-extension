@@ -69,23 +69,21 @@ public class KafkaClusterTest {
         }
     }
 
-//    @Test
-//    public void kafkaTwoNodeClusterKraftMode() throws Exception {
-//        int brokersNum = 2;
-//        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-//                .testInfo(testInfo)
-//                .brokersNum(brokersNum)
-//                .kraftMode(true)
-//                .build())) {
-//            assumeTrue(cluster instanceof TestcontainersKafkaCluster, "KAFKA-14287: kraft timing out on shutdown in multinode case");
-//            cluster.start();
-//            verifyRecordRoundTrip(brokersNum, cluster);
-//        }
-//    }
+    @TestTemplate
+    @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
+    public void kafkaClusterTemplate(KafkaClusterTestCase testCase) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(testCase.isKraftMode())
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
 
     @TestTemplate
     @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
-    public void kafkaTwoNodeClusterTemplate(@Version(values = {"3.3.1", "3.2.1"}) KafkaClusterTestCase testCase) throws Exception {
+    public void kafkaTwoNodeClusterTemplate(KafkaClusterTestCase testCase) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(testCase.getBrokersNum())
@@ -97,18 +95,20 @@ public class KafkaClusterTest {
         }
     }
 
-//    @Test
-//    public void kafkaTwoNodeClusterZookeeperMode() throws Exception {
-//        int brokersNum = 2;
-//        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-//                .testInfo(testInfo)
-//                .brokersNum(brokersNum)
-//                .kraftMode(false)
-//                .build())) {
-//            cluster.start();
-//            verifyRecordRoundTrip(brokersNum, cluster);
-//        }
-//    }
+    @TestTemplate
+    @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
+    public void kafkaTwoNodeContainerClusterTemplate(@Version(values = {"3.3.1", "3.2.1"}) KafkaClusterTestCase testCase) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .execMode(KafkaClusterExecutionMode.CONTAINER)
+                .brokersNum(testCase.getBrokersNum())
+                .kraftMode(testCase.isKraftMode())
+                .kafkaVersion(testCase.getVersion())
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(testCase.getBrokersNum(), cluster);
+        }
+    }
 
     @Test
     public void kafkaClusterKraftModeWithAuth() throws Exception {
