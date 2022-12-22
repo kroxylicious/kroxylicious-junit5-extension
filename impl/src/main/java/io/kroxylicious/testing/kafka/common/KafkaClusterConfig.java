@@ -56,7 +56,7 @@ public class KafkaClusterConfig {
     private final Boolean kraftMode;
 
     /**
-     * Kafka version to be used for deploying kafka in container mode. i.e. 3.3.1
+     * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
      */
     private final String kafkaVersion;
 
