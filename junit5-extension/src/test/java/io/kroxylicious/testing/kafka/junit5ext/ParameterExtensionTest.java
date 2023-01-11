@@ -8,7 +8,6 @@ package io.kroxylicious.testing.kafka.junit5ext;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -46,7 +45,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
-        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()));
+        await().atMost(NODE_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()));
         var dc = describeCluster(cluster.getKafkaClientConfiguration());
         assertEquals(cluster.getClusterId(), dc.clusterId().get());
         assertInstanceOf(InVMKafkaCluster.class, cluster);
