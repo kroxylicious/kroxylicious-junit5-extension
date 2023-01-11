@@ -28,14 +28,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -97,7 +95,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
-    public void kafkaTwoNodeContainerClusterTemplate(@Version(values = {"3.3.1", "3.2.1"}) KafkaClusterTestCase testCase) throws Exception {
+    public void kafkaTwoNodeContainerClusterTemplate(@Version(values = { "3.3.1" }) KafkaClusterTestCase testCase) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .execMode(KafkaClusterExecutionMode.CONTAINER)

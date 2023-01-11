@@ -5,19 +5,19 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
-import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
-import org.junit.jupiter.api.extension.Extension;
-import org.junit.jupiter.api.extension.ExtensionContext;
-import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
-import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
-
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+
+import org.junit.jupiter.api.extension.AfterTestExecutionCallback;
+import org.junit.jupiter.api.extension.BeforeTestExecutionCallback;
+import org.junit.jupiter.api.extension.Extension;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 
 import static java.util.Arrays.asList;
 
@@ -43,7 +43,7 @@ public class KafkaClusterTestInvocationContextProvider implements TestTemplateIn
 
         List<TestTemplateInvocationContext> invocationContexts = new ArrayList<>();
 
-        for(String kafkaVersion : kafkaVersions) {
+        for (String kafkaVersion : kafkaVersions) {
             invocationContexts.add(kafkaClusterContext(
                     new KafkaClusterTestCase(
                             "Kraft mode for version " + kafkaVersion,
@@ -73,8 +73,7 @@ public class KafkaClusterTestInvocationContextProvider implements TestTemplateIn
                 return asList(
                         new GenericTypedParameterResolver<>(kafkaClusterTestCase),
                         (BeforeTestExecutionCallback) extensionContext -> System.out.println("BeforeTestExecutionCallback"),
-                        (AfterTestExecutionCallback) extensionContext -> System.out.println("AfterTestExecutionCallback")
-                );
+                        (AfterTestExecutionCallback) extensionContext -> System.out.println("AfterTestExecutionCallback"));
             }
         };
     }

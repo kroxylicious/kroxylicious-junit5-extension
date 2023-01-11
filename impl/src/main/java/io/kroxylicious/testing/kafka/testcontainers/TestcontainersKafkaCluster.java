@@ -63,7 +63,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
-    private final Network network = Network.newNetwork();
+    private static final Network network = Network.newNetwork();
     private final ZookeeperContainer zookeeper;
     private final Collection<KafkaContainer> brokers;
 
@@ -79,7 +79,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-//        setDefaultKafkaImage(clusterConfig.getKafkaVersion());
+        // setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
         this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
@@ -98,7 +98,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
-                    .withEnv("SERVER_ZOOKEEPER_READY_FLAG_FILE", ZOOKEEPER_READY_FLAG)
+                    // .withEnv("SERVER_ZOOKEEPER_READY_FLAG_FILE", ZOOKEEPER_READY_FLAG)
+                    .withExposedPorts(ZOOKEEPER_PORT)
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
                     .withNetworkAliases("zookeeper");
         }
@@ -127,12 +128,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             String netAlias = "broker-" + holder.getBrokerNum();
             KafkaContainer kafkaContainer = new KafkaContainer(this.kafkaImage)
                     .withName(name)
-                    .withNetwork(this.network)
+                    .withNetwork(network)
                     .withNetworkAliases(netAlias)
+                    .withExtraHost("broker-0", "127.0.0.1")
+                    .withExtraHost("zookeeper", "127.0.0.1")
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                     .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                     .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
-                    .withEnv("SERVER_CLUSTER_READY_FLAG_FILE", KAFKA_CLUSTER_READY_FLAG)
+                    // .withEnv("SERVER_CLUSTER_READY_FLAG_FILE", KAFKA_CLUSTER_READY_FLAG)
                     .withEnv("SERVER_CLUSTER_READY_NUM_BROKERS", clusterConfig.getBrokersNum().toString())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
                     .withStartupTimeout(Duration.ofMinutes(2));
@@ -147,7 +150,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     private void setDefaultKafkaImage(String kafkaVersion) {
-//        DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:" + kafkaVersion + "-SNAPSHOT");
+        // DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:" + kafkaVersion + "-SNAPSHOT");
         DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:latest-snapshot");
     }
 
@@ -180,7 +183,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         try {
             if (zookeeper != null) {
                 zookeeper.start();
-                awaitContainerReadyFlagFile(zookeeper, ZOOKEEPER_READY_FLAG);
+                // awaitContainerReadyFlagFile(zookeeper, ZOOKEEPER_READY_FLAG);
             }
             Startables.deepStart(brokers.stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
@@ -192,7 +195,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             throw new RuntimeException("startup failed or timed out", e);
         }
 
-        awaitContainerReadyFlagFile(this.brokers.iterator().next(), KAFKA_CLUSTER_READY_FLAG);
+        // awaitContainerReadyFlagFile(this.brokers.iterator().next(), KAFKA_CLUSTER_READY_FLAG);
     }
 
     @Override
