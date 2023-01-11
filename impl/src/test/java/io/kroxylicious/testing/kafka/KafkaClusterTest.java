@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.kroxylicious.testing.kafka.common;
+package io.kroxylicious.testing.kafka;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,10 +30,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
+import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -42,6 +46,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 public class KafkaClusterTest {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
+    private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
     private TestInfo testInfo;
     private KeytoolCertificateGenerator keytoolCertificateGenerator;
 
@@ -183,7 +188,7 @@ public class KafkaClusterTest {
         var message = "Hello, world!";
 
         try (var admin = KafkaAdminClient.create(cluster.getKafkaClientConfiguration())) {
-            assertEquals(expected, getActualNumberOfBrokers(admin));
+            await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(expected, getActualNumberOfBrokers(admin)));
             var rf = (short) Math.min(1, Math.max(expected, 3));
             createTopic(admin, topic, rf);
         }
