@@ -78,6 +78,5 @@ public @interface BrokerCluster {
      * @return The number of brokers in the cluster
      */
     // TODO should this be minBrokers?
-    public int numBrokers() default 1;
-
+    int numBrokers() default 1;
 }
