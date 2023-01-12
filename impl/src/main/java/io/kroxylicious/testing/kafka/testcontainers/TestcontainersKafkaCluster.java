@@ -11,6 +11,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.System.Logger.Level;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -26,8 +27,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.kafka.common.config.SslConfigs;
 import org.junit.jupiter.api.TestInfo;
-import org.rnorth.ducttape.unreliables.Unreliables;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
@@ -58,8 +59,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     // FIXME: uses container image built from https://github.com/k-wall/zookeeper-native, move the repo to a permanent location.
     private static final DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse("quay.io/k_wall/zookeeper-native:1.0.0-SNAPSHOT");
     private static final int READY_TIMEOUT_SECONDS = 120;
-    private static final String KAFKA_CLUSTER_READY_FLAG = "/tmp/kafka_cluster_ready";
-    private static final String ZOOKEEPER_READY_FLAG = "/tmp/kafka_zookeeper_ready";
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
@@ -96,7 +95,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
-                    .withEnv("SERVER_ZOOKEEPER_READY_FLAG_FILE", ZOOKEEPER_READY_FLAG)
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
                     .withNetworkAliases("zookeeper");
         }
@@ -126,15 +124,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             KafkaContainer kafkaContainer = new KafkaContainer(this.kafkaImage)
                     .withName(name)
                     .withNetwork(this.network)
-                    .withNetworkAliases(netAlias)
+                    .withNetworkAliases(netAlias);
+
+            copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
+            copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
+
+            kafkaContainer
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                     .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                     .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
-                    .withEnv("SERVER_CLUSTER_READY_FLAG_FILE", KAFKA_CLUSTER_READY_FLAG)
-                    .withEnv("SERVER_CLUSTER_READY_NUM_BROKERS", clusterConfig.getBrokersNum().toString())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
                     .withStartupTimeout(Duration.ofMinutes(2));
-
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), KAFKA_PORT);
 
             if (!this.clusterConfig.isKraftMode()) {
@@ -142,6 +142,20 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             }
             return kafkaContainer;
         }).collect(Collectors.toList());
+    }
+
+    private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
+        if (properties.get(key) != null) {
+            try {
+                var hostPath = Path.of(String.valueOf(properties.get(key)));
+                var containerPath = Path.of("/cnf", hostPath.getFileName().toString());
+                properties.put(key, containerPath.toString());
+                container.withCopyToContainer(Transferable.of(Files.readAllBytes(hostPath), 0644), containerPath.toString());
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 
     private byte[] propertiesToBytes(Properties properties) {
@@ -173,7 +187,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         try {
             if (zookeeper != null) {
                 zookeeper.start();
-                awaitContainerReadyFlagFile(zookeeper, ZOOKEEPER_READY_FLAG);
             }
             Startables.deepStart(brokers.stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
@@ -184,23 +197,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             stop();
             throw new RuntimeException("startup failed or timed out", e);
         }
-
-        awaitContainerReadyFlagFile(this.brokers.iterator().next(), KAFKA_CLUSTER_READY_FLAG);
     }
 
     @Override
     public void close() {
         this.stop();
-    }
-
-    private void awaitContainerReadyFlagFile(GenericContainer<?> container, String kafkaClusterReadyFlag) {
-        Unreliables.retryUntilTrue(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS, () -> {
-            container.execInContainer(
-                    "sh", "-c",
-                    String.format("while [ ! -f %s ]; do sleep .1; done", kafkaClusterReadyFlag));
-            LOGGER.log(Level.INFO, "Container {0} ready", container.getDockerImageName());
-            return true;
-        });
     }
 
     @Override

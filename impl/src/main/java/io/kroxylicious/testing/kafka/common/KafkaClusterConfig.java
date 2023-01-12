@@ -25,6 +25,8 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.SslConfigs;
+import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.junit.jupiter.api.TestInfo;
 
@@ -228,12 +230,13 @@ public class KafkaClusterConfig {
                 catch (GeneralSecurityException | IOException e) {
                     throw new RuntimeException(e);
                 }
-                server.put("ssl.client.auth", "required");
-                server.put("ssl.truststore.location", keytoolCertificateGenerator.getCertLocation());
-                server.put("ssl.truststore.password", keytoolCertificateGenerator.getPassword());
-                server.put("ssl.keystore.location", keytoolCertificateGenerator.getCertLocation());
-                server.put("ssl.keystore.password", keytoolCertificateGenerator.getPassword());
-                server.put("ssl.key.password", keytoolCertificateGenerator.getPassword());
+                server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+
+                server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
+                server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
+                server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
+                server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
+                server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
             }
 
             putConfig(server, "offsets.topic.replication.factor", Integer.toString(1));
@@ -281,12 +284,12 @@ public class KafkaClusterConfig {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
 
             if (securityProtocol.contains("SSL")) {
-                kafkaConfig.put("ssl.truststore.location", keytoolCertificateGenerator.getCertLocation());
-                kafkaConfig.put("ssl.truststore.password", keytoolCertificateGenerator.getPassword());
+                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
+                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
                 if (securityProtocol.equals(SecurityProtocol.SSL.name())) {
-                    kafkaConfig.put("ssl.keystore.location", keytoolCertificateGenerator.getCertLocation());
-                    kafkaConfig.put("ssl.keystore.password", keytoolCertificateGenerator.getPassword());
-                    kafkaConfig.put("ssl.key.password", keytoolCertificateGenerator.getPassword());
+                    kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
+                    kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
+                    kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
                 }
             }
         }
