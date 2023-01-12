@@ -430,7 +430,7 @@
                                 <goals>
                                     <goal>highest-basedir</goal>
                                 </goals>
-                                <phase>package</phase>
+                                <phase>initialize</phase>
                                 <configuration>
                                     <property>rootdir</property>
                                 </configuration>
