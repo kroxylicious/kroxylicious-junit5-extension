@@ -83,36 +83,36 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-clients</artifactId>
-            <version>${kafka.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka_2.13</artifactId>
-            <version>${kafka.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-server-common</artifactId>
-            <version>${kafka.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.zookeeper</groupId>
-            <artifactId>zookeeper</artifactId>
-            <version>${zookeeper.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-log4j12</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>log4j</groupId>
-                    <artifactId>log4j</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka_2.13</artifactId>
+                <version>${kafka.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-server-common</artifactId>
+                <version>${kafka.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.zookeeper</groupId>
+                <artifactId>zookeeper</artifactId>
+                <version>${zookeeper.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-log4j12</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>log4j</groupId>
+                        <artifactId>log4j</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -125,6 +125,7 @@
                     <artifactId>license-maven-plugin</artifactId>
                     <version>4.1</version>
                     <configuration>
+                        <!--suppress MavenModelInspection -->
                         <header>${session.executionRootDirectory}/etc/license.txt</header>
                         <strictCheck>true</strictCheck>
                         <excludes>
@@ -138,6 +139,7 @@
                     <artifactId>formatter-maven-plugin</artifactId>
                     <version>2.16.0</version>
                     <configuration>
+                        <!--suppress MavenModelInspection -->
                         <configFile>${session.executionRootDirectory}/etc/eclipse-formatter-config.xml</configFile>
                     </configuration>
                 </plugin>
@@ -212,6 +214,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-resources-plugin</artifactId>
                     <version>3.2.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>3.2.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -347,10 +354,10 @@
                                             <version>[${java.version},)</version>
                                         </requireJavaVersion>
                                         <requirePluginVersions>
-                                             <banLatest>true</banLatest>
-                                             <banRelease>true</banRelease>
-                                             <banSnapshots>false</banSnapshots>
-                                             <phases>clean,deploy,site</phases>
+                                            <banLatest>true</banLatest>
+                                            <banRelease>true</banRelease>
+                                            <banSnapshots>false</banSnapshots>
+                                            <phases>clean,deploy,site</phases>
                                         </requirePluginVersions>
                                     </rules>
                                 </configuration>
@@ -359,7 +366,30 @@
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sources-jar</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <includePom>true</includePom>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>javadoc-jar</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.commonjava.maven.plugins</groupId>
@@ -370,7 +400,7 @@
                                 <goals>
                                     <goal>highest-basedir</goal>
                                 </goals>
-                                <phase>initialize</phase>
+                                <phase>package</phase>
                                 <configuration>
                                     <property>rootdir</property>
                                 </configuration>
