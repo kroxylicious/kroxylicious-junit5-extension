@@ -36,27 +36,25 @@ public class KafkaClusterTestInvocationContextProvider implements TestTemplateIn
         Parameter parameter = Arrays.stream(parameters).filter(p -> KafkaClusterTestCase.class.isAssignableFrom(p.getType())).findFirst().get();
 
         Version version = Arrays.stream(parameter.getAnnotationsByType(Version.class)).findFirst().orElse(null);
-        List<String> kafkaVersions = version != null ? asList(version.values()) : asList("latest");
+        String kafkaVersion = version != null ? version.value() : "latest";
 
         boolean kraftModeOn = true;
         boolean zookeeperModeOn = false;
 
         List<TestTemplateInvocationContext> invocationContexts = new ArrayList<>();
 
-        for (String kafkaVersion : kafkaVersions) {
-            invocationContexts.add(kafkaClusterContext(
-                    new KafkaClusterTestCase(
-                            "Kraft mode for version " + kafkaVersion,
-                            2,
-                            kraftModeOn,
-                            kafkaVersion)));
-            invocationContexts.add(kafkaClusterContext(
-                    new KafkaClusterTestCase(
-                            "Zookeeper mode for version " + kafkaVersion,
-                            2,
-                            zookeeperModeOn,
-                            kafkaVersion)));
-        }
+        invocationContexts.add(kafkaClusterContext(
+                new KafkaClusterTestCase(
+                        "Kraft mode for version " + kafkaVersion,
+                        2,
+                        kraftModeOn,
+                        kafkaVersion)));
+        invocationContexts.add(kafkaClusterContext(
+                new KafkaClusterTestCase(
+                        "Zookeeper mode for version " + kafkaVersion,
+                        2,
+                        zookeeperModeOn,
+                        kafkaVersion)));
 
         return invocationContexts.stream();
     }

@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.kroxylicious.testing.kafka.common;
+package io.kroxylicious.testing.kafka;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -13,6 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
+import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
+import io.kroxylicious.testing.kafka.common.KafkaClusterTestCase;
+import io.kroxylicious.testing.kafka.common.KafkaClusterTestInvocationContextProvider;
+import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
+import io.kroxylicious.testing.kafka.common.Version;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -79,6 +86,18 @@ public class KafkaClusterTest {
         }
     }
 
+    @Test
+    public void kafkaTwoNodeClusterZookeeperMode() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(2)
+                .kraftMode(false)
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(2, cluster);
+        }
+    }
+
     @TestTemplate
     @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
     public void kafkaTwoNodeClusterTemplate(KafkaClusterTestCase testCase) throws Exception {
@@ -95,7 +114,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
-    public void kafkaTwoNodeContainerClusterTemplate(@Version(values = { "3.3.1" }) KafkaClusterTestCase testCase) throws Exception {
+    public void kafkaTwoNodeContainerClusterTemplate(@Version(value = "3.3.1") KafkaClusterTestCase testCase) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .execMode(KafkaClusterExecutionMode.CONTAINER)
