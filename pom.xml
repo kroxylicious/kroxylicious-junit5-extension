@@ -56,6 +56,12 @@
         </developer>
     </developers>
 
+    <scm>
+        <connection>scm:git:git@github.com:kroxylicious/kroxylicious-junit5-extension.git</connection>
+        <developerConnection>scm:git:git@github.com:kroxylicious/kroxylicious-junit5-extension.git</developerConnection>
+        <url>https://github.com/kroxylicious/kroxylicious-junit5-extension</url>
+    </scm>
+
     <modules>
         <module>api</module>
         <module>impl</module>
