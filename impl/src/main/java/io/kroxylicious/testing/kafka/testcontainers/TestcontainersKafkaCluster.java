@@ -11,6 +11,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.System.Logger.Level;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -26,6 +27,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.kafka.common.config.SslConfigs;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -123,15 +125,18 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             String netAlias = "broker-" + holder.getBrokerNum();
             KafkaContainer kafkaContainer = new KafkaContainer(this.kafkaImage)
                     .withName(name)
-                    .withNetwork(network)
-                    .withNetworkAliases(netAlias)
+                    .withNetwork(this.network)
+                    .withNetworkAliases(netAlias);
+
+            copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
+            copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
+
+            kafkaContainer
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                     .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                     .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
-                    .withEnv("SERVER_CLUSTER_READY_NUM_BROKERS", clusterConfig.getBrokersNum().toString())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
                     .withStartupTimeout(Duration.ofMinutes(2));
-
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), KAFKA_PORT);
 
             if (!this.clusterConfig.isKraftMode()) {
@@ -144,6 +149,20 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private void setDefaultKafkaImage(String kafkaVersion) {
         // DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:" + kafkaVersion + "-SNAPSHOT");
         DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:latest-snapshot");
+    }
+
+    private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
+        if (properties.get(key) != null) {
+            try {
+                var hostPath = Path.of(String.valueOf(properties.get(key)));
+                var containerPath = Path.of("/cnf", hostPath.getFileName().toString());
+                properties.put(key, containerPath.toString());
+                container.withCopyToContainer(Transferable.of(Files.readAllBytes(hostPath), 0644), containerPath.toString());
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 
     private byte[] propertiesToBytes(Properties properties) {
