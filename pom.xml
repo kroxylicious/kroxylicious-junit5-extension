@@ -41,6 +41,7 @@
             <email>sbarker@redhat.com</email>
             <organization>Red Hat</organization>
             <organizationUrl>https://www.redhat.com</organizationUrl>
+            <timezone>Pacific/Auckland</timezone>
         </developer>
         <developer>
             <name>Keith Wall</name>
