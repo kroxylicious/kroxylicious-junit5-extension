@@ -5,6 +5,7 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
@@ -34,17 +35,20 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 @ExtendWith(KafkaClusterExtension.class)
 public class ParameterExtensionTest extends AbstractExtensionTest {
 
+    private static final Duration NODE_TIMEOUT = Duration.ofSeconds(5);
+
     @Test
     public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
+        await().atMost(NODE_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()));
         var dc = describeCluster(cluster.getKafkaClientConfiguration());
-        assertEquals(2, dc.nodes().get().size());
         assertEquals(cluster.getClusterId(), dc.clusterId().get());
-        var cbc = assertInstanceOf(InVMKafkaCluster.class, cluster);
+        assertInstanceOf(InVMKafkaCluster.class, cluster);
     }
 
     @Test
@@ -63,8 +67,8 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
                                          Admin admin)
             throws ExecutionException, InterruptedException {
         var dc = assertSameCluster(cluster, admin);
-        assertEquals(2, dc.nodes().get().size());
-        var cbc = assertInstanceOf(InVMKafkaCluster.class, cluster);
+        await().atMost(NODE_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(admin).nodes().get().size()));
+        assertInstanceOf(InVMKafkaCluster.class, cluster);
     }
 
     @Test
@@ -74,11 +78,11 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
             throws ExecutionException, InterruptedException {
         assertNotEquals(cluster1.getClusterId(), cluster2.getClusterId());
         var dc1 = describeCluster(cluster1.getKafkaClientConfiguration());
-        assertEquals(1, dc1.nodes().get().size());
         assertEquals(cluster1.getClusterId(), dc1.clusterId().get());
+        assertEquals(1, dc1.nodes().get().size());
         var dc2 = describeCluster(cluster2.getKafkaClientConfiguration());
-        assertEquals(2, dc2.nodes().get().size());
         assertEquals(cluster2.getClusterId(), dc2.clusterId().get());
+        await().atMost(NODE_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster2.getKafkaClientConfiguration()).nodes().get().size()));
     }
 
     // @Name is not required here because there's no ambiguity
@@ -87,10 +91,8 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
                                            @BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
                                            @BrokerCluster(numBrokers = 2) KafkaCluster cluster2)
             throws ExecutionException, InterruptedException {
-        var dc1 = describeCluster(cluster1.getKafkaClientConfiguration());
-        assertEquals(1, dc1.nodes().get().size());
-        var dc2 = describeCluster(cluster2.getKafkaClientConfiguration());
-        assertEquals(2, dc2.nodes().get().size());
+        assertEquals(1, describeCluster(cluster1.getKafkaClientConfiguration()).nodes().get().size());
+        await().atMost(NODE_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster2.getKafkaClientConfiguration()).nodes().get().size()));
     }
 
     @Test
@@ -100,13 +102,11 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
                                                    @Name("B") Admin adminB,
                                                    @Name("A") Admin adminA)
             throws ExecutionException, InterruptedException {
-        var dc1 = describeCluster(clusterA.getKafkaClientConfiguration());
         assertSameCluster(clusterA, adminA);
-        assertEquals(1, dc1.nodes().get().size());
+        assertEquals(1, describeCluster(clusterA.getKafkaClientConfiguration()).nodes().get().size());
         assertEquals(1, describeCluster(adminA).nodes().get().size());
-        var dc2 = describeCluster(clusterB.getKafkaClientConfiguration());
         assertSameCluster(clusterB, adminB);
-        assertEquals(2, dc2.nodes().get().size());
+        await().atMost(NODE_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(clusterB.getKafkaClientConfiguration()).nodes().get().size()));
         assertEquals(2, describeCluster(adminB).nodes().get().size());
     }
 
