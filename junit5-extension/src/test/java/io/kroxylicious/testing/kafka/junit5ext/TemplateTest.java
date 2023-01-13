@@ -25,6 +25,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
+import io.kroxylicious.testing.kafka.common.ConstraintsMethodSource;
+import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
 
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.*;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;

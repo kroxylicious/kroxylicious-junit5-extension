@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

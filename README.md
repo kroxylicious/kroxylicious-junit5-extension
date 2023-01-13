@@ -12,7 +12,7 @@ Here's a minimal example:
 
 ```java
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
 
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -51,6 +51,7 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@KRaftCluster` will ensure a KRaft-based cluster is used. `@KRaftCluster(numControllers=3)` will use a controller quorum with 3 controllers.
 * `@ZooKeeperCluster` will ensure a ZooKeeper-based Kafka cluster (unsurprisingly this is mutually exclusive with `@KRaftCluster`)
 * `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication.
+* `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 
 When multiple constraints are provided they will _all_ be satisfied.
 
@@ -66,6 +67,15 @@ The following provisioning mechanisms are currently supported:
 Which kind of cluster is chosen depends on the requirements of your test.
 For example, using containers allows to easily test against different broker versions. 
 
+---
+**NOTE**
+
+In case you use podman for testcontainers, some tips must be taken into account:
+* `TESTCONTAINERS_RYUK_DISABLED=true` env variable shall be declared as per https://github.com/containers/podman/issues/7927#issuecomment-731525556
+* `podman-plugins` linux package shall be installed on your machine in order to communicate containers among each other.
+
+---
+
 ## Template tests
 
 You can also use test templates to execute the same test over a number of different cluster configurations. Here's an example:
@@ -76,7 +86,7 @@ import java.util.stream.Stream;
 import io.kroxylicious.testing.kafka.common.ConstraintUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.junit5ext.DimensionMethodSource;
+import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -115,7 +125,7 @@ import java.util.stream.Stream;
 
 import io.kroxylicious.testing.kafka.common.ConstraintUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.junit5ext.DimensionMethodSource;
+import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -161,7 +171,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.apache.kafka.clients.admin.Admin;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.junit5ext.ConstraintsMethodSource;
+import io.kroxylicious.testing.kafka.common.ConstraintsMethodSource;
 
 import static io.kroxylicious.junit5.constraint.ConstraintUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;

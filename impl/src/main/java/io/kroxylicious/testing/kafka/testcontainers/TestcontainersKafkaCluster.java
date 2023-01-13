@@ -53,11 +53,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     public static final int KAFKA_PORT = 9093;
     public static final int ZOOKEEPER_PORT = 2181;
 
-    // FIXME: uses container image built from https://github.com/ozangunalp/kafka-native/pull/5
-    private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/k_wall/kafka-native:1.0.0-SNAPSHOT");
-
-    // FIXME: uses container image built from https://github.com/k-wall/zookeeper-native, move the repo to a permanent location.
-    private static final DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse("quay.io/k_wall/zookeeper-native:1.0.0-SNAPSHOT");
+    private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:latest-snapshot");
+    private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse("quay.io/ogunalp/zookeeper-native:latest-snapshot");
     private static final int READY_TIMEOUT_SECONDS = 120;
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
@@ -78,7 +75,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        // setDefaultKafkaImage(clusterConfig.getKafkaVersion());
+        setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
         this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
@@ -147,8 +144,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     private void setDefaultKafkaImage(String kafkaVersion) {
-        // DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:" + kafkaVersion + "-SNAPSHOT");
-        DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:latest-snapshot");
+        DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/ogunalp/kafka-native:" + kafkaVersion + "-snapshot");
+        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse("quay.io/ogunalp/zookeeper-native:" + kafkaVersion + "-snapshot");
     }
 
     private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {

@@ -14,8 +14,11 @@ import org.junit.platform.engine.discovery.DiscoverySelectors;
 import org.junit.platform.testkit.engine.Events;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.AmbiguousKafkaClusterException;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.common.Name;
 
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.platform.testkit.engine.EngineTestKit.engine;

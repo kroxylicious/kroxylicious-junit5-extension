@@ -21,6 +21,8 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.common.Name;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
@@ -66,7 +68,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     public void clusterAndAdminParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster,
                                          Admin admin)
             throws ExecutionException, InterruptedException {
-        var dc = assertSameCluster(cluster, admin);
+        assertSameCluster(cluster, admin);
         await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(admin).nodes().get().size()));
         assertInstanceOf(InVMKafkaCluster.class, cluster);
     }

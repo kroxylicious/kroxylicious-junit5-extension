@@ -5,21 +5,15 @@
  */
 package io.kroxylicious.testing.kafka;
 
+import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.lang.annotation.Annotation;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
-import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
-import io.kroxylicious.testing.kafka.common.KafkaClusterTestCase;
-import io.kroxylicious.testing.kafka.common.KafkaClusterTestInvocationContextProvider;
-import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
-import io.kroxylicious.testing.kafka.common.Version;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -31,15 +25,31 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.testcontainers.shaded.org.apache.commons.io.FileUtils;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.ConstraintsMethodSource;
+import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
+import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
+import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
+import io.kroxylicious.testing.kafka.common.Tls;
+import io.kroxylicious.testing.kafka.common.Version;
+import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
+import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.brokerCluster;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.kraftCluster;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
@@ -53,164 +63,134 @@ public class KafkaClusterTest {
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
     private TestInfo testInfo;
     private KeytoolCertificateGenerator keytoolCertificateGenerator;
+    private static int clusterSizesIndex = 0;
 
-    @Test
-    public void kafkaClusterKraftMode() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .kraftMode(true)
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    private static Stream<Version> versions() {
+        return Stream.of(
+                version("latest")
+        // TODO: waiting for new versions support in ozangunalp repo https://github.com/ozangunalp/kafka-native/issues/21
+        // version("3.3.1"),
+        // version("3.2.1")
+        );
     }
 
-    @Test
-    public void kafkaClusterZookeeperMode() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .kraftMode(false)
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    private static Stream<BrokerCluster> clusterSizes() {
+        return Stream.of(
+                brokerCluster(1),
+                brokerCluster(2));
     }
 
-    @TestTemplate
-    @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
-    public void kafkaClusterTemplate(KafkaClusterTestCase testCase) throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .kraftMode(testCase.isKraftMode())
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    private final Object[] brokerClusters = clusterSizes().toArray();
+
+    static Stream<List<Annotation>> tuples() {
+        return Stream.of(
+                List.of(brokerCluster(1), kraftCluster(1)),
+                List.of(brokerCluster(2), kraftCluster(1)),
+                List.of(brokerCluster(1), zooKeeperCluster()),
+                List.of(brokerCluster(2), zooKeeperCluster()));
     }
 
-    @Test
-    public void kafkaTwoNodeClusterZookeeperMode() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokersNum(2)
-                .kraftMode(false)
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(2, cluster);
+    @BeforeEach
+    public void initializeIndexes() {
+        if (clusterSizesIndex == clusterSizes().count()) {
+            clusterSizesIndex = 0;
         }
     }
 
     @TestTemplate
-    @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
-    public void kafkaTwoNodeClusterTemplate(KafkaClusterTestCase testCase) throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokersNum(testCase.getBrokersNum())
-                .kraftMode(testCase.isKraftMode())
-                .kafkaVersion(testCase.getVersion())
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(testCase.getBrokersNum(), cluster);
-        }
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterTemplate(@ConstraintsMethodSource("tuples") InVMKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     @TestTemplate
-    @ExtendWith(KafkaClusterTestInvocationContextProvider.class)
-    public void kafkaTwoNodeContainerClusterTemplate(@Version(value = "3.3.1") KafkaClusterTestCase testCase) throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .execMode(KafkaClusterExecutionMode.CONTAINER)
-                .brokersNum(testCase.getBrokersNum())
-                .kraftMode(testCase.isKraftMode())
-                .kafkaVersion(testCase.getVersion())
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(testCase.getBrokersNum(), cluster);
-        }
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerKraftModeTemplate(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
-    @Test
-    public void kafkaClusterKraftModeWithAuth() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(true)
-                .testInfo(testInfo)
-                .securityProtocol("SASL_PLAINTEXT")
-                .saslMechanism("PLAIN")
-                .user("guest", "guest")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerZookeeperModeTemplate(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
-    @Test
-    public void kafkaClusterZookeeperModeWithAuth() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .kraftMode(false)
-                .securityProtocol("SASL_PLAINTEXT")
-                .saslMechanism("PLAIN")
-                .user("guest", "guest")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterWithAuth(@ConstraintsMethodSource("tuples") @SaslPlainAuth({
+            @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
+    }) InVMKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
-    @Test
-    public void kafkaClusterKraftModeSASL_SSL() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
-                .kraftMode(true)
-                .securityProtocol("SASL_SSL")
-                .saslMechanism("PLAIN")
-                .user("guest", "guest")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterSASL_SSL(@ConstraintsMethodSource("tuples") @Tls @SaslPlainAuth({
+            @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
+    }) InVMKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
-    @Test
-    public void kafkaClusterKraftModeSSL() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
-                .kraftMode(true)
-                .securityProtocol("SSL")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterSSL(@ConstraintsMethodSource("tuples") @Tls InVMKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
-    @Test
-    public void kafkaClusterZookeeperModeSASL_SSL() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
-                .kraftMode(false)
-                .securityProtocol("SASL_SSL")
-                .saslMechanism("PLAIN")
-                .user("guest", "guest")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerKraftModeWithAuth(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @SaslPlainAuth({
+            @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
+    }) TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
-    @Test
-    public void kafkaClusterZookeeperModeSSL() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
-                .kraftMode(false)
-                .securityProtocol("SSL")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerKraftModeSASL_SSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @Tls @SaslPlainAuth({
+            @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
+    }) TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
+    }
+
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerKraftModeSSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @Tls TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
+    }
+
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerZookeeperModeWithAuth(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @SaslPlainAuth({
+            @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
+    }) TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
+    }
+
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerZookeeperModeSASL_SSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @Tls @SaslPlainAuth({
+            @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
+    }) TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
+    }
+
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void kafkaClusterContainerZookeeperModeSSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @Tls TestcontainersKafkaCluster cluster)
+            throws Exception {
+        verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     private void verifyRecordRoundTrip(int expected, KafkaCluster cluster) throws Exception {
@@ -264,15 +244,13 @@ public class KafkaClusterTest {
         admin1.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
     }
 
-    @BeforeEach
-    void before(TestInfo testInfo) throws IOException {
-        this.testInfo = testInfo;
-        this.keytoolCertificateGenerator = new KeytoolCertificateGenerator();
-    }
-
-    @AfterEach
-    void after() {
-        Path filePath = Paths.get(keytoolCertificateGenerator.getCertLocation());
-        filePath.toFile().deleteOnExit();
+    @AfterAll
+    public static void cleanUp() throws IOException {
+        File deleteDirectory = new File("/tmp");
+        File[] files = deleteDirectory.listFiles((dir, name) -> name.matches("kproxy.*?"));
+        assert files != null;
+        for (File file : files) {
+            FileUtils.deleteDirectory(file);
+        }
     }
 }

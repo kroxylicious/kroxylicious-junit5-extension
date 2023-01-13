@@ -10,8 +10,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
+
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
+@KafkaClusterConstraint
 public @interface Version {
-    String value() default "latest";
+    String value();
 }
