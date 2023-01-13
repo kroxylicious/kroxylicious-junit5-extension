@@ -59,7 +59,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
-    private static final Network network = Network.newNetwork();
+    private final Network network = Network.newNetwork();
     private final ZookeeperContainer zookeeper;
     private final Collection<KafkaContainer> brokers;
 
