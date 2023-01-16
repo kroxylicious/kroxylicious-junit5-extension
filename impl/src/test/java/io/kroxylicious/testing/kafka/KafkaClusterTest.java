@@ -27,7 +27,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.shaded.org.apache.commons.io.FileUtils;
@@ -38,7 +37,6 @@ import io.kroxylicious.testing.kafka.common.ConstraintsMethodSource;
 import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
-import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.Version;
@@ -61,8 +59,6 @@ public class KafkaClusterTest {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
-    private TestInfo testInfo;
-    private KeytoolCertificateGenerator keytoolCertificateGenerator;
     private static int clusterSizesIndex = 0;
 
     private static Stream<Version> versions() {
@@ -82,7 +78,7 @@ public class KafkaClusterTest {
 
     private final Object[] brokerClusters = clusterSizes().toArray();
 
-    static Stream<List<Annotation>> tuples() {
+    static Stream<List<Annotation>> clusterSizesAndModes() {
         return Stream.of(
                 List.of(brokerCluster(1), kraftCluster(1)),
                 List.of(brokerCluster(2), kraftCluster(1)),
@@ -99,7 +95,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterTemplate(@ConstraintsMethodSource("tuples") InVMKafkaCluster cluster)
+    public void kafkaClusterTemplate(@ConstraintsMethodSource("clusterSizesAndModes") InVMKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
@@ -120,7 +116,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterWithAuth(@ConstraintsMethodSource("tuples") @SaslPlainAuth({
+    public void kafkaClusterWithAuth(@ConstraintsMethodSource("clusterSizesAndModes") @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) InVMKafkaCluster cluster)
             throws Exception {
@@ -129,7 +125,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterSASL_SSL(@ConstraintsMethodSource("tuples") @Tls @SaslPlainAuth({
+    public void kafkaClusterSASL_SSL(@ConstraintsMethodSource("clusterSizesAndModes") @Tls @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) InVMKafkaCluster cluster)
             throws Exception {
@@ -138,7 +134,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterSSL(@ConstraintsMethodSource("tuples") @Tls InVMKafkaCluster cluster)
+    public void kafkaClusterSSL(@ConstraintsMethodSource("clusterSizesAndModes") @Tls InVMKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
@@ -246,6 +242,7 @@ public class KafkaClusterTest {
 
     @AfterAll
     public static void cleanUp() throws IOException {
+        clusterSizesIndex = 0;
         File deleteDirectory = new File("/tmp");
         File[] files = deleteDirectory.listFiles((dir, name) -> name.matches("kproxy.*?"));
         assert files != null;
