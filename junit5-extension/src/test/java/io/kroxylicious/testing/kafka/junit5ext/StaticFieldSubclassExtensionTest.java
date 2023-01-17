@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -36,9 +37,11 @@ public class StaticFieldSubclassExtensionTest extends AbstractExtensionTest {
     public void testKafkaClusterStaticField()
             throws ExecutionException, InterruptedException {
         var dc = describeCluster(staticCluster.getKafkaClientConfiguration());
-        assertEquals(1, dc.nodes().get().size());
-        assertEquals(staticCluster.getClusterId(), dc.clusterId().get());
-        var cbc = assertInstanceOf(TestcontainersKafkaCluster.class, staticCluster);
+        assertAll(
+                () -> assertEquals(1, dc.nodes().get().size()),
+                () -> assertEquals(staticCluster.getClusterId(), dc.clusterId().get()),
+                () -> assertInstanceOf(TestcontainersKafkaCluster.class, staticCluster)
+        );
     }
 
     @Test
