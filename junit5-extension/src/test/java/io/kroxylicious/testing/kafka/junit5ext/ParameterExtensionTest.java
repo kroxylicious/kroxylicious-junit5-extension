@@ -46,7 +46,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()))
+        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()));
         var dc = describeCluster(cluster.getKafkaClientConfiguration());
         assertAll(
                 () -> assertEquals(cluster.getClusterId(), dc.clusterId().get()),
