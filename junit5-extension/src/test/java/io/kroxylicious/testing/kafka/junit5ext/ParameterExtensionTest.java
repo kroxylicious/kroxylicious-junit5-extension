@@ -46,9 +46,9 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
+        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()))
         var dc = describeCluster(cluster.getKafkaClientConfiguration());
         assertAll(
-                () -> await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size())),
                 () -> assertEquals(cluster.getClusterId(), dc.clusterId().get()),
                 () -> assertInstanceOf(InVMKafkaCluster.class, cluster)
         );
@@ -203,21 +203,18 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
                                     Admin admin)
             throws ExecutionException, InterruptedException {
         String bootstrapServer = cluster.getBootstrapServers();
+        assertFalse(bootstrapServer.contains(","), "expect a single bootstrap server");
         var listenerPattern = Pattern.compile("(?<listenerName>[a-zA-Z]+)://" + Pattern.quote(bootstrapServer));
         ConfigResource broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
         Config brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
         String advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
         // e.g. advertisedListener = "EXTERNAL://localhost:37565,INTERNAL://localhost:35173"
         var matcher = listenerPattern.matcher(advertisedListener);
-        var patternFound = matcher.find();
+        assertTrue(matcher.find(),
+                "Expected '" + advertisedListener + "' to contain a match for " + listenerPattern.pattern());
         var listenerName = matcher.group("listenerName");
         String protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
-        assertAll(
-                () -> assertFalse(bootstrapServer.contains(","), "expect a single bootstrap server"),
-                () -> assertTrue(patternFound,
-                        "Expected '" + advertisedListener + "' to contain a match for " + listenerPattern.pattern()),
-                () -> assertTrue(protocolMap.contains(listenerName + ":SSL"),
-                        "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL")
-        );
+        assertTrue(protocolMap.contains(listenerName + ":SSL"),
+                "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL");
     }
 }
