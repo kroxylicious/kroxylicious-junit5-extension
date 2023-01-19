@@ -230,7 +230,7 @@ public class KafkaClusterConfig {
                 catch (GeneralSecurityException | IOException e) {
                     throw new RuntimeException(e);
                 }
-                server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "requested");
 
                 server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
                 server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
