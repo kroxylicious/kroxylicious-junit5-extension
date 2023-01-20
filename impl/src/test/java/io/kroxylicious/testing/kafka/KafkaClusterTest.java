@@ -95,28 +95,28 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterTemplate(@ConstraintsMethodSource("clusterSizesAndModes") InVMKafkaCluster cluster)
+    public void kafkaClusterInVMUpAndRunning(@ConstraintsMethodSource("clusterSizesAndModes") InVMKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerKraftModeTemplate(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster TestcontainersKafkaCluster cluster)
+    public void kafkaClusterContainerUpAndRunningKraftMode(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster TestcontainersKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerZookeeperModeTemplate(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster TestcontainersKafkaCluster cluster)
+    public void kafkaClusterContainerUpAndRunningZookeeperMode(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster TestcontainersKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterWithAuth(@ConstraintsMethodSource("clusterSizesAndModes") @SaslPlainAuth({
+    public void kafkaClusterInVMUpAndRunningWithAuth(@ConstraintsMethodSource("clusterSizesAndModes") @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) InVMKafkaCluster cluster)
             throws Exception {
@@ -125,7 +125,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterSASL_SSL(@ConstraintsMethodSource("clusterSizesAndModes") @Tls @SaslPlainAuth({
+    public void kafkaClusterInVMUpAndRunningSASL_SSL(@ConstraintsMethodSource("clusterSizesAndModes") @Tls @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) InVMKafkaCluster cluster)
             throws Exception {
@@ -134,14 +134,14 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterSSL(@ConstraintsMethodSource("clusterSizesAndModes") @Tls InVMKafkaCluster cluster)
+    public void kafkaClusterInVMUpAndRunningSSL(@ConstraintsMethodSource("clusterSizesAndModes") @Tls InVMKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerKraftModeWithAuth(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @SaslPlainAuth({
+    public void kafkaClusterContainerUpAndRunningKraftModeWithAuth(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) TestcontainersKafkaCluster cluster)
             throws Exception {
@@ -150,7 +150,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerKraftModeSASL_SSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @Tls @SaslPlainAuth({
+    public void kafkaClusterContainerUpAndRunningKraftModeSASL_SSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @Tls @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) TestcontainersKafkaCluster cluster)
             throws Exception {
@@ -159,14 +159,14 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerKraftModeSSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @Tls TestcontainersKafkaCluster cluster)
+    public void kafkaClusterContainerUpAndRunningKraftModeSSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @KRaftCluster @Tls TestcontainersKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerZookeeperModeWithAuth(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @SaslPlainAuth({
+    public void kafkaClusterContainerUpAndRunningZookeeperModeWithAuth(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) TestcontainersKafkaCluster cluster)
             throws Exception {
@@ -175,7 +175,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerZookeeperModeSASL_SSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @Tls @SaslPlainAuth({
+    public void kafkaClusterContainerUpAndRunningZookeeperModeSASL_SSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @Tls @SaslPlainAuth({
             @SaslPlainAuth.UserPassword(user = "guest", password = "guest")
     }) TestcontainersKafkaCluster cluster)
             throws Exception {
@@ -184,7 +184,7 @@ public class KafkaClusterTest {
 
     @TestTemplate
     @ExtendWith(KafkaClusterExtension.class)
-    public void kafkaClusterContainerZookeeperModeSSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @Tls TestcontainersKafkaCluster cluster)
+    public void kafkaClusterContainerUpAndRunningZookeeperModeSSL(@DimensionMethodSource("versions") @DimensionMethodSource("clusterSizes") @ZooKeeperCluster @Tls TestcontainersKafkaCluster cluster)
             throws Exception {
         verifyRecordRoundTrip(((BrokerCluster) brokerClusters[clusterSizesIndex++]).numBrokers(), cluster);
     }
