@@ -25,9 +25,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
-import io.kroxylicious.testing.kafka.common.ConstraintsMethodSource;
-import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
-import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.Version;
+import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.*;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
@@ -148,6 +148,29 @@ public class TemplateTest {
                 List.of(3, 1),
                 List.of(3, -1)),
                 observedTuples);
+    }
+
+    private static Stream<Version> versions() {
+        return Stream.of(
+                version("latest")
+        // TODO: waiting for new versions support in ozangunalp repo https://github.com/ozangunalp/kafka-native/issues/21
+        // version("3.3.1"),
+        // version("3.2.1")
+        );
+    }
+
+    static Set<String> observedVersions = new HashSet<>();
+
+    @AfterAll
+    public static void checkVersions() {
+        assertEquals(Set.of("latest-snapshot"), observedVersions);
+    }
+
+    @TestTemplate
+    @ExtendWith(KafkaClusterExtension.class)
+    public void testVersions(@DimensionMethodSource("versions") @KRaftCluster TestcontainersKafkaCluster cluster)
+            throws Exception {
+        observedVersions.add(cluster.getKafkaVersion());
     }
 
 }

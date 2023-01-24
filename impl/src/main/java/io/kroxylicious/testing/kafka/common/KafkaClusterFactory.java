@@ -20,6 +20,11 @@ public class KafkaClusterFactory {
     public static final String TEST_CLUSTER_EXECUTION_MODE = "TEST_CLUSTER_EXECUTION_MODE";
 
     /**
+     * environment variable specifying the kafka version.
+     */
+    public static final String KAFKA_VERSION = "KAFKA_VERSION";
+
+    /**
      * environment variable specifying kraft mode, true or false.
      */
     public static final String TEST_CLUSTER_KRAFT_MODE = "TEST_CLUSTER_KRAFT_MODE";
@@ -41,6 +46,9 @@ public class KafkaClusterFactory {
         if (clusterConfig.getKraftMode() == null) {
             builder.kraftMode(kraftMode);
         }
+
+        var kafkaVersion = System.getenv().getOrDefault(KAFKA_VERSION, "latest");
+        builder.kafkaVersion(kafkaVersion);
 
         var actual = builder.build();
         LOGGER.log(INFO, "Test cluster : {0}", actual);

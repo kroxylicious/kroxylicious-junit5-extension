@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

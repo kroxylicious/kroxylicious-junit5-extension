@@ -179,6 +179,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 .collect(Collectors.joining(","));
     }
 
+    public String getKafkaVersion() {
+        return kafkaImage.getVersionPart();
+    }
+
     private Stream<GenericContainer<?>> allContainers() {
         return Stream.concat(
                 this.brokers.stream(),

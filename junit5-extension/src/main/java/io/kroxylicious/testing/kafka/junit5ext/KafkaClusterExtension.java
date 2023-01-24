@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.kroxylicious.testing.kafka.common;
+package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;

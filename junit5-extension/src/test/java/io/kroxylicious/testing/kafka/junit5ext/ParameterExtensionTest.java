@@ -21,8 +21,6 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
-import io.kroxylicious.testing.kafka.common.Name;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;

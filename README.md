@@ -12,7 +12,7 @@ Here's a minimal example:
 
 ```java
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterExtension;
+import io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtension;
 
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -86,7 +86,7 @@ import java.util.stream.Stream;
 import io.kroxylicious.testing.kafka.common.ConstraintUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
+import io.kroxylicious.testing.kafka.junit5ext.DimensionMethodSource;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -125,7 +125,7 @@ import java.util.stream.Stream;
 
 import io.kroxylicious.testing.kafka.common.ConstraintUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.DimensionMethodSource;
+import io.kroxylicious.testing.kafka.junit5ext.DimensionMethodSource;
 
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -171,7 +171,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.apache.kafka.clients.admin.Admin;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.ConstraintsMethodSource;
+import io.kroxylicious.testing.kafka.junit5ext.ConstraintsMethodSource;
 
 import static io.kroxylicious.junit5.constraint.ConstraintUtils;
 import static org.junit.jupiter.api.Assertions.assertEquals;
