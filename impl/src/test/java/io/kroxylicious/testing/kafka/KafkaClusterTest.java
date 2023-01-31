@@ -8,6 +8,7 @@ package io.kroxylicious.testing.kafka;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.GeneralSecurityException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +49,8 @@ public class KafkaClusterTest {
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
     private TestInfo testInfo;
-    private KeytoolCertificateGenerator keytoolCertificateGenerator;
+    private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
+    private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
 
     @Test
     public void kafkaClusterKraftMode() throws Exception {
@@ -129,9 +131,11 @@ public class KafkaClusterTest {
 
     @Test
     public void kafkaClusterKraftModeSASL_SSL() throws Exception {
+        createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
                 .kraftMode(true)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
@@ -144,9 +148,11 @@ public class KafkaClusterTest {
 
     @Test
     public void kafkaClusterKraftModeSSL() throws Exception {
+        createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
                 .kraftMode(true)
                 .securityProtocol("SSL")
                 .build())) {
@@ -157,9 +163,11 @@ public class KafkaClusterTest {
 
     @Test
     public void kafkaClusterZookeeperModeSASL_SSL() throws Exception {
+        createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
                 .kraftMode(false)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
@@ -172,9 +180,11 @@ public class KafkaClusterTest {
 
     @Test
     public void kafkaClusterZookeeperModeSSL() throws Exception {
+        createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .keytoolCertificateGenerator(keytoolCertificateGenerator)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
                 .kraftMode(false)
                 .securityProtocol("SSL")
                 .build())) {
@@ -237,12 +247,11 @@ public class KafkaClusterTest {
     @BeforeEach
     void before(TestInfo testInfo) throws IOException {
         this.testInfo = testInfo;
-        this.keytoolCertificateGenerator = new KeytoolCertificateGenerator();
+        this.brokerKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
     }
 
-    @AfterEach
-    void after() {
-        Path filePath = Paths.get(keytoolCertificateGenerator.getCertLocation());
-        filePath.toFile().deleteOnExit();
+    private void createClientCertificate() throws GeneralSecurityException, IOException {
+        this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
+        this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@redhat.com", "localhost", "KI", "Red Hat", null, null, "US");
     }
 }

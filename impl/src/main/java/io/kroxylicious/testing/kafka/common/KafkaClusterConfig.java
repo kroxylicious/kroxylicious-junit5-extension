@@ -45,7 +45,8 @@ public class KafkaClusterConfig {
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterConfig.class.getName());
 
     private TestInfo testInfo;
-    private KeytoolCertificateGenerator keytoolCertificateGenerator;
+    private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
+    private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
 
     /**
      * specifies the cluster execution mode.
@@ -113,7 +114,14 @@ public class KafkaClusterConfig {
             }
             if (annotation instanceof Tls) {
                 tls = true;
-                builder.keytoolCertificateGenerator(new KeytoolCertificateGenerator());
+                try {
+                    builder.brokerKeytoolCertificateGenerator(new KeytoolCertificateGenerator());
+                    builder.clientKeytoolCertificateGenerator(new KeytoolCertificateGenerator());
+                    builder.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@redhat.com", "localhost", "KI", "RedHat",
+                            null, null, "US");
+                } catch (IOException | GeneralSecurityException e) {
+                    throw new RuntimeException(e);
+                }
             }
             if (annotation instanceof SaslPlainAuth) {
                 builder.saslMechanism("PLAIN");
@@ -220,23 +228,27 @@ public class KafkaClusterConfig {
             }
 
             if (securityProtocol != null && securityProtocol.contains("SSL")) {
-                if (keytoolCertificateGenerator == null) {
-                    throw new RuntimeException("keytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
+                if (brokerKeytoolCertificateGenerator == null) {
+                    throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
+                }
+                if (clientKeytoolCertificateGenerator == null) {
+                    throw new RuntimeException("clientKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
                 }
                 try {
-                    keytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@redhat.com", clientEndpoint.getConnect().getHost(), "KI", "RedHat", null, null,
+                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@redhat.com", clientEndpoint.getConnect().getHost(), "KI", "RedHat", null, null,
                             "US");
+                    brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCaCertFilePath(), clientEndpoint.getConnect().getHost());
                 }
                 catch (GeneralSecurityException | IOException e) {
                     throw new RuntimeException(e);
                 }
-                server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "requested");
+                server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
 
-                server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
-                server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
-                server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
-                server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
-                server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
+                server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreLocation());
+                server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
+                server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getKeyStoreLocation());
+                server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
+                server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
             }
 
             putConfig(server, "offsets.topic.replication.factor", Integer.toString(1));
@@ -284,12 +296,18 @@ public class KafkaClusterConfig {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
 
             if (securityProtocol.contains("SSL")) {
-                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
-                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
+                try {
+                    clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCaCertFilePath(), "localhost");
+                }
+                catch (GeneralSecurityException | IOException e) {
+                    throw new RuntimeException(e);
+                }
+                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getTrustStoreLocation());
+                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
                 if (securityProtocol.equals(SecurityProtocol.SSL.name())) {
-                    kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, keytoolCertificateGenerator.getCertLocation());
-                    kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
-                    kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keytoolCertificateGenerator.getPassword());
+                    kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
+                    kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
+                    kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
                 }
             }
         }
