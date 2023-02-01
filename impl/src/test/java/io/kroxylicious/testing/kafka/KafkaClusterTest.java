@@ -193,6 +193,34 @@ public class KafkaClusterTest {
         }
     }
 
+    @Test
+    public void kafkaClusterKraftModeClientNoAuthServerSSL() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
+                .kraftMode(true)
+                .securityProtocol("SSL")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterZookeeperModeClientNoAuthServerSSL() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
+                .kraftMode(false)
+                .securityProtocol("SSL")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
     private void verifyRecordRoundTrip(int expected, KafkaCluster cluster) throws Exception {
         var topic = "TOPIC_1";
         var message = "Hello, world!";
@@ -248,10 +276,10 @@ public class KafkaClusterTest {
     void before(TestInfo testInfo) throws IOException {
         this.testInfo = testInfo;
         this.brokerKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
+        this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
     }
 
     private void createClientCertificate() throws GeneralSecurityException, IOException {
-        this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
         this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@redhat.com", "localhost", "KI", "Red Hat", null, null, "US");
     }
 }

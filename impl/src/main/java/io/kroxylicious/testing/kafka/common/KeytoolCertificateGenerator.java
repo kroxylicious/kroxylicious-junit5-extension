@@ -26,7 +26,7 @@ import static java.lang.System.Logger.Level.WARNING;
 
 public class KeytoolCertificateGenerator {
     private String password;
-    private final Path caCertPath;
+    private final Path certFilePath;
     private Path certsDirectory;
     private final Path keyStoreFilePath;
     private final Path trustStoreFilePath;
@@ -38,7 +38,7 @@ public class KeytoolCertificateGenerator {
 
     public KeytoolCertificateGenerator(String certFilePath, String trustStorePath) throws IOException {
         initCertsDirectory();
-        this.caCertPath = Path.of(certsDirectory.toAbsolutePath() + "/ca-cert");
+        this.certFilePath = Path.of(certsDirectory.toAbsolutePath() + "/cert-file");
         this.keyStoreFilePath = (certFilePath != null) ? Path.of(certFilePath) : Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.keystore.jks");
         this.trustStoreFilePath = (trustStorePath != null) ? Path.of(trustStorePath) : Paths.get(this.certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
 
@@ -48,7 +48,7 @@ public class KeytoolCertificateGenerator {
         if(trustStorePath == null) {
             this.trustStoreFilePath.toFile().deleteOnExit();
         }
-        this.caCertPath.toFile().deleteOnExit();
+        this.certFilePath.toFile().deleteOnExit();
     }
 
     private void initCertsDirectory() {
@@ -61,8 +61,8 @@ public class KeytoolCertificateGenerator {
         certsDirectory.toFile().deleteOnExit();
     }
 
-    public String getCaCertFilePath() {
-        return caCertPath.toAbsolutePath().toString();
+    public String getCertFilePath() {
+        return certFilePath.toAbsolutePath().toString();
     }
 
     public String getKeyStoreLocation() {
@@ -86,7 +86,7 @@ public class KeytoolCertificateGenerator {
 
     public void generateTrustStore(String caCertFilePath, String alias)
             throws GeneralSecurityException, IOException {
-        //keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias bmc -file cert.crt
+        //keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
         KeyStore keyStore = KeyStore.getInstance("JKS");
         if (trustStoreFilePath.toFile().exists()) {
             keyStore.load(new FileInputStream(trustStoreFilePath.toFile()), getPassword().toCharArray());
@@ -147,7 +147,7 @@ public class KeytoolCertificateGenerator {
         commandParameters.addAll(List.of("-in", getKeyStoreLocation()));
         commandParameters.addAll(List.of("-passin", "pass:" + getPassword()));
         commandParameters.add("-nokeys");
-        commandParameters.addAll(List.of("-out", caCertPath.toAbsolutePath().toString()));
+        commandParameters.addAll(List.of("-out", certFilePath.toAbsolutePath().toString()));
         runCommand(commandParameters);
     }
 
