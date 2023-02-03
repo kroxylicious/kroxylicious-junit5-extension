@@ -52,10 +52,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     public static final int KAFKA_PORT = 9093;
     public static final int ZOOKEEPER_PORT = 2181;
-    public static final String KAFKA_IMAGE_REPO_VAR_NAME = "KAFKA_IMAGE_REPO";
-    public static final String ZOOKEEPER_IMAGE_REPO_VAR_NAME = "ZOOKEEPER_IMAGE_REPO";
-    private static String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
-    private static String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
+    private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
+    private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
     private static final int READY_TIMEOUT_SECONDS = 120;
@@ -78,8 +76,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        QUAY_KAFKA_IMAGE_REPO = System.getenv().getOrDefault(KAFKA_IMAGE_REPO_VAR_NAME, QUAY_KAFKA_IMAGE_REPO);
-        QUAY_ZOOKEEPER_IMAGE_REPO = System.getenv().getOrDefault(ZOOKEEPER_IMAGE_REPO_VAR_NAME, QUAY_ZOOKEEPER_IMAGE_REPO);
         setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);

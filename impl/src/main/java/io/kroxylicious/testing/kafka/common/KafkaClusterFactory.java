@@ -8,6 +8,7 @@ package io.kroxylicious.testing.kafka.common;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
+import org.testcontainers.utility.DockerImageName;
 
 import static java.lang.System.Logger.Level.INFO;
 
@@ -23,6 +24,16 @@ public class KafkaClusterFactory {
      * environment variable specifying the kafka version.
      */
     public static final String KAFKA_VERSION = "KAFKA_VERSION";
+
+    /**
+     * environment variable specifying the kafka image repository.
+     */
+    public static final String KAFKA_IMAGE_REPO = "KAFKA_IMAGE_REPO";
+
+    /**
+     * environment variable specifying the zookeeper image repository.
+     */
+    public static final String ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
 
     /**
      * environment variable specifying kraft mode, true or false.
@@ -57,7 +68,12 @@ public class KafkaClusterFactory {
             return new InVMKafkaCluster(actual);
         }
         else {
-            return new TestcontainersKafkaCluster(actual);
+            var kafkaImageRepo = System.getenv().get(KAFKA_IMAGE_REPO);
+            var zookeeperImageRepo = System.getenv().get(ZOOKEEPER_IMAGE_REPO);
+            DockerImageName kafkaImage = (kafkaImageRepo != null) ? DockerImageName.parse(kafkaImageRepo) : null;
+            DockerImageName zookeeperImage = (zookeeperImageRepo != null) ? DockerImageName.parse(zookeeperImageRepo) : null;
+
+            return new TestcontainersKafkaCluster(kafkaImage, zookeeperImage, actual);
         }
     }
 
