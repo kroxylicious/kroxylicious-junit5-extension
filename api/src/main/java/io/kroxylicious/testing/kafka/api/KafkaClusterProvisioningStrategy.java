@@ -34,7 +34,7 @@ public interface KafkaClusterProvisioningStrategy {
      * @return The estimated provisioning time (including the time taken for {@link KafkaCluster#start()}.
      */
     Duration estimatedProvisioningTimeMs(List<Annotation> constraints,
-                                      Class<? extends KafkaCluster> declarationType);
+                                         Class<? extends KafkaCluster> declarationType);
 
     /**
      * Create a {@link KafkaCluster} instance with the given configuration.

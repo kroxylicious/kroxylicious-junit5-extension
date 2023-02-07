@@ -62,6 +62,12 @@ public class KafkaClusterConfig {
     private final Boolean kraftMode;
 
     /**
+     * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
+     */
+    @Builder.Default
+    private String kafkaVersion = "latest";
+
+    /**
      * name of SASL mechanism to be configured on kafka for the external listener, if null, anonymous communication
      * will be used.
      */
@@ -92,7 +98,8 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslPlainAuth.class,
-            ZooKeeperCluster.class);
+            ZooKeeperCluster.class,
+            Version.class);
 
     public static boolean supportsConstraint(Class<? extends Annotation> annotation) {
         return SUPPORTED_CONSTRAINTS.contains(annotation);
@@ -134,6 +141,9 @@ public class KafkaClusterConfig {
             if (annotation instanceof ClusterId) {
                 builder.kafkaKraftClusterId(((ClusterId) annotation).value());
             }
+            if (annotation instanceof Version) {
+                builder.kafkaVersion(((Version) annotation).value());
+            }
             if (annotation instanceof BrokerConfig.List) {
                 for (var config : ((BrokerConfig.List) annotation).value()) {
                     builder.brokerConfig(config.name(), config.value());
@@ -144,8 +154,7 @@ public class KafkaClusterConfig {
             }
         }
         builder.securityProtocol((sasl ? "SASL_" : "") + (tls ? "SSL" : "PLAINTEXT"));
-        KafkaClusterConfig clusterConfig = builder.build();
-        return clusterConfig;
+        return builder.build();
     }
 
     public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier, Supplier<Endpoint> zookeeperEndpointSupplier) {

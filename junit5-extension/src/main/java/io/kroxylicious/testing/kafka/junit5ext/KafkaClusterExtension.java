@@ -740,7 +740,7 @@ public class KafkaClusterExtension implements
         // If we used generated keys A, B, C we could get this by iterating lookup from A, B until we found
         // and unused key, and using the last found
         // But if a user-chosen key collided with a generated one then this doesn't work.
-        // However users are highly unlikely to chose any given UUID
+        // However users are highly unlikely to choose any given UUID
         // so we just don't start allocating from UUID A, but somewhere random (possibly KCE instance)
         // and reject user-chosen UUIDs in a small range from there
         // This makes the lookup path simple

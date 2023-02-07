@@ -66,7 +66,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     public void clusterAndAdminParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster,
                                          Admin admin)
             throws ExecutionException, InterruptedException {
-        var dc = assertSameCluster(cluster, admin);
+        assertSameCluster(cluster, admin);
         await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(admin).nodes().get().size()));
         assertInstanceOf(InVMKafkaCluster.class, cluster);
     }

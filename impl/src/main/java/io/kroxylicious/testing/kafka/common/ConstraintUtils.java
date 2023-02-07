@@ -25,6 +25,10 @@ public class ConstraintUtils {
         return mkAnnotation(BrokerCluster.class, Map.of("numBrokers", numBrokers));
     }
 
+    public static Version version(String value) {
+        return mkAnnotation(Version.class, Map.of("value", value));
+    }
+
     public static BrokerConfig brokerConfig(String name, String value) {
         return mkAnnotation(BrokerConfig.class, Map.of("name", name, "value", value));
     }
