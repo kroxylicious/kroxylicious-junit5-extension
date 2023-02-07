@@ -130,7 +130,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeSASL_SSL() throws Exception {
+    public void kafkaClusterKraftModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -147,7 +147,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeSSL() throws Exception {
+    public void kafkaClusterKraftModeSSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -162,7 +162,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeSASL_SSL() throws Exception {
+    public void kafkaClusterZookeeperModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -179,7 +179,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeSSL() throws Exception {
+    public void kafkaClusterZookeeperModeSSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -194,11 +194,10 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeClientNoAuthServerSSL() throws Exception {
+    public void kafkaClusterKraftModeSSL_ClientNoAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
                 .kraftMode(true)
                 .securityProtocol("SSL")
                 .build())) {
@@ -208,13 +207,42 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeClientNoAuthServerSSL() throws Exception {
+    public void kafkaClusterZookeeperModeSSL_ClientNoAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
                 .kraftMode(false)
                 .securityProtocol("SSL")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterKraftModeSASL_SSL_ClientNoAuth() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .kraftMode(true)
+                .securityProtocol("SASL_SSL")
+                .saslMechanism("PLAIN")
+                .user("guest", "guest")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterZookeeperModeSASL_SSL_ClientNoAuth() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .kraftMode(false)
+                .securityProtocol("SASL_SSL")
+                .saslMechanism("PLAIN")
+                .user("guest", "guest")
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -276,10 +304,10 @@ public class KafkaClusterTest {
     void before(TestInfo testInfo) throws IOException {
         this.testInfo = testInfo;
         this.brokerKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
-        this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
     }
 
     private void createClientCertificate() throws GeneralSecurityException, IOException {
-        this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@redhat.com", "localhost", "KI", "Red Hat", null, null, "US");
+        this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
+        this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@redhat.com", "client", "KI", "Red Hat", null, null, "US");
     }
 }

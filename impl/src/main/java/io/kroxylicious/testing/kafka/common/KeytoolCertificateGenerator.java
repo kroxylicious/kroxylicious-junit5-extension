@@ -10,7 +10,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,7 +26,6 @@ import static java.lang.System.Logger.Level.WARNING;
 public class KeytoolCertificateGenerator {
     private String password;
     private final Path certFilePath;
-    private Path certsDirectory;
     private final Path keyStoreFilePath;
     private final Path trustStoreFilePath;
     private final System.Logger log = System.getLogger(KeytoolCertificateGenerator.class.getName());
@@ -37,11 +35,12 @@ public class KeytoolCertificateGenerator {
     }
 
     public KeytoolCertificateGenerator(String certFilePath, String trustStorePath) throws IOException {
-        initCertsDirectory();
+        Path certsDirectory = Files.createTempDirectory("kproxy");
         this.certFilePath = Path.of(certsDirectory.toAbsolutePath() + "/cert-file");
         this.keyStoreFilePath = (certFilePath != null) ? Path.of(certFilePath) : Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.keystore.jks");
-        this.trustStoreFilePath = (trustStorePath != null) ? Path.of(trustStorePath) : Paths.get(this.certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
+        this.trustStoreFilePath = (trustStorePath != null) ? Path.of(trustStorePath) : Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
 
+        certsDirectory.toFile().deleteOnExit();
         if(certFilePath == null) {
             this.keyStoreFilePath.toFile().deleteOnExit();
         }
@@ -49,16 +48,6 @@ public class KeytoolCertificateGenerator {
             this.trustStoreFilePath.toFile().deleteOnExit();
         }
         this.certFilePath.toFile().deleteOnExit();
-    }
-
-    private void initCertsDirectory() {
-        try {
-            this.certsDirectory = Files.createTempDirectory("kproxy");
-        }
-        catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        certsDirectory.toFile().deleteOnExit();
     }
 
     public String getCertFilePath() {
@@ -84,25 +73,29 @@ public class KeytoolCertificateGenerator {
         return Runtime.version().feature() >= 17;
     }
 
-    public void generateTrustStore(String caCertFilePath, String alias)
+    public void generateTrustStore(String certFilePath, String alias) throws GeneralSecurityException, IOException {
+        this.generateTrustStore(certFilePath, alias, getTrustStoreLocation());
+    }
+
+    public void generateTrustStore(String certFilePath, String alias, String trustStoreFilePath)
             throws GeneralSecurityException, IOException {
         //keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
         KeyStore keyStore = KeyStore.getInstance("JKS");
-        if (trustStoreFilePath.toFile().exists()) {
-            keyStore.load(new FileInputStream(trustStoreFilePath.toFile()), getPassword().toCharArray());
+        if (Path.of(trustStoreFilePath).toFile().exists()) {
+            keyStore.load(new FileInputStream(trustStoreFilePath), getPassword().toCharArray());
 
             if (keyStore.containsAlias(alias)) {
                 keyStore.deleteEntry(alias);
-                keyStore.store(new FileOutputStream(trustStoreFilePath.toFile()), getPassword().toCharArray());
+                keyStore.store(new FileOutputStream(trustStoreFilePath), getPassword().toCharArray());
             }
         }
 
         final List<String> commandParameters = new ArrayList<>(List.of("keytool", "-import", "-trustcacerts"));
-        commandParameters.addAll(List.of("-keystore", getTrustStoreLocation()));
+        commandParameters.addAll(List.of("-keystore", trustStoreFilePath));
         commandParameters.addAll(List.of("-storepass", getPassword()));
         commandParameters.add("-noprompt");
         commandParameters.addAll(List.of("-alias", alias));
-        commandParameters.addAll(List.of("-file", caCertFilePath));
+        commandParameters.addAll(List.of("-file", certFilePath));
         runCommand(commandParameters);
     }
 
