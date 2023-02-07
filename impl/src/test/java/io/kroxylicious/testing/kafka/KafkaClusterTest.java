@@ -5,7 +5,6 @@
  */
 package io.kroxylicious.testing.kafka;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -33,10 +32,8 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
-import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 /**
@@ -49,6 +46,12 @@ public class KafkaClusterTest {
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
     private TestInfo testInfo;
     private KeytoolCertificateGenerator keytoolCertificateGenerator;
+
+    @BeforeEach
+    public void before(TestInfo testInfo) {
+        this.testInfo = testInfo;
+        this.keytoolCertificateGenerator = new KeytoolCertificateGenerator();
+    }
 
     @Test
     public void kafkaClusterKraftMode() throws Exception {
@@ -80,7 +83,6 @@ public class KafkaClusterTest {
                 .brokersNum(brokersNum)
                 .kraftMode(true)
                 .build())) {
-            assumeTrue(cluster instanceof TestcontainersKafkaCluster, "KAFKA-14287: kraft timing out on shutdown in multinode case");
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
         }
@@ -234,14 +236,8 @@ public class KafkaClusterTest {
         admin1.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
     }
 
-    @BeforeEach
-    void before(TestInfo testInfo) throws IOException {
-        this.testInfo = testInfo;
-        this.keytoolCertificateGenerator = new KeytoolCertificateGenerator();
-    }
-
     @AfterEach
-    void after() {
+    public void cleanUp() {
         Path filePath = Paths.get(keytoolCertificateGenerator.getCertLocation());
         filePath.toFile().deleteOnExit();
     }

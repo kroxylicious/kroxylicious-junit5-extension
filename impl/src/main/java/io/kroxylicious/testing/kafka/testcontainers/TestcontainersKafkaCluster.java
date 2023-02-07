@@ -52,12 +52,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     public static final int KAFKA_PORT = 9093;
     public static final int ZOOKEEPER_PORT = 2181;
-
-    // FIXME: uses container image built from https://github.com/ozangunalp/kafka-native/pull/5
-    private static final DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse("quay.io/k_wall/kafka-native:1.0.0-SNAPSHOT");
-
-    // FIXME: uses container image built from https://github.com/k-wall/zookeeper-native, move the repo to a permanent location.
-    private static final DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse("quay.io/k_wall/zookeeper-native:1.0.0-SNAPSHOT");
+    private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
+    private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
+    private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
+    private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
     private static final int READY_TIMEOUT_SECONDS = 120;
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
@@ -78,6 +76,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
+        setDefaultKafkaImage(clusterConfig.getKafkaVersion());
+
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
         this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
         this.clusterConfig = clusterConfig;
@@ -144,6 +144,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         }).collect(Collectors.toList());
     }
 
+    private void setDefaultKafkaImage(String kafkaVersion) {
+        DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":" + kafkaVersion + "-snapshot");
+        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":" + kafkaVersion + "-snapshot");
+    }
+
     private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
         if (properties.get(key) != null) {
             try {
@@ -173,6 +178,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         return brokers.stream()
                 .map(b -> String.format("localhost:%d", b.getMappedPort(KAFKA_PORT)))
                 .collect(Collectors.joining(","));
+    }
+
+    public String getKafkaVersion() {
+        return kafkaImage.getVersionPart();
     }
 
     private Stream<GenericContainer<?>> allContainers() {

@@ -47,3 +47,6 @@ jobs:
 
       - name: 'Build example service'
         run: mvn -B clean verify
+
+      - name: 'Run tests in containers'
+        run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -DfailIfNoTests=false -Dtest=KafkaClusterTest

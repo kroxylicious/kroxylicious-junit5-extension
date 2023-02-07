@@ -51,6 +51,7 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@KRaftCluster` will ensure a KRaft-based cluster is used. `@KRaftCluster(numControllers=3)` will use a controller quorum with 3 controllers.
 * `@ZooKeeperCluster` will ensure a ZooKeeper-based Kafka cluster (unsurprisingly this is mutually exclusive with `@KRaftCluster`)
 * `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication.
+* `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 
 When multiple constraints are provided they will _all_ be satisfied.
 
@@ -65,6 +66,15 @@ The following provisioning mechanisms are currently supported:
 
 Which kind of cluster is chosen depends on the requirements of your test.
 For example, using containers allows to easily test against different broker versions. 
+
+---
+**NOTE**
+
+In case you use podman for testcontainers, some tips must be taken into account:
+* `TESTCONTAINERS_RYUK_DISABLED=true` env variable shall be declared as per https://github.com/containers/podman/issues/7927#issuecomment-731525556
+* `podman-plugins` linux package shall be installed on your machine in order to communicate containers among each other.
+
+---
 
 ## Template tests
 

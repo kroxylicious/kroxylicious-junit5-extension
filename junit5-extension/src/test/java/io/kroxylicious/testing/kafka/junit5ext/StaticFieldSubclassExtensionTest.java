@@ -38,7 +38,7 @@ public class StaticFieldSubclassExtensionTest extends AbstractExtensionTest {
         var dc = describeCluster(staticCluster.getKafkaClientConfiguration());
         assertEquals(1, dc.nodes().get().size());
         assertEquals(staticCluster.getClusterId(), dc.clusterId().get());
-        var cbc = assertInstanceOf(TestcontainersKafkaCluster.class, staticCluster);
+        assertInstanceOf(TestcontainersKafkaCluster.class, staticCluster);
     }
 
     @Test
