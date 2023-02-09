@@ -10,7 +10,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,22 +26,40 @@ import static java.lang.System.Logger.Level.WARNING;
 public class KeytoolCertificateGenerator {
     private String password;
     private final Path certFilePath;
+    private final Path keyStoreFilePath;
+    private final Path trustStoreFilePath;
     private final System.Logger log = System.getLogger(KeytoolCertificateGenerator.class.getName());
 
-    public KeytoolCertificateGenerator() {
-        Path certsDirectory = null;
-        try {
-            certsDirectory = Files.createTempDirectory("kproxy");
-        }
-        catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        certsDirectory.toFile().deleteOnExit();
-        certFilePath = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.jks");
+    public KeytoolCertificateGenerator() throws IOException {
+        this(null, null);
     }
 
-    public String getCertLocation() {
+    public KeytoolCertificateGenerator(String certFilePath, String trustStorePath) throws IOException {
+        Path certsDirectory = Files.createTempDirectory("kproxy");
+        this.certFilePath = Path.of(certsDirectory.toAbsolutePath() + "/cert-file");
+        this.keyStoreFilePath = (certFilePath != null) ? Path.of(certFilePath) : Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.keystore.jks");
+        this.trustStoreFilePath = (trustStorePath != null) ? Path.of(trustStorePath) : Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
+
+        certsDirectory.toFile().deleteOnExit();
+        if(certFilePath == null) {
+            this.keyStoreFilePath.toFile().deleteOnExit();
+        }
+        if(trustStorePath == null) {
+            this.trustStoreFilePath.toFile().deleteOnExit();
+        }
+        this.certFilePath.toFile().deleteOnExit();
+    }
+
+    public String getCertFilePath() {
         return certFilePath.toAbsolutePath().toString();
+    }
+
+    public String getKeyStoreLocation() {
+        return keyStoreFilePath.toAbsolutePath().toString();
+    }
+
+    public String getTrustStoreLocation() {
+        return trustStoreFilePath.toAbsolutePath().toString();
     }
 
     public String getPassword() {
@@ -56,18 +73,44 @@ public class KeytoolCertificateGenerator {
         return Runtime.version().feature() >= 17;
     }
 
+    public void generateTrustStore(String certFilePath, String alias) throws GeneralSecurityException, IOException {
+        this.generateTrustStore(certFilePath, alias, getTrustStoreLocation());
+    }
+
+    public void generateTrustStore(String certFilePath, String alias, String trustStoreFilePath)
+            throws GeneralSecurityException, IOException {
+        //keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
+        KeyStore keyStore = KeyStore.getInstance("JKS");
+        if (Path.of(trustStoreFilePath).toFile().exists()) {
+            keyStore.load(new FileInputStream(trustStoreFilePath), getPassword().toCharArray());
+
+            if (keyStore.containsAlias(alias)) {
+                keyStore.deleteEntry(alias);
+                keyStore.store(new FileOutputStream(trustStoreFilePath), getPassword().toCharArray());
+            }
+        }
+
+        final List<String> commandParameters = new ArrayList<>(List.of("keytool", "-import", "-trustcacerts"));
+        commandParameters.addAll(List.of("-keystore", trustStoreFilePath));
+        commandParameters.addAll(List.of("-storepass", getPassword()));
+        commandParameters.add("-noprompt");
+        commandParameters.addAll(List.of("-alias", alias));
+        commandParameters.addAll(List.of("-file", certFilePath));
+        runCommand(commandParameters);
+    }
+
     public void generateSelfSignedCertificateEntry(String email, String domain, String organizationUnit,
                                                    String organization, String city, String state,
                                                    String country)
             throws GeneralSecurityException, IOException {
 
         KeyStore keyStore = KeyStore.getInstance("JKS");
-        if (certFilePath.toFile().exists()) {
-            keyStore.load(new FileInputStream(certFilePath.toFile()), getPassword().toCharArray());
+        if (keyStoreFilePath.toFile().exists()) {
+            keyStore.load(new FileInputStream(keyStoreFilePath.toFile()), getPassword().toCharArray());
 
             if (keyStore.containsAlias(domain)) {
                 keyStore.deleteEntry(domain);
-                keyStore.store(new FileOutputStream(certFilePath.toFile()), getPassword().toCharArray());
+                keyStore.store(new FileOutputStream(keyStoreFilePath.toFile()), getPassword().toCharArray());
             }
         }
 
@@ -77,17 +120,31 @@ public class KeytoolCertificateGenerator {
         commandParameters.addAll(List.of("-keysize", "2048"));
         commandParameters.addAll(List.of("-sigalg", "SHA256withRSA"));
         commandParameters.addAll(List.of("-storetype", "JKS"));
-        commandParameters.addAll(List.of("-keystore", getCertLocation()));
+        commandParameters.addAll(List.of("-keystore", getKeyStoreLocation()));
         commandParameters.addAll(List.of("-storepass", getPassword()));
         commandParameters.addAll(List.of("-keypass", getPassword()));
         commandParameters.addAll(
                 List.of("-dname", getDomainName(email, domain, organizationUnit, organization, city, state, country)));
         commandParameters.addAll(List.of("-validity", "365"));
         commandParameters.addAll(List.of("-deststoretype", "pkcs12"));
-        commandParameters.addAll(List.of("-storetype", "JKS"));
         if (canGenerateWildcardSAN() && !isWildcardDomain(domain)) {
             commandParameters.addAll(getSAN(domain));
         }
+        runCommand(commandParameters);
+
+        createCrtFileToImport();
+    }
+
+    private void createCrtFileToImport() throws IOException {
+        final List<String> commandParameters = new ArrayList<>(List.of("openssl", "pkcs12"));
+        commandParameters.addAll(List.of("-in", getKeyStoreLocation()));
+        commandParameters.addAll(List.of("-passin", "pass:" + getPassword()));
+        commandParameters.add("-nokeys");
+        commandParameters.addAll(List.of("-out", certFilePath.toAbsolutePath().toString()));
+        runCommand(commandParameters);
+    }
+
+    private void runCommand(List<String> commandParameters) throws IOException {
         ProcessBuilder keytool = new ProcessBuilder().command(commandParameters);
 
         final Process process = keytool.start();
@@ -107,7 +164,7 @@ public class KeytoolCertificateGenerator {
             final String processOutput = (new BufferedReader(new InputStreamReader(process.getInputStream()))).lines()
                     .collect(Collectors.joining(" \\ "));
             log.log(WARNING, "Error generating certificate, error output: {0}, normal output: {1}, " +
-                    "commandline parameters: {2}",
+                            "commandline parameters: {2}",
                     processError, processOutput, commandParameters);
             throw new IOException(
                     "Keytool execution error: '" + processError + "', output: '" + processOutput + "'" + ", commandline parameters: " + commandParameters);
