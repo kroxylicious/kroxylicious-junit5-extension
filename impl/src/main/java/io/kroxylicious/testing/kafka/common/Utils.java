@@ -51,27 +51,28 @@ public class Utils {
     }
 
     public static void ensureExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
-        final Admin admin = Admin.create(connectionConfig);
-        Awaitility.await()
-                .pollDelay(Duration.ZERO)
-                .pollInterval(1, TimeUnit.SECONDS)
-                .atMost(timeout, timeUnit)
-                .ignoreExceptions()
-                .until(() -> {
-                    log.info("describing cluster: {}", connectionConfig.get("bootstrap.servers"));
-                    final Collection<Node> nodes;
-                    try {
-                        nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
-                        log.info("got nodes: {}" + nodes);
-                        return nodes;
-                    }
-                    catch (InterruptedException | ExecutionException e) {
-                        log.warn("caught: {}", e.getMessage(), e);
-                    }
-                    catch (TimeoutException te) {
-                        log.warn("Kafka timed out describing the the cluster");
-                    }
-                    return Collections.emptyList();
-                }, Matchers.hasSize(expectedBrokerCount));
+        try(Admin admin = Admin.create(connectionConfig)) {
+            Awaitility.await()
+                    .pollDelay(Duration.ZERO)
+                    .pollInterval(1, TimeUnit.SECONDS)
+                    .atMost(timeout, timeUnit)
+                    .ignoreExceptions()
+                    .until(() -> {
+                        log.debug("describing cluster: {}", connectionConfig.get("bootstrap.servers"));
+                        final Collection<Node> nodes;
+                        try {
+                            nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
+                            log.debug("got nodes: {}", nodes);
+                            return nodes;
+                        }
+                        catch (InterruptedException | ExecutionException e) {
+                            log.warn("caught: {}", e.getMessage(), e);
+                        }
+                        catch (TimeoutException te) {
+                            log.warn("Kafka timed out describing the the cluster");
+                        }
+                        return Collections.emptyList();
+                    }, Matchers.hasSize(expectedBrokerCount));
+        }
     }
 }
