@@ -1,3 +1,8 @@
+/*
+ * Copyright Kroxylicious Authors.
+ *
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.kroxylicious.testing.kafka.common;
 
 import org.jetbrains.annotations.NotNull;
@@ -8,7 +13,6 @@ import org.junit.jupiter.api.TestInfo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class KafkaClusterConfigTest {
-
 
     private static final int CLIENT_BASE_PORT = 9092;
     private static final int CONTROLLER_BASE_PORT = 10092;
@@ -25,14 +29,14 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldBuildClientBootstrapAddressForSingleBroker() {
-        //Given
+        // Given
         kafkaClusterConfigBuilder.brokersNum(1);
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
-        //When
+        // When
         final String clientBootstrapServers = kafkaClusterConfig.buildClientBootstrapServers(endpointConfig);
 
-        //Then
+        // Then
         assertThat(clientBootstrapServers).doesNotContain(",");
         assertThat(clientBootstrapServers).doesNotContain("//");
         assertThat(clientBootstrapServers).contains("localhost:9092");
@@ -40,31 +44,31 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldBuildClientBootstrapAddressForCluster() {
-        //Given
+        // Given
         kafkaClusterConfigBuilder.brokersNum(3);
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
-        //When
+        // When
         final String clientBootstrapServers = kafkaClusterConfig.buildClientBootstrapServers(endpointConfig);
 
-        //Then
+        // Then
         assertThat(clientBootstrapServers).contains(",");
         assertThat(clientBootstrapServers).doesNotContain("//");
         assertThat(clientBootstrapServers).contains("localhost:9092");
         assertThat(clientBootstrapServers).contains("localhost:9093");
         assertThat(clientBootstrapServers).contains("localhost:9094");
     }
-    
+
     @Test
     void shouldBuildInterBrokerBootstrapAddressForSingleBroker() {
-        //Given
+        // Given
         kafkaClusterConfigBuilder.brokersNum(1);
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
-        //When
+        // When
         final String interBrokerBootstrapServers = kafkaClusterConfig.buildInterBrokerBootstrapServers(endpointConfig);
 
-        //Then
+        // Then
         assertThat(interBrokerBootstrapServers).doesNotContain(",");
         assertThat(interBrokerBootstrapServers).doesNotContain("//");
         assertThat(interBrokerBootstrapServers).contains("localhost:11092");
@@ -72,14 +76,14 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldBuildInterBrokerBootstrapAddressForCluster() {
-        //Given
+        // Given
         kafkaClusterConfigBuilder.brokersNum(3);
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
-        //When
+        // When
         final String interBrokerBootstrapServers = kafkaClusterConfig.buildInterBrokerBootstrapServers(endpointConfig);
 
-        //Then
+        // Then
         assertThat(interBrokerBootstrapServers).contains(",");
         assertThat(interBrokerBootstrapServers).doesNotContain("//");
         assertThat(interBrokerBootstrapServers).contains("localhost:11092");
@@ -89,14 +93,14 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldBuildControllerBootstrapAddressForSingleBroker() {
-        //Given
+        // Given
         kafkaClusterConfigBuilder.brokersNum(1);
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
-        //When
+        // When
         final String controllerBootstrapServers = kafkaClusterConfig.buildControllerBootstrapServers(endpointConfig);
 
-        //Then
+        // Then
         assertThat(controllerBootstrapServers).doesNotContain(",");
         assertThat(controllerBootstrapServers).doesNotContain("//");
         assertThat(controllerBootstrapServers).contains("localhost:10092");
@@ -104,15 +108,15 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldBuildControllerBootstrapAddressForCluster() {
-        //Given
+        // Given
 
         kafkaClusterConfigBuilder.brokersNum(3);
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
-        //When
+        // When
         final String controllerBootstrapServers = kafkaClusterConfig.buildControllerBootstrapServers(endpointConfig);
 
-        //Then
+        // Then
         assertThat(controllerBootstrapServers).contains(",");
         assertThat(controllerBootstrapServers).doesNotContain("//");
         assertThat(controllerBootstrapServers).contains("localhost:10092");

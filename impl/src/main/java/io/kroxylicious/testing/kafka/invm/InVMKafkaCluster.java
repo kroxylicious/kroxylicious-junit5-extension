@@ -6,27 +6,12 @@
 
 package io.kroxylicious.testing.kafka.invm;
 
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.Utils;
-import kafka.server.KafkaConfig;
-import kafka.server.KafkaRaftServer;
-import kafka.server.KafkaServer;
-import kafka.server.Server;
-import kafka.tools.StorageTool;
-import org.apache.kafka.common.utils.Time;
-import org.apache.zookeeper.server.ServerCnxnFactory;
-import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
-import scala.Option;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
@@ -35,6 +20,21 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import org.apache.kafka.common.utils.Time;
+import org.apache.zookeeper.server.ServerCnxnFactory;
+import org.apache.zookeeper.server.ZooKeeperServer;
+import org.jetbrains.annotations.NotNull;
+
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.Utils;
+import kafka.server.KafkaConfig;
+import kafka.server.KafkaRaftServer;
+import kafka.server.KafkaServer;
+import kafka.server.Server;
+import kafka.tools.StorageTool;
+import scala.Option;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
@@ -73,7 +73,8 @@ public class InVMKafkaCluster implements KafkaCluster {
 
                 zooServer = new ZooKeeperServer(snapshotDir.toFile(), logDir.toFile(), 500);
                 zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("localhost", zookeeperPort);
-            } else {
+            }
+            else {
                 zooFactory = null;
                 zooServer = null;
                 zookeeperEndpointSupplier = null;

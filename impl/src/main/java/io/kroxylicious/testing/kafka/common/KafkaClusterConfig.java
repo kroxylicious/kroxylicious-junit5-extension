@@ -280,6 +280,7 @@ public class KafkaClusterConfig {
             throw new RuntimeException("Cannot override broker config '" + key + "=" + value + "' with new value " + orig);
         }
     }
+
     @NotNull
     public String buildClientBootstrapServers(KafkaEndpoints endPointConfig) {
         return buildBootstrapServers(getBrokersNum(), endPointConfig::getClientEndpoint);

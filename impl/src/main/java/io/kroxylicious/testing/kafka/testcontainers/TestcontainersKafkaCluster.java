@@ -202,7 +202,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 zookeeper.start();
             }
             Startables.deepStart(brokers.stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            ensureExpectedBrokerCountInCluster(clusterConfig.getConnectConfigForCluster(getBootstrapServers()), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
+            ensureExpectedBrokerCountInCluster(clusterConfig.getConnectConfigForCluster(getBootstrapServers()), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
+                    clusterConfig.getBrokersNum());
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
