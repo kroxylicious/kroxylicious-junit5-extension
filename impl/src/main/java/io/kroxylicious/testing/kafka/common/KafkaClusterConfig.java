@@ -296,13 +296,6 @@ public class KafkaClusterConfig {
         return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getInterBrokerEndpoint);
     }
 
-    public String buildBootstrapServers(Integer numBrokers, IntFunction<KafkaEndpoints.EndpointPair> brokerEndpoint) {
-        return IntStream.range(0, numBrokers)
-                .mapToObj(brokerEndpoint)
-                .map(KafkaEndpoints.EndpointPair::connectAddress)
-                .collect(Collectors.joining(","));
-    }
-
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
         if (saslMechanism != null) {
             Map<String, String> users = getUsers();
@@ -396,6 +389,13 @@ public class KafkaClusterConfig {
 
     public String clusterId() {
         return isKraftMode() ? kafkaKraftClusterId : null;
+    }
+
+    private String buildBootstrapServers(Integer numBrokers, IntFunction<KafkaEndpoints.EndpointPair> brokerEndpoint) {
+        return IntStream.range(0, numBrokers)
+                .mapToObj(brokerEndpoint)
+                .map(KafkaEndpoints.EndpointPair::connectAddress)
+                .collect(Collectors.joining(","));
     }
 
     @Builder
