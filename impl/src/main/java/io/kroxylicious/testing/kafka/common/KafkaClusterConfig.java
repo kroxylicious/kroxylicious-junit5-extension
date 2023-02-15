@@ -181,12 +181,16 @@ public class KafkaClusterConfig {
             var advertisedListeners = new TreeMap<String, String>();
 
             protocolMap.put("EXTERNAL", externalListenerTransport);
-            listeners.put("EXTERNAL", clientEndpoint.getBind().toString());
-            advertisedListeners.put("EXTERNAL", clientEndpoint.getConnect().toString());
+            listeners.put("EXTERNAL", clientEndpoint.listenAddress());
+            advertisedListeners.put("EXTERNAL", clientEndpoint.advertisedAddress());
+
+            protocolMap.put("ANON", SecurityProtocol.PLAINTEXT.name());
+            listeners.put("ANON", anonEndpoint.listenAddress());
+            advertisedListeners.put("ANON", anonEndpoint.advertisedAddress());
 
             protocolMap.put("INTERNAL", SecurityProtocol.PLAINTEXT.name());
-            listeners.put("INTERNAL", interBrokerEndpoint.getBind().toString());
-            advertisedListeners.put("INTERNAL", interBrokerEndpoint.getConnect().toString());
+            listeners.put("INTERNAL", interBrokerEndpoint.listenAddress());
+            advertisedListeners.put("INTERNAL", interBrokerEndpoint.advertisedAddress());
             putConfig(server, "inter.broker.listener.name", "INTERNAL");
 
             if (isKraftMode()) {
@@ -194,7 +198,8 @@ public class KafkaClusterConfig {
 
                 var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
                 var quorumVoters = IntStream.range(0, kraftControllers)
-                        .mapToObj(b -> String.format("%d@%s", b, kafkaEndpoints.getControllerEndpoint(b).getConnect().toString())).collect(Collectors.joining(","));
+                        .mapToObj(b -> String.format("%d@//%s", b, kafkaEndpoints.getControllerEndpoint(b).connectAddress()))
+                        .collect(Collectors.joining(","));
                 putConfig(server, "controller.quorum.voters", quorumVoters);
                 putConfig(server, "controller.listener.names", "CONTROLLER");
                 protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
@@ -418,6 +423,13 @@ public class KafkaClusterConfig {
 
             public String connectAddress() {
                 return String.format("%s:%d", connect.host, connect.port);
+            }
+
+            public String listenAddress() {
+                return String.format("//%s:%d", bind.host, bind.port);
+            }
+            public String advertisedAddress() {
+                return String.format("//%s:%d", connect.host, connect.port);
             }
         }
 
