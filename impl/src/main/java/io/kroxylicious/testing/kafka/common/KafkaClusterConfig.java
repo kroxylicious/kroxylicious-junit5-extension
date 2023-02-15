@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -31,9 +32,9 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 
-import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
 import lombok.Builder;
 import lombok.Getter;
@@ -106,7 +107,6 @@ public class KafkaClusterConfig {
     }
 
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
-        System.Logger logger = System.getLogger(KafkaClusterProvisioningStrategy.class.getName());
         var builder = builder();
         builder.brokersNum(1);
         boolean sasl = false;
@@ -126,7 +126,8 @@ public class KafkaClusterConfig {
                 tls = true;
                 try {
                     builder.brokerKeytoolCertificateGenerator(new KeytoolCertificateGenerator());
-                } catch (IOException e) {
+                }
+                catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -241,7 +242,8 @@ public class KafkaClusterConfig {
                     throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
                 }
                 try {
-                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@redhat.com", clientEndpoint.getConnect().getHost(), "KI", "RedHat", null, null,
+                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@redhat.com", clientEndpoint.getConnect().getHost(), "KI", "RedHat", null,
+                            null,
                             "US");
                     if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
@@ -278,6 +280,27 @@ public class KafkaClusterConfig {
             throw new RuntimeException("Cannot override broker config '" + key + "=" + value + "' with new value " + orig);
         }
     }
+    @NotNull
+    public String buildClientBootstrapServers(KafkaEndpoints endPointConfig) {
+        return buildBootstrapServers(getBrokersNum(), endPointConfig::getClientEndpoint);
+    }
+
+    @NotNull
+    public String buildControllerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
+        return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getControllerEndpoint);
+    }
+
+    @NotNull
+    public String buildInterBrokerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
+        return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getInterBrokerEndpoint);
+    }
+
+    public String buildBootstrapServers(Integer numBrokers, IntFunction<KafkaEndpoints.EndpointPair> brokerEndpoint) {
+        return IntStream.range(0, numBrokers)
+                .mapToObj(brokerEndpoint)
+                .map(KafkaEndpoints.EndpointPair::connectAddress)
+                .collect(Collectors.joining(","));
+    }
 
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
         if (saslMechanism != null) {
@@ -306,7 +329,7 @@ public class KafkaClusterConfig {
             if (securityProtocol.contains("SSL")) {
                 String clientTrustStoreFilePath;
                 String clientTrustStorePassword;
-                if(clientKeytoolCertificateGenerator != null) {
+                if (clientKeytoolCertificateGenerator != null) {
                     if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
                         // SSL client auth case
                         kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
@@ -315,7 +338,8 @@ public class KafkaClusterConfig {
                     }
                     try {
                         clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
-                    } catch (GeneralSecurityException | IOException e) {
+                    }
+                    catch (GeneralSecurityException | IOException e) {
                         throw new RuntimeException(e);
                     }
                     clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
@@ -328,8 +352,10 @@ public class KafkaClusterConfig {
                         clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
                         certsDirectory.toFile().deleteOnExit();
                         clientTrustStore.toFile().deleteOnExit();
-                        brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client", clientTrustStore.toAbsolutePath().toString());
-                    } catch (GeneralSecurityException | IOException e) {
+                        brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
+                                clientTrustStore.toAbsolutePath().toString());
+                    }
+                    catch (GeneralSecurityException | IOException e) {
                         throw new RuntimeException(e);
                     }
                     clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
@@ -388,6 +414,10 @@ public class KafkaClusterConfig {
         class EndpointPair {
             private final Endpoint bind;
             private final Endpoint connect;
+
+            public String connectAddress() {
+                return String.format("%s:%d", connect.host, connect.port);
+            }
         }
 
         @Builder

@@ -6,6 +6,20 @@
 
 package io.kroxylicious.testing.kafka.invm;
 
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.Utils;
+import kafka.server.KafkaConfig;
+import kafka.server.KafkaRaftServer;
+import kafka.server.KafkaServer;
+import kafka.server.Server;
+import kafka.tools.StorageTool;
+import org.apache.kafka.common.utils.Time;
+import org.apache.zookeeper.server.ServerCnxnFactory;
+import org.apache.zookeeper.server.ZooKeeperServer;
+import org.jetbrains.annotations.NotNull;
+import scala.Option;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -18,23 +32,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import org.apache.kafka.common.utils.Time;
-import org.apache.zookeeper.server.ServerCnxnFactory;
-import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
-
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.Utils;
-import kafka.server.KafkaConfig;
-import kafka.server.KafkaRaftServer;
-import kafka.server.KafkaServer;
-import kafka.server.Server;
-import kafka.tools.StorageTool;
-import scala.Option;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
@@ -46,7 +46,7 @@ public class InVMKafkaCluster implements KafkaCluster {
     private final ServerCnxnFactory zooFactory;
     private final ZooKeeperServer zooServer;
     private final List<Server> servers;
-    private final List<String> bootstraps = new ArrayList<>();
+    private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
 
     public InVMKafkaCluster(KafkaClusterConfig clusterConfig) {
         this.clusterConfig = clusterConfig;
@@ -73,14 +73,12 @@ public class InVMKafkaCluster implements KafkaCluster {
 
                 zooServer = new ZooKeeperServer(snapshotDir.toFile(), logDir.toFile(), 500);
                 zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("localhost", zookeeperPort);
-            }
-            else {
+            } else {
                 zooFactory = null;
                 zooServer = null;
                 zookeeperEndpointSupplier = null;
             }
-
-            Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
+            kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
                 final List<Integer> clientPorts = ports.subList(0, clusterConfig.getBrokersNum());
                 final List<Integer> interBrokerPorts = ports.subList(clusterConfig.getBrokersNum(), 2 * clusterConfig.getBrokersNum());
                 final List<Integer> controllerPorts = ports.subList(clusterConfig.getBrokersNum() * 2, ports.size());
@@ -106,6 +104,7 @@ public class InVMKafkaCluster implements KafkaCluster {
                     return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
                 }
             };
+            Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier = () -> kafkaEndpoints;
 
             servers = clusterConfig.getBrokerConfigs(kafkaEndpointsSupplier, zookeeperEndpointSupplier).map(this::buildKafkaServer).collect(Collectors.toList());
 
@@ -131,7 +130,6 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
         else {
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
-
         }
     }
 
@@ -171,7 +169,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     @Override
     public String getBootstrapServers() {
-        return String.join(",", bootstraps);
+        return clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
     }
 
     @Override

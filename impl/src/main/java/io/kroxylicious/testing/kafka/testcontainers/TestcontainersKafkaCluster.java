@@ -71,6 +71,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         }
     }
 
+    private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
+
     public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
         this(null, null, clusterConfig);
     }
@@ -99,12 +101,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                     .withNetworkAliases("zookeeper");
         }
 
-        Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
-            final List<Integer> ports = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
+            final List<Integer> clientPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
 
             @Override
             public EndpointPair getClientEndpoint(int brokerId) {
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9093)).connect(new Endpoint("localhost", ports.get(brokerId))).build();
+                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9093)).connect(new Endpoint("localhost", clientPorts.get(brokerId))).build();
             }
 
             @Override
@@ -117,6 +119,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9091)).connect(new Endpoint(String.format("broker-%d", brokerId), 9091)).build();
             }
         };
+
+        Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> kafkaEndpoints;
         Supplier<KafkaClusterConfig.KafkaEndpoints.Endpoint> zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("zookeeper",
                 TestcontainersKafkaCluster.ZOOKEEPER_PORT);
         this.brokers = clusterConfig.getBrokerConfigs(endPointConfigSupplier, zookeeperEndpointSupplier).map(holder -> {
@@ -175,9 +179,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     @Override
     public String getBootstrapServers() {
-        return brokers.stream()
-                .map(b -> String.format("localhost:%d", b.getMappedPort(KAFKA_PORT)))
-                .collect(Collectors.joining(","));
+        return clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
     }
 
     public String getKafkaVersion() {

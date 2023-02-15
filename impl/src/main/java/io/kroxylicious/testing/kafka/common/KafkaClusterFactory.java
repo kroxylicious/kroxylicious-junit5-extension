@@ -5,10 +5,11 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
+import org.testcontainers.utility.DockerImageName;
+
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
-import org.testcontainers.utility.DockerImageName;
 
 import static java.lang.System.Logger.Level.INFO;
 
