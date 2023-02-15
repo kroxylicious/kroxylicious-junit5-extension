@@ -116,7 +116,6 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     @NotNull
     private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c) {
-        bootstraps.add(c.getEndpoint());
         KafkaConfig config = buildBrokerConfig(c, tempDirectory);
         Option<String> threadNamePrefix = Option.apply(null);
 
@@ -159,6 +158,9 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
 
         servers.stream().parallel().forEach(Server::startup);
+        // TODO expose timeout. Annotations? Provisioning Strategy duration?
+        final String bootstrapServers = clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
+        Utils.ensureExpectedBrokerCountInCluster(clusterConfig.getConnectConfigForCluster(bootstrapServers), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
 
     }
 
@@ -188,7 +190,6 @@ public class InVMKafkaCluster implements KafkaCluster {
         try {
             try {
                 servers.stream().parallel().forEach(Server::shutdown);
-                bootstraps.clear();
             }
             finally {
                 if (zooServer != null) {
