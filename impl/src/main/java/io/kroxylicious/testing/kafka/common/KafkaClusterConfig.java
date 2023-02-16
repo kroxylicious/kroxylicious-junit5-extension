@@ -5,7 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Singular;
@@ -39,6 +38,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
 
 @Builder(toBuilder = true)
 @Getter

@@ -6,9 +6,6 @@
 package io.kroxylicious.testing.kafka.testcontainers;
 
 import com.github.dockerjava.api.command.InspectContainerResponse;
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.Utils;
 import lombok.SneakyThrows;
 import org.apache.kafka.common.config.SslConfigs;
 import org.junit.jupiter.api.TestInfo;
@@ -41,6 +38,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.Utils;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInCluster;
 
