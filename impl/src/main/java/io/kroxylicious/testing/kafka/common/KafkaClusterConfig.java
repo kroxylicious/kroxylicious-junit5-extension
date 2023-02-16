@@ -172,7 +172,7 @@ public class KafkaClusterConfig {
             var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
 
             // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
-            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validte the cluster
+            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
             // - INTERNAL: used for inter-broker communications (always no auth)
             // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
 
