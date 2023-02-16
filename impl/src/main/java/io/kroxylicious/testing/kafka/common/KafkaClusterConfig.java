@@ -5,6 +5,19 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Singular;
+import lombok.ToString;
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.SslConfigs;
+import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.TestInfo;
+
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
@@ -20,25 +33,13 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import org.apache.kafka.clients.CommonClientConfigs;
-import org.apache.kafka.common.Uuid;
-import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
-import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
-import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.junit.jupiter.api.TestInfo;
-
-import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Singular;
-import lombok.ToString;
 
 @Builder(toBuilder = true)
 @Getter
@@ -106,7 +107,6 @@ public class KafkaClusterConfig {
     }
 
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
-        System.Logger logger = System.getLogger(KafkaClusterProvisioningStrategy.class.getName());
         var builder = builder();
         builder.brokersNum(1);
         boolean sasl = false;
@@ -126,7 +126,8 @@ public class KafkaClusterConfig {
                 tls = true;
                 try {
                     builder.brokerKeytoolCertificateGenerator(new KeytoolCertificateGenerator());
-                } catch (IOException e) {
+                }
+                catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -168,8 +169,10 @@ public class KafkaClusterConfig {
 
             var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
             var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
+            var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
 
-            // - EXTERNAL: used for communications to/from consumers/producers
+            // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
+            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
             // - INTERNAL: used for inter-broker communications (always no auth)
             // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
 
@@ -180,12 +183,16 @@ public class KafkaClusterConfig {
             var advertisedListeners = new TreeMap<String, String>();
 
             protocolMap.put("EXTERNAL", externalListenerTransport);
-            listeners.put("EXTERNAL", clientEndpoint.getBind().toString());
-            advertisedListeners.put("EXTERNAL", clientEndpoint.getConnect().toString());
+            listeners.put("EXTERNAL", clientEndpoint.listenAddress());
+            advertisedListeners.put("EXTERNAL", clientEndpoint.advertisedAddress());
+
+            protocolMap.put("ANON", SecurityProtocol.PLAINTEXT.name());
+            listeners.put("ANON", anonEndpoint.listenAddress());
+            advertisedListeners.put("ANON", anonEndpoint.advertisedAddress());
 
             protocolMap.put("INTERNAL", SecurityProtocol.PLAINTEXT.name());
-            listeners.put("INTERNAL", interBrokerEndpoint.getBind().toString());
-            advertisedListeners.put("INTERNAL", interBrokerEndpoint.getConnect().toString());
+            listeners.put("INTERNAL", interBrokerEndpoint.listenAddress());
+            advertisedListeners.put("INTERNAL", interBrokerEndpoint.advertisedAddress());
             putConfig(server, "inter.broker.listener.name", "INTERNAL");
 
             if (isKraftMode()) {
@@ -193,7 +200,8 @@ public class KafkaClusterConfig {
 
                 var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
                 var quorumVoters = IntStream.range(0, kraftControllers)
-                        .mapToObj(b -> String.format("%d@%s", b, kafkaEndpoints.getControllerEndpoint(b).getConnect().toString())).collect(Collectors.joining(","));
+                        .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
+                        .collect(Collectors.joining(","));
                 putConfig(server, "controller.quorum.voters", quorumVoters);
                 putConfig(server, "controller.listener.names", "CONTROLLER");
                 protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
@@ -241,7 +249,9 @@ public class KafkaClusterConfig {
                     throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
                 }
                 try {
-                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@redhat.com", clientEndpoint.getConnect().getHost(), "KI", "RedHat", null, null,
+                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.getConnect().getHost(), "Dev",
+                            "Kroxylicious.io", null,
+                            null,
                             "US");
                     if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
@@ -265,8 +275,8 @@ public class KafkaClusterConfig {
             // Disable delay during every re-balance
             putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
-            properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(),
-                    String.format("%s:%d", clientEndpoint.getConnect().getHost(), clientEndpoint.getConnect().getPort()), brokerNum, kafkaKraftClusterId));
+            properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
+                    clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId));
         }
 
         return properties.stream();
@@ -279,26 +289,52 @@ public class KafkaClusterConfig {
         }
     }
 
+    @NotNull
+    public String buildClientBootstrapServers(KafkaEndpoints endPointConfig) {
+        return buildBootstrapServers(getBrokersNum(), endPointConfig::getClientEndpoint);
+    }
+
+    @NotNull
+    public String buildAnonBootstrapServers(KafkaEndpoints endPointConfig) {
+        return buildBootstrapServers(getBrokersNum(), endPointConfig::getAnonEndpoint);
+    }
+
+    @NotNull
+    public String buildControllerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
+        return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getControllerEndpoint);
+    }
+
+    @NotNull
+    public String buildInterBrokerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
+        return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getInterBrokerEndpoint);
+    }
+
+    public Map<String, Object> getAnonConnectConfigForCluster(KafkaEndpoints kafkaEndpoints) {
+        return getConnectConfigForCluster(buildAnonBootstrapServers(kafkaEndpoints), null, null, null, null);
+    }
+
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
         if (saslMechanism != null) {
             Map<String, String> users = getUsers();
             if (!users.isEmpty()) {
                 Map.Entry<String, String> first = users.entrySet().iterator().next();
-                return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getKey());
+                return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getKey(), getSecurityProtocol(), getSaslMechanism());
             }
             else {
-                return getConnectConfigForCluster(bootstrapServers, null, null);
+                return getConnectConfigForCluster(bootstrapServers, null, null, getSecurityProtocol(), getSaslMechanism());
             }
         }
         else {
-            return getConnectConfigForCluster(bootstrapServers, null, null);
+            return getConnectConfigForCluster(bootstrapServers, null, null, getSecurityProtocol(), getSaslMechanism());
         }
     }
 
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password) {
+        return getConnectConfigForCluster(bootstrapServers, user, password, getSecurityProtocol(), getSaslMechanism());
+    }
+
+    public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password, String securityProtocol, String saslMechanism) {
         Map<String, Object> kafkaConfig = new HashMap<>();
-        String saslMechanism = getSaslMechanism();
-        String securityProtocol = getSecurityProtocol();
 
         if (securityProtocol != null) {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
@@ -306,7 +342,7 @@ public class KafkaClusterConfig {
             if (securityProtocol.contains("SSL")) {
                 String clientTrustStoreFilePath;
                 String clientTrustStorePassword;
-                if(clientKeytoolCertificateGenerator != null) {
+                if (clientKeytoolCertificateGenerator != null) {
                     if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
                         // SSL client auth case
                         kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
@@ -315,7 +351,8 @@ public class KafkaClusterConfig {
                     }
                     try {
                         clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
-                    } catch (GeneralSecurityException | IOException e) {
+                    }
+                    catch (GeneralSecurityException | IOException e) {
                         throw new RuntimeException(e);
                     }
                     clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
@@ -328,8 +365,10 @@ public class KafkaClusterConfig {
                         clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
                         certsDirectory.toFile().deleteOnExit();
                         clientTrustStore.toFile().deleteOnExit();
-                        brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client", clientTrustStore.toAbsolutePath().toString());
-                    } catch (GeneralSecurityException | IOException e) {
+                        brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
+                                clientTrustStore.toAbsolutePath().toString());
+                    }
+                    catch (GeneralSecurityException | IOException e) {
                         throw new RuntimeException(e);
                     }
                     clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
@@ -371,11 +410,19 @@ public class KafkaClusterConfig {
         return isKraftMode() ? kafkaKraftClusterId : null;
     }
 
+    private String buildBootstrapServers(Integer numBrokers, IntFunction<KafkaEndpoints.EndpointPair> brokerEndpoint) {
+        return IntStream.range(0, numBrokers)
+                .mapToObj(brokerEndpoint)
+                .map(KafkaEndpoints.EndpointPair::connectAddress)
+                .collect(Collectors.joining(","));
+    }
+
     @Builder
     @Getter
     public static class ConfigHolder {
         private final Properties properties;
         private final Integer externalPort;
+        private final Integer anonPort;
         private final String endpoint;
         private final int brokerNum;
         private final String kafkaKraftClusterId;
@@ -388,11 +435,23 @@ public class KafkaClusterConfig {
         class EndpointPair {
             private final Endpoint bind;
             private final Endpoint connect;
+
+            public String connectAddress() {
+                return String.format("%s:%d", connect.host, connect.port);
+            }
+
+            public String listenAddress() {
+                return String.format("//%s:%d", bind.host, bind.port);
+            }
+
+            public String advertisedAddress() {
+                return String.format("//%s:%d", connect.host, connect.port);
+            }
         }
 
         @Builder
         @Getter
-        public class Endpoint {
+        class Endpoint {
             private final String host;
             private final int port;
 
@@ -412,5 +471,7 @@ public class KafkaClusterConfig {
         EndpointPair getControllerEndpoint(int brokerId);
 
         EndpointPair getClientEndpoint(int brokerId);
+
+        EndpointPair getAnonEndpoint(int brokerId);
     }
 }

@@ -5,6 +5,18 @@
  */
 package io.kroxylicious.testing.kafka.testcontainers;
 
+import com.github.dockerjava.api.command.InspectContainerResponse;
+import lombok.SneakyThrows;
+import org.apache.kafka.common.config.SslConfigs;
+import org.junit.jupiter.api.TestInfo;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.output.OutputFrame;
+import org.testcontainers.images.builder.Transferable;
+import org.testcontainers.lifecycle.Startable;
+import org.testcontainers.lifecycle.Startables;
+import org.testcontainers.utility.DockerImageName;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
@@ -27,22 +39,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.kafka.common.config.SslConfigs;
-import org.junit.jupiter.api.TestInfo;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.containers.output.OutputFrame;
-import org.testcontainers.images.builder.Transferable;
-import org.testcontainers.lifecycle.Startable;
-import org.testcontainers.lifecycle.Startables;
-import org.testcontainers.utility.DockerImageName;
-
-import com.github.dockerjava.api.command.InspectContainerResponse;
-
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Utils;
-import lombok.SneakyThrows;
+
+import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInCluster;
 
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
@@ -50,7 +51,8 @@ import lombok.SneakyThrows;
 public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
-    public static final int KAFKA_PORT = 9093;
+    public static final int CLIENT_PORT = 9093;
+    public static final int ANON_PORT = 9094;
     public static final int ZOOKEEPER_PORT = 2181;
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
@@ -70,6 +72,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                     "As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
         }
     }
+
+    private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
 
     public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
         this(null, null, clusterConfig);
@@ -95,16 +99,22 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
-                    // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
+//                    .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
                     .withNetworkAliases("zookeeper");
         }
 
-        Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> new KafkaClusterConfig.KafkaEndpoints() {
-            final List<Integer> ports = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
+            final List<Integer> clientPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+            final List<Integer> anonPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
 
             @Override
             public EndpointPair getClientEndpoint(int brokerId) {
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9093)).connect(new Endpoint("localhost", ports.get(brokerId))).build();
+                return buildExposedEndpoint(brokerId, CLIENT_PORT, clientPorts);
+            }
+
+            @Override
+            public EndpointPair getAnonEndpoint(int brokerId) {
+                return buildExposedEndpoint(brokerId, ANON_PORT, anonPorts);
             }
 
             @Override
@@ -116,7 +126,16 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             public EndpointPair getControllerEndpoint(int brokerId) {
                 return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9091)).connect(new Endpoint(String.format("broker-%d", brokerId), 9091)).build();
             }
+
+            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, List<Integer> externalPortRange) {
+                return EndpointPair.builder()
+                        .bind(new Endpoint("0.0.0.0", internalPort))
+                        .connect(new Endpoint("localhost", externalPortRange.get(brokerId)))
+                        .build();
+            }
         };
+
+        Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> kafkaEndpoints;
         Supplier<KafkaClusterConfig.KafkaEndpoints.Endpoint> zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("zookeeper",
                 TestcontainersKafkaCluster.ZOOKEEPER_PORT);
         this.brokers = clusterConfig.getBrokerConfigs(endPointConfigSupplier, zookeeperEndpointSupplier).map(holder -> {
@@ -130,12 +149,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
             kafkaContainer
-                    // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
+//                    .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                     .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                     .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
                     .withStartupTimeout(Duration.ofMinutes(2));
-            kafkaContainer.addFixedExposedPort(holder.getExternalPort(), KAFKA_PORT);
+            kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
+            kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
 
             if (!this.clusterConfig.isKraftMode()) {
                 kafkaContainer.dependsOn(this.zookeeper);
@@ -175,9 +195,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     @Override
     public String getBootstrapServers() {
-        return brokers.stream()
-                .map(b -> String.format("localhost:%d", b.getMappedPort(KAFKA_PORT)))
-                .collect(Collectors.joining(","));
+        return clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
     }
 
     public String getKafkaVersion() {
@@ -198,6 +216,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 zookeeper.start();
             }
             Startables.deepStart(brokers.stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
+                    clusterConfig.getBrokersNum());
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
@@ -230,8 +250,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     @Override
     public Map<String, Object> getKafkaClientConfiguration(String user, String password) {
-        return clusterConfig.getConnectConfigForCluster(getBootstrapServers(),
-                user, password);
+        return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
     }
 
     // In kraft mode, currently "Advertised listeners cannot be altered when using a Raft-based metadata quorum", so we

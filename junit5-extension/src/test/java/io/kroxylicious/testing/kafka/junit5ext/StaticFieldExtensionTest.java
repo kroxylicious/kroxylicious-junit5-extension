@@ -5,8 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import java.util.concurrent.ExecutionException;
-
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -17,6 +15,8 @@ import org.apache.kafka.clients.producer.Producer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+
+import java.util.concurrent.ExecutionException;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;

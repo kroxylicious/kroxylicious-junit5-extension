@@ -5,6 +5,14 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+
 import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,14 +22,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.Config;
-import org.apache.kafka.common.config.ConfigResource;
-import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
-
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
@@ -29,7 +29,11 @@ import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
-import static io.kroxylicious.testing.kafka.common.ConstraintUtils.*;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.brokerCluster;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.brokerConfig;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.kraftCluster;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

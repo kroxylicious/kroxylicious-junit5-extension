@@ -6,12 +6,29 @@
 
 package io.kroxylicious.testing.kafka.common;
 
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.common.Node;
+import org.awaitility.Awaitility;
+import org.hamcrest.Matchers;
+import org.slf4j.Logger;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
+import static org.slf4j.LoggerFactory.getLogger;
+
 public class Utils {
+    private static final Logger log = getLogger(Utils.class);
+
     /**
      * Pre-allocate 1 or more ephemeral ports which are available for use.
      *
@@ -30,6 +47,32 @@ public class Utils {
         }
         catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    public static void awaitExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
+        try (Admin admin = Admin.create(connectionConfig)) {
+            Awaitility.await()
+                    .pollDelay(Duration.ZERO)
+                    .pollInterval(1, TimeUnit.SECONDS)
+                    .atMost(timeout, timeUnit)
+                    .ignoreExceptions()
+                    .until(() -> {
+                        log.info("describing cluster: {}", connectionConfig.get("bootstrap.servers"));
+                        final Collection<Node> nodes;
+                        try {
+                            nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
+                            log.info("got nodes: {}", nodes);
+                            return nodes;
+                        }
+                        catch (InterruptedException | ExecutionException e) {
+                            log.warn("caught: {}", e.getMessage(), e);
+                        }
+                        catch (TimeoutException te) {
+                            log.warn("Kafka timed out describing the the cluster");
+                        }
+                        return Collections.emptyList();
+                    }, Matchers.hasSize(expectedBrokerCount));
         }
     }
 }

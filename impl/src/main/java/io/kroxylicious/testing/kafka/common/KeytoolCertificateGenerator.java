@@ -41,10 +41,10 @@ public class KeytoolCertificateGenerator {
         this.trustStoreFilePath = (trustStorePath != null) ? Path.of(trustStorePath) : Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
 
         certsDirectory.toFile().deleteOnExit();
-        if(certFilePath == null) {
+        if (certFilePath == null) {
             this.keyStoreFilePath.toFile().deleteOnExit();
         }
-        if(trustStorePath == null) {
+        if (trustStorePath == null) {
             this.trustStoreFilePath.toFile().deleteOnExit();
         }
         this.certFilePath.toFile().deleteOnExit();
@@ -79,7 +79,7 @@ public class KeytoolCertificateGenerator {
 
     public void generateTrustStore(String certFilePath, String alias, String trustStoreFilePath)
             throws GeneralSecurityException, IOException {
-        //keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
+        // keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
         KeyStore keyStore = KeyStore.getInstance("JKS");
         if (Path.of(trustStoreFilePath).toFile().exists()) {
             keyStore.load(new FileInputStream(trustStoreFilePath), getPassword().toCharArray());
@@ -164,7 +164,7 @@ public class KeytoolCertificateGenerator {
             final String processOutput = (new BufferedReader(new InputStreamReader(process.getInputStream()))).lines()
                     .collect(Collectors.joining(" \\ "));
             log.log(WARNING, "Error generating certificate, error output: {0}, normal output: {1}, " +
-                            "commandline parameters: {2}",
+                    "commandline parameters: {2}",
                     processError, processOutput, commandParameters);
             throw new IOException(
                     "Keytool execution error: '" + processError + "', output: '" + processOutput + "'" + ", commandline parameters: " + commandParameters);
