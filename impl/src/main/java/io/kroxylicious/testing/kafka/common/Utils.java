@@ -6,6 +6,12 @@
 
 package io.kroxylicious.testing.kafka.common;
 
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.common.Node;
+import org.awaitility.Awaitility;
+import org.hamcrest.Matchers;
+import org.slf4j.Logger;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
@@ -17,12 +23,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
-
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.common.Node;
-import org.awaitility.Awaitility;
-import org.hamcrest.Matchers;
-import org.slf4j.Logger;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -50,7 +50,7 @@ public class Utils {
         }
     }
 
-    public static void ensureExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
+    public static void awaitExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
         try (Admin admin = Admin.create(connectionConfig)) {
             Awaitility.await()
                     .pollDelay(Duration.ZERO)

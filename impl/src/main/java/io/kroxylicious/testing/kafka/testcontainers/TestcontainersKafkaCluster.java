@@ -42,7 +42,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.kroxylicious.testing.kafka.common.Utils.ensureExpectedBrokerCountInCluster;
+import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInCluster;
 
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
@@ -215,7 +215,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 zookeeper.start();
             }
             Startables.deepStart(brokers.stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            ensureExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
+            awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
