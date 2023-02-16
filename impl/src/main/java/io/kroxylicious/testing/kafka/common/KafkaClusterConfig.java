@@ -199,7 +199,7 @@ public class KafkaClusterConfig {
 
                 var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
                 var quorumVoters = IntStream.range(0, kraftControllers)
-                        .mapToObj(b -> String.format("%d@//%s", b, kafkaEndpoints.getControllerEndpoint(b).connectAddress()))
+                        .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
                         .collect(Collectors.joining(","));
                 putConfig(server, "controller.quorum.voters", quorumVoters);
                 putConfig(server, "controller.listener.names", "CONTROLLER");
@@ -248,7 +248,8 @@ public class KafkaClusterConfig {
                     throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
                 }
                 try {
-                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.getConnect().getHost(), "Dev", "Kroxylicious.io", null,
+                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.getConnect().getHost(), "Dev",
+                            "Kroxylicious.io", null,
                             null,
                             "US");
                     if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
