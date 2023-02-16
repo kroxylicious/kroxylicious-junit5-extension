@@ -169,8 +169,10 @@ public class KafkaClusterConfig {
 
             var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
             var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
+            var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
 
-            // - EXTERNAL: used for communications to/from consumers/producers
+            // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
+            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validte the cluster
             // - INTERNAL: used for inter-broker communications (always no auth)
             // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
 
@@ -272,8 +274,8 @@ public class KafkaClusterConfig {
             // Disable delay during every re-balance
             putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
-            properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(),
-                    String.format("%s:%d", clientEndpoint.getConnect().getHost(), clientEndpoint.getConnect().getPort()), brokerNum, kafkaKraftClusterId));
+            properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
+                    clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId));
         }
 
         return properties.stream();
@@ -292,6 +294,11 @@ public class KafkaClusterConfig {
     }
 
     @NotNull
+    public String buildAnonBootstrapServers(KafkaEndpoints endPointConfig) {
+        return buildBootstrapServers(getBrokersNum(), endPointConfig::getAnonEndpoint);
+    }
+
+    @NotNull
     public String buildControllerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
         return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getControllerEndpoint);
     }
@@ -301,26 +308,32 @@ public class KafkaClusterConfig {
         return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getInterBrokerEndpoint);
     }
 
+    public Map<String, Object> getAnonConnectConfigForCluster(KafkaEndpoints kafkaEndpoints) {
+        return getConnectConfigForCluster(buildAnonBootstrapServers(kafkaEndpoints), null, null, null, null);
+    }
+
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
         if (saslMechanism != null) {
             Map<String, String> users = getUsers();
             if (!users.isEmpty()) {
                 Map.Entry<String, String> first = users.entrySet().iterator().next();
-                return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getKey());
+                return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getKey(), getSecurityProtocol(), getSaslMechanism());
             }
             else {
-                return getConnectConfigForCluster(bootstrapServers, null, null);
+                return getConnectConfigForCluster(bootstrapServers, null, null, getSecurityProtocol(), getSaslMechanism());
             }
         }
         else {
-            return getConnectConfigForCluster(bootstrapServers, null, null);
+            return getConnectConfigForCluster(bootstrapServers, null, null, getSecurityProtocol(), getSaslMechanism());
         }
     }
 
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password) {
+        return getConnectConfigForCluster(bootstrapServers, user, password, getSecurityProtocol(), getSaslMechanism());
+    }
+
+    public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password, String securityProtocol, String saslMechanism) {
         Map<String, Object> kafkaConfig = new HashMap<>();
-        String saslMechanism = getSaslMechanism();
-        String securityProtocol = getSecurityProtocol();
 
         if (securityProtocol != null) {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
@@ -408,6 +421,7 @@ public class KafkaClusterConfig {
     public static class ConfigHolder {
         private final Properties properties;
         private final Integer externalPort;
+        private final Integer anonPort;
         private final String endpoint;
         private final int brokerNum;
         private final String kafkaKraftClusterId;
@@ -428,6 +442,7 @@ public class KafkaClusterConfig {
             public String listenAddress() {
                 return String.format("//%s:%d", bind.host, bind.port);
             }
+
             public String advertisedAddress() {
                 return String.format("//%s:%d", connect.host, connect.port);
             }
@@ -435,7 +450,7 @@ public class KafkaClusterConfig {
 
         @Builder
         @Getter
-        public class Endpoint {
+        class Endpoint {
             private final String host;
             private final int port;
 
@@ -455,5 +470,7 @@ public class KafkaClusterConfig {
         EndpointPair getControllerEndpoint(int brokerId);
 
         EndpointPair getClientEndpoint(int brokerId);
+
+        EndpointPair getAnonEndpoint(int brokerId);
     }
 }

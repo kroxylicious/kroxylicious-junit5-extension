@@ -51,18 +51,18 @@ public class Utils {
     }
 
     public static void ensureExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
-        try(Admin admin = Admin.create(connectionConfig)) {
+        try (Admin admin = Admin.create(connectionConfig)) {
             Awaitility.await()
                     .pollDelay(Duration.ZERO)
                     .pollInterval(1, TimeUnit.SECONDS)
                     .atMost(timeout, timeUnit)
                     .ignoreExceptions()
                     .until(() -> {
-                        log.debug("describing cluster: {}", connectionConfig.get("bootstrap.servers"));
+                        log.info("describing cluster: {}", connectionConfig.get("bootstrap.servers"));
                         final Collection<Node> nodes;
                         try {
                             nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
-                            log.debug("got nodes: {}", nodes);
+                            log.info("got nodes: {}", nodes);
                             return nodes;
                         }
                         catch (InterruptedException | ExecutionException e) {

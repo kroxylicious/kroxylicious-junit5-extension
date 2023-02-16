@@ -17,6 +17,8 @@ class KafkaClusterConfigTest {
     private static final int CLIENT_BASE_PORT = 9092;
     private static final int CONTROLLER_BASE_PORT = 10092;
     private static final int INTER_BROKER_BASE_PORT = 11092;
+    private static final int ANON_BASE_PORT = 12092;
+
     private EndpointConfig endpointConfig;
     private KafkaClusterConfig.KafkaClusterConfigBuilder kafkaClusterConfigBuilder;
 
@@ -124,6 +126,39 @@ class KafkaClusterConfigTest {
         assertThat(controllerBootstrapServers).contains("localhost:10094");
     }
 
+    @Test
+    void shouldBuildAnonBootstrapAddressForSingleBroker() {
+        // Given
+        kafkaClusterConfigBuilder.brokersNum(1);
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
+
+        // When
+        final String anonBootstrapServers = kafkaClusterConfig.buildAnonBootstrapServers(endpointConfig);
+
+        // Then
+        assertThat(anonBootstrapServers).doesNotContain(",");
+        assertThat(anonBootstrapServers).doesNotContain("//");
+        assertThat(anonBootstrapServers).contains("localhost:12092");
+    }
+
+    @Test
+    void shouldBuildAnonBootstrapAddressForCluster() {
+        // Given
+
+        kafkaClusterConfigBuilder.brokersNum(3);
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
+
+        // When
+        final String anonBootstrapServers = kafkaClusterConfig.buildAnonBootstrapServers(endpointConfig);
+
+        // Then
+        assertThat(anonBootstrapServers).contains(",");
+        assertThat(anonBootstrapServers).doesNotContain("//");
+        assertThat(anonBootstrapServers).contains("localhost:12092");
+        assertThat(anonBootstrapServers).contains("localhost:12093");
+        assertThat(anonBootstrapServers).contains("localhost:12094");
+    }
+
     static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {
 
         @Override
@@ -139,6 +174,11 @@ class KafkaClusterConfigTest {
         @Override
         public EndpointPair getClientEndpoint(int brokerId) {
             return generateEndpoint(brokerId, CLIENT_BASE_PORT);
+        }
+
+        @Override
+        public EndpointPair getAnonEndpoint(int brokerId) {
+            return generateEndpoint(brokerId, ANON_BASE_PORT);
         }
 
         @NotNull

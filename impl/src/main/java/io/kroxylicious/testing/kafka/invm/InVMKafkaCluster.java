@@ -13,7 +13,6 @@ import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -54,15 +53,22 @@ public class InVMKafkaCluster implements KafkaCluster {
             tempDirectory = Files.createTempDirectory("kafka");
             tempDirectory.toFile().deleteOnExit();
 
-            // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port
-            // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port
-            var numPorts = clusterConfig.getBrokersNum() * (clusterConfig.isKraftMode() ? 3 : 2) + (clusterConfig.isKraftMode() ? 0 : 1);
-            LinkedList<Integer> ports = Utils.preAllocateListeningPorts(numPorts).collect(Collectors.toCollection(LinkedList::new));
+            // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
+            // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
+            final List<Integer> externalPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            final List<Integer> anonPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            final List<Integer> interBrokerPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            final List<Integer> controllerPorts;
+            if (clusterConfig.isKraftMode()) {
+                controllerPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            }
+            else {
+                controllerPorts = Utils.preAllocateListeningPorts(1).collect(Collectors.toUnmodifiableList());
+            }
 
             final Supplier<KafkaClusterConfig.KafkaEndpoints.Endpoint> zookeeperEndpointSupplier;
             if (!clusterConfig.isKraftMode()) {
-                var zookeeperPort = ports.pop();
-
+                final Integer zookeeperPort = controllerPorts.get(0);
                 zooFactory = ServerCnxnFactory.createFactory(new InetSocketAddress("localhost", zookeeperPort), 1024);
 
                 var zoo = tempDirectory.resolve("zoo");
@@ -80,28 +86,33 @@ public class InVMKafkaCluster implements KafkaCluster {
                 zookeeperEndpointSupplier = null;
             }
             kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
-                final List<Integer> clientPorts = ports.subList(0, clusterConfig.getBrokersNum());
-                final List<Integer> interBrokerPorts = ports.subList(clusterConfig.getBrokersNum(), 2 * clusterConfig.getBrokersNum());
-                final List<Integer> controllerPorts = ports.subList(clusterConfig.getBrokersNum() * 2, ports.size());
 
                 @Override
                 public EndpointPair getClientEndpoint(int brokerId) {
-                    var port = clientPorts.get(brokerId);
-                    return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
+                    return buildEndpointPair(externalPorts, brokerId);
+                }
+
+                @Override
+                public EndpointPair getAnonEndpoint(int brokerId) {
+                    return buildEndpointPair(anonPorts, brokerId);
                 }
 
                 @Override
                 public EndpointPair getInterBrokerEndpoint(int brokerId) {
-                    var port = interBrokerPorts.get(brokerId);
-                    return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
+                    return buildEndpointPair(interBrokerPorts, brokerId);
                 }
 
                 @Override
                 public EndpointPair getControllerEndpoint(int brokerId) {
+                    // TODO why can't we treat ZK as the controller port outside of kraft mode?
                     if (!clusterConfig.isKraftMode()) {
                         throw new IllegalStateException();
                     }
-                    var port = controllerPorts.get(brokerId);
+                    return buildEndpointPair(controllerPorts, brokerId);
+                }
+
+                private EndpointPair buildEndpointPair(List<Integer> portRange, int brokerId) {
+                    var port = portRange.get(brokerId);
                     return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
                 }
             };
@@ -160,8 +171,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
         servers.stream().parallel().forEach(Server::startup);
         // TODO expose timeout. Annotations? Provisioning Strategy duration?
-        final String bootstrapServers = clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
-        Utils.ensureExpectedBrokerCountInCluster(clusterConfig.getConnectConfigForCluster(bootstrapServers), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
+        Utils.ensureExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
 
     }
 
@@ -182,8 +192,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     @Override
     public Map<String, Object> getKafkaClientConfiguration(String user, String password) {
-        return clusterConfig.getConnectConfigForCluster(getBootstrapServers(),
-                user, password);
+        return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
     }
 
     @Override
