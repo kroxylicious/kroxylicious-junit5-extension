@@ -5,6 +5,20 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Singular;
+import lombok.ToString;
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.SslConfigs;
+import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.TestInfo;
+
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
@@ -25,21 +39,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import org.apache.kafka.clients.CommonClientConfigs;
-import org.apache.kafka.common.Uuid;
-import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
-import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
-import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.TestInfo;
-
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Singular;
-import lombok.ToString;
 
 @Builder(toBuilder = true)
 @Getter
@@ -249,7 +248,7 @@ public class KafkaClusterConfig {
                     throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
                 }
                 try {
-                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@redhat.com", clientEndpoint.getConnect().getHost(), "KI", "RedHat", null,
+                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.getConnect().getHost(), "Dev", "Kroxylicious.io", null,
                             null,
                             "US");
                     if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
