@@ -46,6 +46,10 @@ public class InVMKafkaCluster implements KafkaCluster {
     private final ZooKeeperServer zooServer;
     private final List<Server> servers;
     private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
+    private final List<Integer> externalPorts;
+    private final List<Integer> anonPorts;
+    private final List<Integer> interBrokerPorts;
+    private final List<Integer> controllerPorts;
 
     public InVMKafkaCluster(KafkaClusterConfig clusterConfig) {
         this.clusterConfig = clusterConfig;
@@ -55,18 +59,11 @@ public class InVMKafkaCluster implements KafkaCluster {
 
             // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
             // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
-            final List<Integer> externalPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            final List<Integer> anonPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            final List<Integer> interBrokerPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            final List<Integer> controllerPorts;
-            if (clusterConfig.isKraftMode()) {
-                controllerPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            }
-            else {
-                controllerPorts = Utils.preAllocateListeningPorts(1).collect(Collectors.toUnmodifiableList());
-            }
+            externalPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            anonPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            interBrokerPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            controllerPorts = allocateControllerPorts(clusterConfig);
 
-            final Supplier<KafkaClusterConfig.KafkaEndpoints.Endpoint> zookeeperEndpointSupplier;
             if (!clusterConfig.isKraftMode()) {
                 final Integer zookeeperPort = controllerPorts.get(0);
                 zooFactory = ServerCnxnFactory.createFactory(new InetSocketAddress("localhost", zookeeperPort), 1024);
@@ -78,12 +75,10 @@ public class InVMKafkaCluster implements KafkaCluster {
                 logDir.toFile().mkdirs();
 
                 zooServer = new ZooKeeperServer(snapshotDir.toFile(), logDir.toFile(), 500);
-                zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("localhost", zookeeperPort);
             }
             else {
                 zooFactory = null;
                 zooServer = null;
-                zookeeperEndpointSupplier = null;
             }
             kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
 
@@ -104,10 +99,6 @@ public class InVMKafkaCluster implements KafkaCluster {
 
                 @Override
                 public EndpointPair getControllerEndpoint(int brokerId) {
-                    // TODO why can't we treat ZK as the controller port outside of kraft mode?
-                    if (!clusterConfig.isKraftMode()) {
-                        throw new IllegalStateException();
-                    }
                     return buildEndpointPair(controllerPorts, brokerId);
                 }
 
@@ -116,13 +107,22 @@ public class InVMKafkaCluster implements KafkaCluster {
                     return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
                 }
             };
-            Supplier<KafkaClusterConfig.KafkaEndpoints> kafkaEndpointsSupplier = () -> kafkaEndpoints;
+            Supplier<KafkaClusterConfig.KafkaEndpoints> clusterEndpointSupplier = () -> kafkaEndpoints;
 
-            servers = clusterConfig.getBrokerConfigs(kafkaEndpointsSupplier, zookeeperEndpointSupplier).map(this::buildKafkaServer).collect(Collectors.toList());
+            servers = clusterConfig.getBrokerConfigs(clusterEndpointSupplier).map(this::buildKafkaServer).collect(Collectors.toList());
 
         }
         catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private List<Integer> allocateControllerPorts(KafkaClusterConfig clusterConfig) {
+        if (clusterConfig.isKraftMode()) {
+            return Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+        }
+        else {
+            return Utils.preAllocateListeningPorts(1).collect(Collectors.toUnmodifiableList());
         }
     }
 
@@ -198,6 +198,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         try {
             try {
                 servers.stream().parallel().forEach(Server::shutdown);
+
             }
             finally {
                 if (zooServer != null) {

@@ -39,8 +39,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
-
 @Builder(toBuilder = true)
 @Getter
 @ToString
@@ -158,7 +156,7 @@ public class KafkaClusterConfig {
         return builder.build();
     }
 
-    public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier, Supplier<Endpoint> zookeeperEndpointSupplier) {
+    public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier) {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
@@ -216,7 +214,7 @@ public class KafkaClusterConfig {
                 }
             }
             else {
-                putConfig(server, "zookeeper.connect", String.format("%s:%d", zookeeperEndpointSupplier.get().getHost(), zookeeperEndpointSupplier.get().getPort()));
+                putConfig(server, "zookeeper.connect", kafkaEndpoints.getControllerEndpoint(0).connectAddress());
                 putConfig(server, "zookeeper.sasl.enabled", "false");
                 putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
             }
