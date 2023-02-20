@@ -35,6 +35,22 @@ public class Utils {
      * @param num number of ports to pre-allocate
      * @return list of ephemeral ports
      */
+    public static Stream<ServerSocket> preAllocateListeningSockets(int num) {
+        // Uses recursive algorithm to avoid the risk of returning a duplicate ephemeral port.
+        if (num < 1) {
+            return Stream.of();
+        }
+        try (var serverSocket = new ServerSocket(0)) {
+            serverSocket.setReuseAddress(true);
+            return Stream.concat(Stream.of(serverSocket), preAllocateListeningSockets(num - 1));
+        }
+        catch (IOException e) {
+            System.getLogger("portAllocator").log(System.Logger.Level.WARNING, "failed to allocate port: ", e);
+            throw new UncheckedIOException(e);
+        }
+
+    }
+
     public static Stream<Integer> preAllocateListeningPorts(int num) {
         // Uses recursive algorithm to avoid the risk of returning a duplicate ephemeral port.
         if (num < 1) {
@@ -46,6 +62,7 @@ public class Utils {
             return Stream.concat(Stream.of(localPort), preAllocateListeningPorts(num - 1));
         }
         catch (IOException e) {
+            System.getLogger("portAllocator").log(System.Logger.Level.WARNING, "failed to allocate port: ", e);
             throw new UncheckedIOException(e);
         }
     }

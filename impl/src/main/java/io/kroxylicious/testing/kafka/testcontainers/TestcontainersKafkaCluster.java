@@ -23,6 +23,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.System.Logger.Level;
+import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -76,6 +77,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
+    private List<ServerSocket> clientPorts;
+    private List<ServerSocket> anonPorts;
 
     public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
         this(null, null, clusterConfig);
@@ -105,10 +108,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                     .withNetworkAliases("zookeeper");
         }
 
-        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
-            final List<Integer> clientPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
-            final List<Integer> anonPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        clientPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        anonPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
 
+        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
             @Override
             public EndpointPair getClientEndpoint(int brokerId) {
                 return buildExposedEndpoint(brokerId, CLIENT_PORT, clientPorts);
@@ -136,10 +139,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 }
             }
 
-            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, List<Integer> externalPortRange) {
+            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, List<ServerSocket> externalPortRange) {
                 return EndpointPair.builder()
                         .bind(new Endpoint("0.0.0.0", internalPort))
-                        .connect(new Endpoint("localhost", externalPortRange.get(brokerId)))
+                        .connect(new Endpoint("localhost", externalPortRange.get(brokerId).getLocalPort()))
                         .build();
             }
         };
@@ -240,6 +243,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     @Override
     public void close() {
         this.stop();
+        releaseAllPorts();
     }
 
     @Override
@@ -275,6 +279,22 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             super.addFixedExposedPort(hostPort, containerPort);
         }
 
+    }
+
+    private void releaseAllPorts() {
+        closeSockets(clientPorts);
+        closeSockets(anonPorts);
+    }
+
+    private void closeSockets(List<ServerSocket> ports) {
+        for (ServerSocket serverSocket : ports) {
+            try {
+                serverSocket.close();
+            }
+            catch (IOException e) {
+                LOGGER.log(System.Logger.Level.WARNING, "failed to close socket: {0} due to: {1}", serverSocket, e.getMessage(), e);
+            }
+        }
     }
 
     public static class ZookeeperContainer extends LoggingGenericContainer<ZookeeperContainer> {
