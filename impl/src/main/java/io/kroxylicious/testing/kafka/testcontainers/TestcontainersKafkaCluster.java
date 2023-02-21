@@ -23,6 +23,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.System.Logger.Level;
+import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -53,6 +54,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     public static final int CLIENT_PORT = 9093;
     public static final int ANON_PORT = 9094;
+    private static final int INTER_BROKER_PORT = 9092;
+    private static final int CONTROLLER_PORT = 9091;
     public static final int ZOOKEEPER_PORT = 2181;
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
@@ -74,6 +77,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
+    private List<ServerSocket> clientPorts;
+    private List<ServerSocket> anonPorts;
 
     public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
         this(null, null, clusterConfig);
@@ -99,14 +104,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
-//                    .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
+                    // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
                     .withNetworkAliases("zookeeper");
         }
 
-        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
-            final List<Integer> clientPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
-            final List<Integer> anonPorts = Utils.preAllocateListeningPorts(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        clientPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        anonPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
 
+        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
             @Override
             public EndpointPair getClientEndpoint(int brokerId) {
                 return buildExposedEndpoint(brokerId, CLIENT_PORT, clientPorts);
@@ -119,18 +124,25 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
             @Override
             public EndpointPair getInterBrokerEndpoint(int brokerId) {
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9092)).connect(new Endpoint(String.format("broker-%d", brokerId), 9092)).build();
+                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
+                        .connect(new Endpoint(String.format("broker-%d", brokerId), INTER_BROKER_PORT)).build();
             }
 
             @Override
             public EndpointPair getControllerEndpoint(int brokerId) {
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", 9091)).connect(new Endpoint(String.format("broker-%d", brokerId), 9091)).build();
+                if (clusterConfig.isKraftMode()) {
+                    return EndpointPair.builder().bind(new Endpoint("0.0.0.0", CONTROLLER_PORT))
+                            .connect(new Endpoint(String.format("broker-%d", brokerId), CONTROLLER_PORT)).build();
+                }
+                else {
+                    return EndpointPair.builder().bind(new Endpoint("0.0.0.0", ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
+                }
             }
 
-            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, List<Integer> externalPortRange) {
+            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, List<ServerSocket> externalPortRange) {
                 return EndpointPair.builder()
                         .bind(new Endpoint("0.0.0.0", internalPort))
-                        .connect(new Endpoint("localhost", externalPortRange.get(brokerId)))
+                        .connect(new Endpoint("localhost", externalPortRange.get(brokerId).getLocalPort()))
                         .build();
             }
         };
@@ -138,7 +150,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> kafkaEndpoints;
         Supplier<KafkaClusterConfig.KafkaEndpoints.Endpoint> zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("zookeeper",
                 TestcontainersKafkaCluster.ZOOKEEPER_PORT);
-        this.brokers = clusterConfig.getBrokerConfigs(endPointConfigSupplier, zookeeperEndpointSupplier).map(holder -> {
+        this.brokers = clusterConfig.getBrokerConfigs(endPointConfigSupplier).map(holder -> {
             String netAlias = "broker-" + holder.getBrokerNum();
             KafkaContainer kafkaContainer = new KafkaContainer(this.kafkaImage)
                     .withName(name)
@@ -149,7 +161,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
             kafkaContainer
-//                    .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
+                    // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                     .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                     .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
@@ -231,6 +243,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     @Override
     public void close() {
         this.stop();
+        releaseAllPorts();
     }
 
     @Override
@@ -266,6 +279,22 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             super.addFixedExposedPort(hostPort, containerPort);
         }
 
+    }
+
+    private void releaseAllPorts() {
+        closeSockets(clientPorts);
+        closeSockets(anonPorts);
+    }
+
+    private void closeSockets(List<ServerSocket> ports) {
+        for (ServerSocket serverSocket : ports) {
+            try {
+                serverSocket.close();
+            }
+            catch (IOException e) {
+                LOGGER.log(System.Logger.Level.WARNING, "failed to close socket: {0} due to: {1}", serverSocket, e.getMessage(), e);
+            }
+        }
     }
 
     public static class ZookeeperContainer extends LoggingGenericContainer<ZookeeperContainer> {

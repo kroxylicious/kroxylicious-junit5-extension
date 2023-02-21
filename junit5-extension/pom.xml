@@ -51,6 +51,11 @@
             <version>18.0.0</version>
         </dependency>
         <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>

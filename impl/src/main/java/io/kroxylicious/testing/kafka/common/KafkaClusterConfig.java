@@ -5,19 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Singular;
-import lombok.ToString;
-import org.apache.kafka.clients.CommonClientConfigs;
-import org.apache.kafka.common.Uuid;
-import org.apache.kafka.common.config.SaslConfigs;
-import org.apache.kafka.common.config.SslConfigs;
-import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
-import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.TestInfo;
-
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
@@ -39,7 +26,19 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Endpoint;
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.config.SslConfigs;
+import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
+import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.jetbrains.annotations.NotNull;
+import org.junit.jupiter.api.TestInfo;
+
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Singular;
+import lombok.ToString;
 
 @Builder(toBuilder = true)
 @Getter
@@ -158,7 +157,7 @@ public class KafkaClusterConfig {
         return builder.build();
     }
 
-    public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier, Supplier<Endpoint> zookeeperEndpointSupplier) {
+    public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier) {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
@@ -216,7 +215,7 @@ public class KafkaClusterConfig {
                 }
             }
             else {
-                putConfig(server, "zookeeper.connect", String.format("%s:%d", zookeeperEndpointSupplier.get().getHost(), zookeeperEndpointSupplier.get().getPort()));
+                putConfig(server, "zookeeper.connect", kafkaEndpoints.getControllerEndpoint(0).connectAddress());
                 putConfig(server, "zookeeper.sasl.enabled", "false");
                 putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
             }
