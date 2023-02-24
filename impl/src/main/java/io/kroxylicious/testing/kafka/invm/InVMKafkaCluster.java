@@ -28,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import kafka.server.KafkaConfig;
@@ -61,10 +62,12 @@ public class InVMKafkaCluster implements KafkaCluster {
 
             // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
             // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
-            externalPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            anonPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            interBrokerPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-            controllerPorts = allocateControllerPorts(clusterConfig);
+            try (var preallocator = new ListeningSocketPreallocator()) {
+                externalPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+                anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+                interBrokerPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+                controllerPorts = allocateControllerPorts(clusterConfig, preallocator);
+            }
 
             if (!clusterConfig.isKraftMode()) {
                 final Integer zookeeperPort = controllerPorts.get(0).getLocalPort();
@@ -119,12 +122,12 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
     }
 
-    private List<ServerSocket> allocateControllerPorts(KafkaClusterConfig clusterConfig) {
+    private List<ServerSocket> allocateControllerPorts(KafkaClusterConfig clusterConfig, ListeningSocketPreallocator preallocator) {
         if (clusterConfig.isKraftMode()) {
-            return Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            return preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
         }
         else {
-            return Utils.preAllocateListeningSockets(1).collect(Collectors.toUnmodifiableList());
+            return preallocator.preAllocateListeningSockets(1).collect(Collectors.toUnmodifiableList());
         }
     }
 

@@ -6,6 +6,7 @@
 package io.kroxylicious.testing.kafka.testcontainers;
 
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
 import lombok.SneakyThrows;
 import org.apache.kafka.common.config.SslConfigs;
 import org.junit.jupiter.api.TestInfo;
@@ -108,8 +109,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                     .withNetworkAliases("zookeeper");
         }
 
-        clientPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
-        anonPorts = Utils.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        try (var preallocator = new ListeningSocketPreallocator()) {
+            clientPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+            anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+        }
 
         kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
             @Override
@@ -243,7 +246,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     @Override
     public void close() {
         this.stop();
-        releaseAllPorts();
     }
 
     @Override
@@ -279,22 +281,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             super.addFixedExposedPort(hostPort, containerPort);
         }
 
-    }
-
-    private void releaseAllPorts() {
-        closeSockets(clientPorts);
-        closeSockets(anonPorts);
-    }
-
-    private void closeSockets(List<ServerSocket> ports) {
-        for (ServerSocket serverSocket : ports) {
-            try {
-                serverSocket.close();
-            }
-            catch (IOException e) {
-                LOGGER.log(System.Logger.Level.WARNING, "failed to close socket: {0} due to: {1}", serverSocket, e.getMessage(), e);
-            }
-        }
     }
 
     public static class ZookeeperContainer extends LoggingGenericContainer<ZookeeperContainer> {
