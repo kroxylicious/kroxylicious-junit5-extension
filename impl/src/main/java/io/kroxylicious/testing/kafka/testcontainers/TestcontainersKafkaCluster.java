@@ -9,6 +9,7 @@ import com.github.dockerjava.api.command.InspectContainerResponse;
 import lombok.SneakyThrows;
 import org.apache.kafka.common.config.SslConfigs;
 import org.junit.jupiter.api.TestInfo;
+import org.rnorth.ducttape.unreliables.Unreliables;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
@@ -224,6 +225,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     @SneakyThrows
     public void start() {
         try {
+
+            createNetwork();
+
             if (zookeeper != null) {
                 zookeeper.start();
             }
@@ -238,6 +242,24 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             stop();
             throw new RuntimeException("startup failed or timed out", e);
         }
+    }
+
+    // Workaround for https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/30
+    // This fix can be removed once https://github.com/testcontainers/testcontainers-java/issues/6667 is resolved.
+    private void createNetwork() {
+        Unreliables.retryUntilSuccess(
+                3,
+                () -> {
+                    try {
+                        network.getId();  // Has side effect of creating the network
+                    } catch (Throwable t) {
+                        // close is required to reset an internal state (atomic boolean).   We are relying on the
+                        // fact that the network object allows itself to be re-initialised by another #getId invocation.
+                        network.close();
+                    }
+                    return null;
+                }
+        );
     }
 
     @Override
