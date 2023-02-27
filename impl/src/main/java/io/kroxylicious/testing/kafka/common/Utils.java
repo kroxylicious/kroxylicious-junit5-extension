@@ -37,10 +37,7 @@ public class Utils {
         var originalBootstrap = String.valueOf(connectionConfig.get(BOOTSTRAP_SERVERS_CONFIG));
         toProbe.addAll(Arrays.asList(originalBootstrap.split(",")));
 
-        while(knownReady.size() < expectedBrokerCount) {
-            if (toProbe.isEmpty()) {
-                throw new IllegalArgumentException(String.format("Ran out of addresses to probe before cluster ready: %s", originalBootstrap));
-            }
+        while(knownReady.size() < expectedBrokerCount && !toProbe.isEmpty()) {
             var probeAddress = toProbe.iterator().next();
 
             var copy = new HashMap<>(connectionConfig);
@@ -53,11 +50,11 @@ public class Utils {
                         .atMost(timeout, timeUnit)
                         .ignoreExceptions()
                         .until(() -> {
-                            log.info("describing cluster: {}", probeAddress);
+                            log.debug("describing cluster using address: {}", probeAddress);
                             try {
                                 admin.describeCluster().controller().get().id();
                                 var nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
-                                log.info("got nodes: {}", nodes);
+                                log.debug("{} sees peers: {}", probeAddress, nodes);
 
                                 toProbe.addAll(nodes.stream().filter(not(Node::isEmpty))
                                                              .map(Utils::nodeToAddr)
@@ -76,6 +73,12 @@ public class Utils {
             knownReady.add(probeAddress);
             toProbe.remove(probeAddress);
         }
+
+        int ready = knownReady.size();
+        if (ready < expectedBrokerCount) {
+            throw new IllegalArgumentException(String.format("Too few broker(s) became ready (%d), expected %d.", ready, expectedBrokerCount));
+        }
+
     }
 
     private static String nodeToAddr(Node node) {
