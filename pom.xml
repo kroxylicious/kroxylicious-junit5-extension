@@ -189,12 +189,16 @@
                     <version>4.1</version>
                     <configuration>
                         <!--suppress MavenModelInspection -->
-                        <header>${session.executionRootDirectory}/etc/license.txt</header>
                         <strictCheck>true</strictCheck>
-                        <excludes>
-                            <exclude>LICENSE.txt</exclude>
-                            <exclude>**/.dontdelete</exclude>
-                        </excludes>
+                        <licenseSets>
+                            <licenseSet>
+                                <header>${session.executionRootDirectory}/etc/license.txt</header>
+                                <excludes>
+                                    <exclude>LICENSE.txt</exclude>
+                                    <exclude>**/.dontdelete</exclude>
+                                </excludes>
+                            </licenseSet>
+                        </licenseSets>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -298,9 +302,9 @@
                         <environmentVariables>
                             <TESTCONTAINERS_RYUK_DISABLED>${testcontainers.ryuk.disabled}</TESTCONTAINERS_RYUK_DISABLED>
                         </environmentVariables>
-                        <systemProperties>
+                        <systemPropertyVariables>
                             <container.logs.dir>${project.build.directory}/container-logs/</container.logs.dir>
-                        </systemProperties>
+                        </systemPropertyVariables>
                     </configuration>
                 </plugin>
                 <plugin>
