@@ -13,41 +13,75 @@ import org.hamcrest.Matchers;
 import org.slf4j.Logger;
 
 import java.time.Duration;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
+import static java.util.function.Predicate.not;
+import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG;
 import static org.slf4j.LoggerFactory.getLogger;
 
 public class Utils {
     private static final Logger log = getLogger(Utils.class);
 
     public static void awaitExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
-        try (Admin admin = Admin.create(connectionConfig)) {
-            Awaitility.await()
-                    .pollDelay(Duration.ZERO)
-                    .pollInterval(1, TimeUnit.SECONDS)
-                    .atMost(timeout, timeUnit)
-                    .ignoreExceptions()
-                    .until(() -> {
-                        log.info("describing cluster: {}", connectionConfig.get("bootstrap.servers"));
-                        final Collection<Node> nodes;
-                        try {
-                            nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
-                            log.info("got nodes: {}", nodes);
-                            return nodes;
-                        }
-                        catch (InterruptedException | ExecutionException e) {
-                            log.warn("caught: {}", e.getMessage(), e);
-                        }
-                        catch (TimeoutException te) {
-                            log.warn("Kafka timed out describing the the cluster");
-                        }
-                        return Collections.emptyList();
-                    }, Matchers.hasSize(expectedBrokerCount));
+        var knownReady = Collections.synchronizedSet(new HashSet<String>());
+        var toProbe = Collections.synchronizedSet(new HashSet<String>());
+
+        var originalBootstrap = String.valueOf(connectionConfig.get(BOOTSTRAP_SERVERS_CONFIG));
+        toProbe.addAll(Arrays.asList(originalBootstrap.split(",")));
+
+        while(knownReady.size() < expectedBrokerCount && !toProbe.isEmpty()) {
+            var probeAddress = toProbe.iterator().next();
+
+            var copy = new HashMap<>(connectionConfig);
+            copy.put(BOOTSTRAP_SERVERS_CONFIG, probeAddress);
+
+            try (Admin admin = Admin.create(copy)) {
+                Awaitility.await()
+                        .pollDelay(Duration.ZERO)
+                        .pollInterval(1, TimeUnit.SECONDS)
+                        .atMost(timeout, timeUnit)
+                        .ignoreExceptions()
+                        .until(() -> {
+                            log.debug("describing cluster using address: {}", probeAddress);
+                            try {
+                                admin.describeCluster().controller().get().id();
+                                var nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
+                                log.debug("{} sees peers: {}", probeAddress, nodes);
+
+                                toProbe.addAll(nodes.stream().filter(not(Node::isEmpty))
+                                                             .map(Utils::nodeToAddr)
+                                                             .filter(not(knownReady::contains)).collect(Collectors.toSet()));
+                                return nodes;
+                            }
+                            catch (InterruptedException | ExecutionException e) {
+                                log.warn("caught: {}", e.getMessage(), e);
+                            }
+                            catch (TimeoutException te) {
+                                log.warn("Kafka timed out describing the the cluster");
+                            }
+                            return Collections.emptyList();
+                        }, Matchers.hasSize(expectedBrokerCount));
+            }
+            knownReady.add(probeAddress);
+            toProbe.remove(probeAddress);
         }
+
+        int ready = knownReady.size();
+        if (ready < expectedBrokerCount) {
+            throw new IllegalArgumentException(String.format("Too few broker(s) became ready (%d), expected %d.", ready, expectedBrokerCount));
+        }
+
+    }
+
+    private static String nodeToAddr(Node node) {
+        return node.host() + ":" + node.port();
     }
 }
