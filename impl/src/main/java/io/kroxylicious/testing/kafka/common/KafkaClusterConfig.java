@@ -253,7 +253,7 @@ public class KafkaClusterConfig {
                             null,
                             "US");
                     if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
-                        if(securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())){
+                        if (securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())) {
                             server.put("listener.name.EXTERNAL." + BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
                         }
                         else {

@@ -5,14 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.Config;
-import org.apache.kafka.common.config.ConfigResource;
-import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
-
 import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,6 +13,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
+
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;

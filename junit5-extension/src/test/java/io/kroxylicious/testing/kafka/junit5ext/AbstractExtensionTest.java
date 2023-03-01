@@ -5,15 +5,15 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 

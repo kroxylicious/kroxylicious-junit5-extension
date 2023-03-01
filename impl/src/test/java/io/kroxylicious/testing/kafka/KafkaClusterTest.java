@@ -5,6 +5,13 @@
  */
 package io.kroxylicious.testing.kafka;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
@@ -19,13 +26,6 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
-
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.time.Duration;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
