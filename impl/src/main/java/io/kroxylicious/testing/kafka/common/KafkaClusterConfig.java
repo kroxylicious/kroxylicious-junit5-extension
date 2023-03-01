@@ -253,7 +253,12 @@ public class KafkaClusterConfig {
                             null,
                             "US");
                     if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
-                        server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                        if(securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())){
+                            server.put("listener.name.EXTERNAL." + BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                        }
+                        else {
+                            server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                        }
                         brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCertFilePath(), clientEndpoint.getConnect().getHost());
                         server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreLocation());
                         server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
