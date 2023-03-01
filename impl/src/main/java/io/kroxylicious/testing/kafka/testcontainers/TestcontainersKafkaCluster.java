@@ -5,20 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.testcontainers;
 
-import com.github.dockerjava.api.command.InspectContainerResponse;
-import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
-import lombok.SneakyThrows;
-import org.apache.kafka.common.config.SslConfigs;
-import org.junit.jupiter.api.TestInfo;
-import org.rnorth.ducttape.unreliables.Unreliables;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.Network;
-import org.testcontainers.containers.output.OutputFrame;
-import org.testcontainers.images.builder.Transferable;
-import org.testcontainers.lifecycle.Startable;
-import org.testcontainers.lifecycle.Startables;
-import org.testcontainers.utility.DockerImageName;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileWriter;
@@ -42,9 +28,24 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.kafka.common.config.SslConfigs;
+import org.junit.jupiter.api.TestInfo;
+import org.rnorth.ducttape.unreliables.Unreliables;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
+import org.testcontainers.containers.output.OutputFrame;
+import org.testcontainers.images.builder.Transferable;
+import org.testcontainers.lifecycle.Startable;
+import org.testcontainers.lifecycle.Startables;
+import org.testcontainers.utility.DockerImageName;
+
+import com.github.dockerjava.api.command.InspectContainerResponse;
+
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+
+import lombok.SneakyThrows;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInCluster;
 
@@ -254,15 +255,15 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 3,
                 () -> {
                     try {
-                        network.getId();  // Has side effect of creating the network
-                    } catch (Throwable t) {
-                        // close is required to reset an internal state (atomic boolean).   We are relying on the
+                        network.getId(); // Has side effect of creating the network
+                    }
+                    catch (Throwable t) {
+                        // close is required to reset an internal state (atomic boolean). We are relying on the
                         // fact that the network object allows itself to be re-initialised by another #getId invocation.
                         network.close();
                     }
                     return null;
-                }
-        );
+                });
     }
 
     @Override

@@ -46,7 +46,7 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       - name: 'Build example service'
-        run: mvn -B clean verify
+        run: mvn -B clean verify -Pci
 
       - name: 'Run tests in containers'
         run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -DfailIfNoTests=false -Dtest=KafkaClusterTest
