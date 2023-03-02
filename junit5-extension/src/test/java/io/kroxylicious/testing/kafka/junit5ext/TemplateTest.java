@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -36,6 +37,7 @@ import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 @ExtendWith(KafkaClusterExtension.class)
 public class TemplateTest {
@@ -46,38 +48,41 @@ public class TemplateTest {
                 brokerCluster(3));
     }
 
-    static Map<Integer, Integer> observedMultipleClusterSizes = new HashMap<>();
+    static AtomicReference<Map<Integer, Integer>> observedMultipleClusterSizes = new AtomicReference<>();
 
     @TestTemplate
-    public void testMultipleClusterSizes(
-                                         @DimensionMethodSource("clusterSizes") KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
+    public void testMultipleClusterSizes(@DimensionMethodSource("clusterSizes") KafkaCluster cluster)
+            throws Exception {
+        observedMultipleClusterSizes.compareAndSet(null, new HashMap<>());
         try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
-            observedMultipleClusterSizes.compute(admin.describeCluster().nodes().get().size(),
+            observedMultipleClusterSizes.get().compute(admin.describeCluster().nodes().get().size(),
                     (k, v) -> v == null ? 1 : v + 1);
         }
     }
 
     @AfterAll
     public static void checkMultipleClusterSizes() {
+        assumeTrue(observedMultipleClusterSizes.get() != null);
         assertEquals(Map.of(1, 1, 3, 1),
-                observedMultipleClusterSizes);
+                observedMultipleClusterSizes.get());
     }
 
-    static Map<Integer, Integer> observedMultipleClusterSizesWithAdminParameters = new HashMap<>();
+    static AtomicReference<Map<Integer, Integer>> observedMultipleClusterSizesWithAdminParameters = new AtomicReference<>();
 
     @TestTemplate
     public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource("clusterSizes") KafkaCluster cluster,
                                                             Admin admin)
-            throws ExecutionException, InterruptedException {
-        observedMultipleClusterSizesWithAdminParameters.compute(admin.describeCluster().nodes().get().size(),
+            throws Exception {
+        observedMultipleClusterSizesWithAdminParameters.compareAndSet(null, new HashMap<>());
+        observedMultipleClusterSizesWithAdminParameters.get().compute(admin.describeCluster().nodes().get().size(),
                 (k, v) -> v == null ? 1 : v + 1);
     }
 
     @AfterAll
     public static void checkMultipleClusterSizesWithAdminParameters() {
+        assumeTrue(observedMultipleClusterSizesWithAdminParameters.get() != null);
         assertEquals(Map.of(1, 1, 3, 1),
-                observedMultipleClusterSizesWithAdminParameters);
+                observedMultipleClusterSizesWithAdminParameters.get());
     }
 
     static Stream<BrokerConfig> compression() {
@@ -86,31 +91,34 @@ public class TemplateTest {
                 brokerConfig("compression.type", "snappy"));
     }
 
-    static Set<List<Object>> observedCartesianProduct = new HashSet<>();
+    static AtomicReference<Set<List<Object>>> observedCartesianProduct = new AtomicReference<>();
 
     @TestTemplate
     public void testCartesianProduct(@DimensionMethodSource("clusterSizes") @DimensionMethodSource("compression") KafkaCluster cluster,
                                      Admin admin)
-            throws ExecutionException, InterruptedException {
+            throws Exception {
+        observedCartesianProduct.compareAndSet(null, new HashSet<>());
         assertSameCluster(cluster, admin);
         int numBrokers = admin.describeCluster().nodes().get().size();
         ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
         Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
         var compression = configs.get("compression.type").value();
 
-        observedCartesianProduct.add(List.of(
+        observedCartesianProduct.get().add(List.of(
                 numBrokers,
                 compression));
     }
 
     @AfterAll
     public static void checkCartesianProduct() {
+        assumeTrue(observedCartesianProduct.get() != null);
+
         assertEquals(Set.of(
                 List.of(1, "zstd"),
                 List.of(1, "snappy"),
                 List.of(3, "zstd"),
                 List.of(3, "snappy")),
-                observedCartesianProduct);
+                observedCartesianProduct.get());
     }
 
     static Stream<List<Annotation>> tuples() {
@@ -120,12 +128,12 @@ public class TemplateTest {
                 List.of(brokerCluster(3), zooKeeperCluster()));
     }
 
-    static Set<List<Integer>> observedTuples = new HashSet<>();
+    static AtomicReference<Set<List<Integer>>> observedTuples = new AtomicReference<>();
 
     @TestTemplate
-    public void testTuples(@ConstraintsMethodSource("tuples") KafkaCluster cluster,
-                           Admin admin)
-            throws ExecutionException, InterruptedException {
+    public void testTuples(@ConstraintsMethodSource("tuples") KafkaCluster cluster, Admin admin)
+            throws Exception {
+        observedTuples.compareAndSet(null, new HashSet<>());
         int numBrokers = admin.describeCluster().nodes().get().size();
         int numControllers;
         try {
@@ -140,18 +148,19 @@ public class TemplateTest {
                 throw e;
             }
         }
-        observedTuples.add(List.of(
+        observedTuples.get().add(List.of(
                 numBrokers,
                 numControllers));
     }
 
     @AfterAll
     public static void checkTuples() {
+        assumeTrue(observedTuples.get() != null);
         assertEquals(Set.of(
                 List.of(1, 1),
                 List.of(3, 1),
                 List.of(3, -1)),
-                observedTuples);
+                observedTuples.get());
     }
 
     private static Stream<Version> versions() {
@@ -163,18 +172,18 @@ public class TemplateTest {
         );
     }
 
-    static Set<String> observedVersions = new HashSet<>();
+    static AtomicReference<Set<String>> observedVersions = new AtomicReference<>();
+
+    @TestTemplate
+    public void testVersions(@DimensionMethodSource("versions") @KRaftCluster TestcontainersKafkaCluster cluster) {
+        observedVersions.compareAndSet(null, new HashSet<>());
+        observedVersions.get().add(cluster.getKafkaVersion());
+    }
 
     @AfterAll
     public static void checkVersions() {
-        assertEquals(Set.of("latest-snapshot"), observedVersions);
-    }
-
-    @TestTemplate
-    @ExtendWith(KafkaClusterExtension.class)
-    public void testVersions(@DimensionMethodSource("versions") @KRaftCluster TestcontainersKafkaCluster cluster)
-            throws Exception {
-        observedVersions.add(cluster.getKafkaVersion());
+        assumeTrue(observedVersions.get() != null);
+        assertEquals(Set.of("latest-snapshot"), observedVersions.get());
     }
 
 }

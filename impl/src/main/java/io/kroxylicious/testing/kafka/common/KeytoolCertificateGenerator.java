@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static java.lang.System.Logger.Level.INFO;
+import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
 
 public class KeytoolCertificateGenerator {
@@ -155,7 +155,7 @@ public class KeytoolCertificateGenerator {
             throw new IOException("Keytool execution error");
         }
 
-        log.log(INFO, "Generating certificate using `keytool` using command: {0}, parameters: {1}",
+        log.log(DEBUG, "Generating certificate using `keytool` using command: {0}, parameters: {1}",
                 process.info(), commandParameters);
 
         if (process.exitValue() > 0) {

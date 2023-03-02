@@ -11,7 +11,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
-import static java.lang.System.Logger.Level.INFO;
+import static java.lang.System.Logger.Level.DEBUG;
 
 public class KafkaClusterFactory {
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterFactory.class.getName());
@@ -63,7 +63,7 @@ public class KafkaClusterFactory {
         builder.kafkaVersion(kafkaVersion);
 
         var actual = builder.build();
-        LOGGER.log(INFO, "Test cluster : {0}", actual);
+        LOGGER.log(DEBUG, "Test cluster : {0}", actual);
 
         if (actual.getExecMode() == KafkaClusterExecutionMode.IN_VM) {
             return new InVMKafkaCluster(actual);
