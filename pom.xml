@@ -87,7 +87,7 @@
         <kafka.version>3.4.0</kafka.version>
         <testcontainers.version>1.17.6</testcontainers.version>
         <lombok.version>1.18.26</lombok.version>
-        <assertj-core.version>3.22.0</assertj-core.version>
+        <assertj-core.version>3.24.2</assertj-core.version>
         <zookeeper.version>3.6.3</zookeeper.version>
         <log4j.version>2.19.0</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
