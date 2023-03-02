@@ -279,6 +279,10 @@ public class KafkaClusterConfig {
             // Disable delay during every re-balance
             putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
+            // The test harness doesn't rely upon Kafka JMX metrics (and probably won't because JMX isn't supported by
+            // the kafka native). Registering/Unregistering the mbeans is time-consuming so we disable it.
+            putConfig(server, "metrics.jmx.exclude", ".*");
+
             properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
                     clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId));
         }
