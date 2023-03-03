@@ -108,7 +108,6 @@
         <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
-            <version>24.0.1</version>
         </dependency>
         <dependency>
             <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->
