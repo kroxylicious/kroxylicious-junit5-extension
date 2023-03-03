@@ -341,7 +341,7 @@ public class KafkaClusterExtension implements
 
     @NotNull
     private static Method getTargetMethod(Class<?> clazz, Class<?> methodClazz, String methodName) throws NoSuchMethodException {
-        Class<?> target = methodClazz == Void.class ? clazz : methodClazz;
+        Class<?> target = methodClazz == null || methodClazz == Void.class ? clazz : methodClazz;
         return ReflectionUtils.makeAccessible(target.getDeclaredMethod(methodName));
     }
 
