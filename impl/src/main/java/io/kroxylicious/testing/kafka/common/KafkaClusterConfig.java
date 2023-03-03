@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -180,6 +181,7 @@ public class KafkaClusterConfig {
             var protocolMap = new TreeMap<String, String>();
             var listeners = new TreeMap<String, String>();
             var advertisedListeners = new TreeMap<String, String>();
+            var earlyStart = new TreeSet<String>();
 
             protocolMap.put("EXTERNAL", externalListenerTransport);
             listeners.put("EXTERNAL", clientEndpoint.listenAddress());
@@ -192,6 +194,7 @@ public class KafkaClusterConfig {
             protocolMap.put("INTERNAL", SecurityProtocol.PLAINTEXT.name());
             listeners.put("INTERNAL", interBrokerEndpoint.listenAddress());
             advertisedListeners.put("INTERNAL", interBrokerEndpoint.advertisedAddress());
+            earlyStart.add("INTERNAL");
             putConfig(server, "inter.broker.listener.name", "INTERNAL");
 
             if (isKraftMode()) {
@@ -209,6 +212,7 @@ public class KafkaClusterConfig {
                     putConfig(server, "process.roles", "broker,controller");
 
                     listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
+                    earlyStart.add("CONTROLLER");
                 }
                 else {
                     putConfig(server, "process.roles", "broker");
@@ -224,7 +228,7 @@ public class KafkaClusterConfig {
                     protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
             putConfig(server, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
             putConfig(server, "advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            putConfig(server, "early.start.listeners", advertisedListeners.keySet().stream().map(Object::toString).collect(Collectors.joining(",")));
+            putConfig(server, "early.start.listeners", earlyStart.stream().map(Object::toString).collect(Collectors.joining(",")));
 
             if (saslMechanism != null) {
                 putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
