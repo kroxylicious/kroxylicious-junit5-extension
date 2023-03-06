@@ -507,51 +507,51 @@ public class KafkaClusterExtension implements
                 testClass,
                 field -> predicate.test(field) && KafkaCluster.class.isAssignableFrom(field.getType()),
                 HierarchyTraversalMode.BOTTOM_UP)
-                        .forEach(field -> {
-                            assertSupportedType("field", field.getType());
-                            try {
-                                var accessibleField = makeAccessible(field);
-                                List<Annotation> constraints = getConstraintAnnotations(accessibleField, KafkaClusterConstraint.class);
-                                accessibleField.set(testInstance,
-                                        getCluster(accessibleField, accessibleField.getType().asSubclass(KafkaCluster.class), constraints, context));
-                            }
-                            catch (Throwable t) {
-                                ExceptionUtils.throwAsUncheckedException(t);
-                            }
-                        });
+                .forEach(field -> {
+                    assertSupportedType("field", field.getType());
+                    try {
+                        var accessibleField = makeAccessible(field);
+                        List<Annotation> constraints = getConstraintAnnotations(accessibleField, KafkaClusterConstraint.class);
+                        accessibleField.set(testInstance,
+                                getCluster(accessibleField, accessibleField.getType().asSubclass(KafkaCluster.class), constraints, context));
+                    }
+                    catch (Throwable t) {
+                        ExceptionUtils.throwAsUncheckedException(t);
+                    }
+                });
 
         findFields(testClass,
                 field -> predicate.test(field) && Admin.class.isAssignableFrom(field.getType()),
                 HierarchyTraversalMode.BOTTOM_UP)
-                        .forEach(field -> {
-                            try {
-                                makeAccessible(field).set(testInstance, getAdmin(
-                                        "field " + field.getName(),
-                                        field,
-                                        field.getType().asSubclass(Admin.class),
-                                        context));
-                            }
-                            catch (Throwable t) {
-                                ExceptionUtils.throwAsUncheckedException(t);
-                            }
-                        });
+                .forEach(field -> {
+                    try {
+                        makeAccessible(field).set(testInstance, getAdmin(
+                                "field " + field.getName(),
+                                field,
+                                field.getType().asSubclass(Admin.class),
+                                context));
+                    }
+                    catch (Throwable t) {
+                        ExceptionUtils.throwAsUncheckedException(t);
+                    }
+                });
 
         findFields(testClass,
                 field -> predicate.test(field) && Producer.class.isAssignableFrom(field.getType()),
                 HierarchyTraversalMode.BOTTOM_UP)
-                        .forEach(field -> {
-                            try {
-                                makeAccessible(field).set(testInstance, getProducer(
-                                        "field " + field.getName(),
-                                        field,
-                                        (Class) field.getType().asSubclass(Producer.class),
-                                        field.getGenericType(),
-                                        context));
-                            }
-                            catch (Throwable t) {
-                                ExceptionUtils.throwAsUncheckedException(t);
-                            }
-                        });
+                .forEach(field -> {
+                    try {
+                        makeAccessible(field).set(testInstance, getProducer(
+                                "field " + field.getName(),
+                                field,
+                                (Class) field.getType().asSubclass(Producer.class),
+                                field.getGenericType(),
+                                context));
+                    }
+                    catch (Throwable t) {
+                        ExceptionUtils.throwAsUncheckedException(t);
+                    }
+                });
     }
 
     @Nullable
