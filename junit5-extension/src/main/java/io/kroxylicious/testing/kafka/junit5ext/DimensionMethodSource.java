@@ -52,6 +52,12 @@ public @interface DimensionMethodSource {
      */
     String value();
 
+    /**
+     * The class where defining the static method, or Void.class (default), if the method
+     * is defined with the class defining the annotation test.
+     */
+    Class<?> clazz() default Void.class;
+
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.PARAMETER, ElementType.FIELD })
     @interface List {

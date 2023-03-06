@@ -18,9 +18,11 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
@@ -48,36 +50,42 @@ public class TemplateTest {
 
     static Map<Integer, Integer> observedMultipleClusterSizes = new HashMap<>();
 
-    @TestTemplate
-    public void testMultipleClusterSizes(
-                                         @DimensionMethodSource("clusterSizes") KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
-            observedMultipleClusterSizes.compute(admin.describeCluster().nodes().get().size(),
-                    (k, v) -> v == null ? 1 : v + 1);
+    @Nested
+    public class MultipleClusterSizes implements AfterAllCallback {
+        @TestTemplate
+        public void testMultipleClusterSizes(
+                                             @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
+                throws ExecutionException, InterruptedException {
+            try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
+                observedMultipleClusterSizes.compute(admin.describeCluster().nodes().get().size(),
+                        (k, v) -> v == null ? 1 : v + 1);
+            }
         }
-    }
 
-    @AfterAll
-    public static void checkMultipleClusterSizes() {
-        assertEquals(Map.of(1, 1, 3, 1),
-                observedMultipleClusterSizes);
+        @Override
+        public void afterAll(ExtensionContext context) {
+            assertEquals(Map.of(1, 1, 3, 1),
+                    observedMultipleClusterSizes);
+        }
     }
 
     static Map<Integer, Integer> observedMultipleClusterSizesWithAdminParameters = new HashMap<>();
 
-    @TestTemplate
-    public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource("clusterSizes") KafkaCluster cluster,
-                                                            Admin admin)
-            throws ExecutionException, InterruptedException {
-        observedMultipleClusterSizesWithAdminParameters.compute(admin.describeCluster().nodes().get().size(),
-                (k, v) -> v == null ? 1 : v + 1);
-    }
+    @Nested
+    public class MultipleClusterSizesWithAdminParameters implements AfterAllCallback {
+        @TestTemplate
+        public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
+                                                                Admin admin)
+                throws ExecutionException, InterruptedException {
+            observedMultipleClusterSizesWithAdminParameters.compute(admin.describeCluster().nodes().get().size(),
+                    (k, v) -> v == null ? 1 : v + 1);
+        }
 
-    @AfterAll
-    public static void checkMultipleClusterSizesWithAdminParameters() {
-        assertEquals(Map.of(1, 1, 3, 1),
-                observedMultipleClusterSizesWithAdminParameters);
+        @Override
+        public void afterAll(ExtensionContext context) {
+            assertEquals(Map.of(1, 1, 3, 1),
+                    observedMultipleClusterSizesWithAdminParameters);
+        }
     }
 
     static Stream<BrokerConfig> compression() {
@@ -88,29 +96,33 @@ public class TemplateTest {
 
     static Set<List<Object>> observedCartesianProduct = new HashSet<>();
 
-    @TestTemplate
-    public void testCartesianProduct(@DimensionMethodSource("clusterSizes") @DimensionMethodSource("compression") KafkaCluster cluster,
-                                     Admin admin)
-            throws ExecutionException, InterruptedException {
-        assertSameCluster(cluster, admin);
-        int numBrokers = admin.describeCluster().nodes().get().size();
-        ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
-        Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-        var compression = configs.get("compression.type").value();
+    @Nested
+    public class CartesianProduct implements AfterAllCallback {
+        @TestTemplate
+        public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression", clazz = TemplateTest.class) KafkaCluster cluster,
+                                         Admin admin)
+                throws ExecutionException, InterruptedException {
+            assertSameCluster(cluster, admin);
+            int numBrokers = admin.describeCluster().nodes().get().size();
+            ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
+            Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+            var compression = configs.get("compression.type").value();
 
-        observedCartesianProduct.add(List.of(
-                numBrokers,
-                compression));
-    }
+            observedCartesianProduct.add(List.of(
+                    numBrokers,
+                    compression));
+        }
 
-    @AfterAll
-    public static void checkCartesianProduct() {
-        assertEquals(Set.of(
-                List.of(1, "zstd"),
-                List.of(1, "snappy"),
-                List.of(3, "zstd"),
-                List.of(3, "snappy")),
-                observedCartesianProduct);
+        @Override
+        public void afterAll(ExtensionContext context) throws Exception {
+            assertEquals(Set.of(
+                    List.of(1, "zstd"),
+                    List.of(1, "snappy"),
+                    List.of(3, "zstd"),
+                    List.of(3, "snappy")),
+                    observedCartesianProduct);
+
+        }
     }
 
     static Stream<List<Annotation>> tuples() {
@@ -122,36 +134,41 @@ public class TemplateTest {
 
     static Set<List<Integer>> observedTuples = new HashSet<>();
 
-    @TestTemplate
-    public void testTuples(@ConstraintsMethodSource("tuples") KafkaCluster cluster,
-                           Admin admin)
-            throws ExecutionException, InterruptedException {
-        int numBrokers = admin.describeCluster().nodes().get().size();
-        int numControllers;
-        try {
-            numControllers = admin.describeMetadataQuorum().quorumInfo().get().voters().size();
-        }
-        catch (ExecutionException e) {
-            // Zookeeper-based clusters don't support this API
-            if (e.getCause() instanceof UnsupportedVersionException) {
-                numControllers = -1;
-            }
-            else {
-                throw e;
-            }
-        }
-        observedTuples.add(List.of(
-                numBrokers,
-                numControllers));
-    }
+    @Nested
+    public class Tuples implements AfterAllCallback {
 
-    @AfterAll
-    public static void checkTuples() {
-        assertEquals(Set.of(
-                List.of(1, 1),
-                List.of(3, 1),
-                List.of(3, -1)),
-                observedTuples);
+        @TestTemplate
+        public void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
+                               Admin admin)
+                throws ExecutionException, InterruptedException {
+            int numBrokers = admin.describeCluster().nodes().get().size();
+            int numControllers;
+            try {
+                numControllers = admin.describeMetadataQuorum().quorumInfo().get().voters().size();
+            }
+            catch (ExecutionException e) {
+                // Zookeeper-based clusters don't support this API
+                if (e.getCause() instanceof UnsupportedVersionException) {
+                    numControllers = -1;
+                }
+                else {
+                    throw e;
+                }
+            }
+            observedTuples.add(List.of(
+                    numBrokers,
+                    numControllers));
+        }
+
+        @Override
+        public void afterAll(ExtensionContext context) throws Exception {
+            assertEquals(Set.of(
+                    List.of(1, 1),
+                    List.of(3, 1),
+                    List.of(3, -1)),
+                    observedTuples);
+
+        }
     }
 
     private static Stream<Version> versions() {
@@ -165,16 +182,19 @@ public class TemplateTest {
 
     static Set<String> observedVersions = new HashSet<>();
 
-    @AfterAll
-    public static void checkVersions() {
-        assertEquals(Set.of("latest-snapshot"), observedVersions);
-    }
+    @Nested
+    public class Versions implements AfterAllCallback {
 
-    @TestTemplate
-    @ExtendWith(KafkaClusterExtension.class)
-    public void testVersions(@DimensionMethodSource("versions") @KRaftCluster TestcontainersKafkaCluster cluster)
-            throws Exception {
-        observedVersions.add(cluster.getKafkaVersion());
-    }
+        @TestTemplate
+        public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster)
+                throws Exception {
+            observedVersions.add(cluster.getKafkaVersion());
+        }
 
+        @Override
+        public void afterAll(ExtensionContext context) throws Exception {
+            assertEquals(Set.of("latest-snapshot"), observedVersions);
+
+        }
+    }
 }

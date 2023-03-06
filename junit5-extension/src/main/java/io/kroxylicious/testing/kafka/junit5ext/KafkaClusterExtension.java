@@ -219,7 +219,7 @@ public class KafkaClusterExtension implements
         Class<?> requiredTestClass = context.getRequiredTestClass();
         Object source;
         try {
-            Method sourceMethod = requiredTestClass.getDeclaredMethod(methodSource.value());
+            Method sourceMethod = getTargetMethod(requiredTestClass, methodSource.clazz(), methodSource.value());
             if (ReflectionUtils.isNotStatic(sourceMethod)) {
                 throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + ConstraintsMethodSource.class.getSimpleName() +
                         " on " + requiredTestClass + " must be static");
@@ -284,7 +284,7 @@ public class KafkaClusterExtension implements
         Class<?> requiredTestClass = context.getRequiredTestClass();
         Object source;
         try {
-            Method sourceMethod = ReflectionUtils.makeAccessible(requiredTestClass.getDeclaredMethod(methodSource.value()));
+            Method sourceMethod = getTargetMethod(requiredTestClass, methodSource.clazz(), methodSource.value());
             if (ReflectionUtils.isNotStatic(sourceMethod)) {
                 throw new ParameterResolutionException("Method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
                         " on " + requiredTestClass + " must be static");
@@ -337,6 +337,12 @@ public class KafkaClusterExtension implements
         return filterAnnotations(coerceToList(
                 methodSource.value(), DimensionMethodSource.class,
                 testTemplateMethod, requiredTestClass, source), KafkaClusterConstraint.class);
+    }
+
+    @NotNull
+    private static Method getTargetMethod(Class<?> clazz, Class<?> methodClazz, String methodName) throws NoSuchMethodException {
+        Class<?> target = methodClazz == null || methodClazz == Void.class ? clazz : methodClazz;
+        return ReflectionUtils.makeAccessible(target.getDeclaredMethod(methodName));
     }
 
     @SuppressWarnings("unchecked")

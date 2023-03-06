@@ -155,7 +155,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         properties.putAll(c.getProperties());
         Path logsDir = tempDirectory.resolve(String.format("broker-%d", c.getBrokerNum()));
         properties.setProperty(KafkaConfig.LogDirProp(), logsDir.toAbsolutePath().toString());
-        LOGGER.log(System.Logger.Level.WARNING, "Generated config {0}", properties);
+        LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
     }
 

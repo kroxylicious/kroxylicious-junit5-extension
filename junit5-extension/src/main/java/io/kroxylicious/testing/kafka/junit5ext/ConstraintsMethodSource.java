@@ -42,4 +42,10 @@ import java.lang.annotation.Target;
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 public @interface ConstraintsMethodSource {
     String value();
+
+    /**
+     * The class where defining the static method, or Void.class (default), if the method
+     * is defined with the class defining the annotation test.
+     */
+    Class<?> clazz() default Void.class;
 }
