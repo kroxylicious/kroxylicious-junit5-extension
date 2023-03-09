@@ -10,7 +10,7 @@ As such it allows you to write very flexible tests that abstract over different 
 
 Gradle 
 ```
-testImplementation 'io.kroxylicious.testing:testing-api:0.1'
+testImplementation 'io.kroxylicious.testing:testing-junit5-extension:0.1'
 ```
 
 Maven
@@ -18,7 +18,7 @@ Maven
 ```xml
 <dependency>
     <groupId>io.kroxylicious.testing</groupId>
-    <artifactId>testing-api</artifactId>
+    <artifactId>testing-junit5-extension</artifactId>
     <version>0.1</version>
 </dependency>
 ```
