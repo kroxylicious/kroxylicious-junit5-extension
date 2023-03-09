@@ -6,6 +6,23 @@ This is a JUnit 5 extension that allows writing tests that require a Kafka clust
 without having to hard-code exactly _how_ that cluster is provisioned.
 As such it allows you to write very flexible tests that abstract over different kinds of cluster.
 
+## Dependency
+
+Gradle 
+```
+testImplementation 'io.kroxylicious.testing:testing-api:0.1'
+```
+
+Maven
+
+```xml
+<dependency>
+    <groupId>io.kroxylicious.testing</groupId>
+    <artifactId>testing-api</artifactId>
+    <version>0.1</version>
+</dependency>
+```
+
 ## Example
 
 Here's a minimal example:
