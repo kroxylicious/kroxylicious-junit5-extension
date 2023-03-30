@@ -49,4 +49,4 @@ jobs:
         run: mvn -B clean verify -Pci
 
       - name: 'Run tests in containers'
-        run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -DfailIfNoTests=false -Dtest=KafkaClusterTest
+        run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KafkaClusterTest
