@@ -47,6 +47,7 @@ import lombok.ToString;
 public class KafkaClusterConfig {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterConfig.class.getName());
+    private static final String ONE_CONFIG = Integer.toString(1);
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -277,9 +278,12 @@ public class KafkaClusterConfig {
                 server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
             }
 
-            putConfig(server, "offsets.topic.replication.factor", Integer.toString(1));
+            putConfig(server, "offsets.topic.replication.factor", ONE_CONFIG);
             // 1 partition for the __consumer_offsets_ topic should be enough
-            putConfig(server, "offsets.topic.num.partitions", Integer.toString(1));
+            putConfig(server, "offsets.topic.num.partitions", ONE_CONFIG);
+            // 1 partition for the __transaction_state_ topic should be enough
+            putConfig(server, "transaction.state.log.replication.factor", ONE_CONFIG);
+            putConfig(server, "transaction.state.log.min.isr", ONE_CONFIG);
             // Disable delay during every re-balance
             putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
