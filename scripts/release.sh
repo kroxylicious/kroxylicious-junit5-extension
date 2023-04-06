@@ -56,7 +56,7 @@ git checkout -b "prepare-release-${RELEASE_VERSION}-${RELEASE_DATE}" "${REPOSITO
 #Disable the shell check as the colour codes only work with interpolation.
 # shellcheck disable=SC2059
 printf "Validating the build is ${GREEN}green${NC}\n"
-#mvn -q clean verify
+mvn -q clean verify
 
 echo "Versioning Kroxylicious-junit-extension as ${RELEASE_VERSION}"
 
@@ -91,3 +91,5 @@ mvn versions:set -DnextSnapshot=true -DnextSnapshotIndexToIncrement="${SNAPSHOT_
 
 git add '**/pom.xml' 'pom.xml'
 git commit --message "Start next development version" --signoff
+
+gh pr create --base main --title "Kroxylicious junit extension development version ${RELEASE_DATE}" --body "prepare for new development version"
