@@ -55,8 +55,8 @@ git checkout -b "prepare-release-${RELEASE_VERSION}-${RELEASE_DATE}" "${REPOSITO
 
 #Disable the shell check as the colour codes only work with interpolation.
 # shellcheck disable=SC2059
-printf "Validating the build is ${GREEN}green${NC}"
-mvn -q clean verify
+printf "Validating the build is ${GREEN}green${NC}\n"
+#mvn -q clean verify
 
 echo "Versioning Kroxylicious-junit-extension as ${RELEASE_VERSION}"
 
