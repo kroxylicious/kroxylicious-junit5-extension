@@ -8,7 +8,8 @@ set -e
 
 REPOSITORY="origin"
 BRANCH_FROM="main"
-while getopts ":v:b:r:k:" opt; do
+SNAPSHOT_INCREMENT_INDEX=2
+while getopts ":v:b:r:k:n:" opt; do
   case $opt in
     v) RELEASE_VERSION="${OPTARG}"
     ;;
@@ -17,6 +18,8 @@ while getopts ":v:b:r:k:" opt; do
     r) REPOSITORY="${OPTARG}"
     ;;
     k) GPG_KEY="${OPTARG}"
+    ;;
+    n) SNAPSHOT_INCREMENT_INDEX="${OPTARG}"
     ;;
 
     \?) echo "Invalid option -${OPTARG}" >&2
@@ -82,3 +85,9 @@ BODY="Release version ${RELEASE_VERSION}"
 
 echo "Create pull request to merge the released version."
 gh pr create --base main --title "Kroxylicious junit extension Release v${RELEASE_VERSION} ${RELEASE_DATE}" --body "${BODY}"
+
+git checkout -b "prepare-development-${RELEASE_DATE}" "${REPOSITORY}/${BRANCH_FROM}"
+mvn versions:set -DnextSnapshot=true -DnextSnapshotIndexToIncrement="${SNAPSHOT_INCREMENT_INDEX}" -DgenerateBackupPoms=false
+
+git add '**/pom.xml' 'pom.xml'
+git commit --message "Start next development version" --signoff
