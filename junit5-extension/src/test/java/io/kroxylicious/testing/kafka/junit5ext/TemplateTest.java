@@ -18,11 +18,11 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.ExtensionContext;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
@@ -51,7 +51,8 @@ public class TemplateTest {
     static Map<Integer, Integer> observedMultipleClusterSizes = new HashMap<>();
 
     @Nested
-    public class MultipleClusterSizes implements AfterAllCallback {
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    public class MultipleClusterSizes {
         @TestTemplate
         public void testMultipleClusterSizes(
                                              @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
@@ -62,8 +63,8 @@ public class TemplateTest {
             }
         }
 
-        @Override
-        public void afterAll(ExtensionContext context) {
+        @AfterAll
+        public void afterAll() {
             assertEquals(Map.of(1, 1, 3, 1),
                     observedMultipleClusterSizes);
         }
@@ -72,7 +73,8 @@ public class TemplateTest {
     static Map<Integer, Integer> observedMultipleClusterSizesWithAdminParameters = new HashMap<>();
 
     @Nested
-    public class MultipleClusterSizesWithAdminParameters implements AfterAllCallback {
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    public class MultipleClusterSizesWithAdminParameters {
         @TestTemplate
         public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
                                                                 Admin admin)
@@ -81,8 +83,8 @@ public class TemplateTest {
                     (k, v) -> v == null ? 1 : v + 1);
         }
 
-        @Override
-        public void afterAll(ExtensionContext context) {
+        @AfterAll
+        public void afterAll() {
             assertEquals(Map.of(1, 1, 3, 1),
                     observedMultipleClusterSizesWithAdminParameters);
         }
@@ -97,7 +99,8 @@ public class TemplateTest {
     static Set<List<Object>> observedCartesianProduct = new HashSet<>();
 
     @Nested
-    public class CartesianProduct implements AfterAllCallback {
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    public class CartesianProduct {
         @TestTemplate
         public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression", clazz = TemplateTest.class) KafkaCluster cluster,
                                          Admin admin)
@@ -113,8 +116,8 @@ public class TemplateTest {
                     compression));
         }
 
-        @Override
-        public void afterAll(ExtensionContext context) throws Exception {
+        @AfterAll
+        public void afterAll() throws Exception {
             assertEquals(Set.of(
                     List.of(1, "zstd"),
                     List.of(1, "snappy"),
@@ -135,7 +138,8 @@ public class TemplateTest {
     static Set<List<Integer>> observedTuples = new HashSet<>();
 
     @Nested
-    public class Tuples implements AfterAllCallback {
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    public class Tuples {
 
         @TestTemplate
         public void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
@@ -160,8 +164,8 @@ public class TemplateTest {
                     numControllers));
         }
 
-        @Override
-        public void afterAll(ExtensionContext context) throws Exception {
+        @AfterAll
+        public void afterAll() {
             assertEquals(Set.of(
                     List.of(1, 1),
                     List.of(3, 1),
@@ -173,17 +177,18 @@ public class TemplateTest {
 
     private static Stream<Version> versions() {
         return Stream.of(
-                version("latest")
-        // TODO: waiting for new versions support in ozangunalp repo https://github.com/ozangunalp/kafka-native/issues/21
-        // version("3.3.1"),
-        // version("3.2.1")
+                version("latest"),
+                version("3.4.0"),
+                version("3.2.3"),
+                version("3.1.2")
         );
     }
 
     static Set<String> observedVersions = new HashSet<>();
 
     @Nested
-    public class Versions implements AfterAllCallback {
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    public class Versions {
 
         @TestTemplate
         public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster)
@@ -191,10 +196,12 @@ public class TemplateTest {
             observedVersions.add(cluster.getKafkaVersion());
         }
 
-        @Override
-        public void afterAll(ExtensionContext context) throws Exception {
-            assertEquals(Set.of("latest-snapshot"), observedVersions);
-
+        @AfterAll
+        public void afterAll() {
+            assertEquals(Set.of("latest-kafka-3.1.2",
+                                "latest-kafka-3.2.3",
+                                "latest-kafka-3.4.0",
+                                "latest"), observedVersions);
         }
     }
 }
