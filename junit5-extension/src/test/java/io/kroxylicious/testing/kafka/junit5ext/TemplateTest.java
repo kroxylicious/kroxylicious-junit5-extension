@@ -124,7 +124,6 @@ public class TemplateTest {
                     List.of(3, "zstd"),
                     List.of(3, "snappy")),
                     observedCartesianProduct);
-
         }
     }
 
@@ -171,7 +170,6 @@ public class TemplateTest {
                     List.of(3, 1),
                     List.of(3, -1)),
                     observedTuples);
-
         }
     }
 
