@@ -178,8 +178,7 @@ public class TemplateTest {
                 version("latest"),
                 version("3.4.0"),
                 version("3.2.3"),
-                version("3.1.2")
-        );
+                version("3.1.2"));
     }
 
     static Set<String> observedVersions = new HashSet<>();
@@ -197,9 +196,9 @@ public class TemplateTest {
         @AfterAll
         public void afterAll() {
             assertEquals(Set.of("latest-kafka-3.1.2",
-                                "latest-kafka-3.2.3",
-                                "latest-kafka-3.4.0",
-                                "latest"), observedVersions);
+                    "latest-kafka-3.2.3",
+                    "latest-kafka-3.4.0",
+                    "latest"), observedVersions);
         }
     }
 }
