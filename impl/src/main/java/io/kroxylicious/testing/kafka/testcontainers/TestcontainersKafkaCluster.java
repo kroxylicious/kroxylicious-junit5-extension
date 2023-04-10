@@ -182,8 +182,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     private void setDefaultKafkaImage(String kafkaVersion) {
-        DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":" + kafkaVersion + "-snapshot");
-        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":" + kafkaVersion + "-snapshot");
+        String kafkaVersionTag = (kafkaVersion == null || kafkaVersion.equals("latest")) ? "latest" : "latest-kafka-" + kafkaVersion;
+
+        DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":" + kafkaVersionTag);
+        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":" + kafkaVersionTag);
     }
 
     private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
