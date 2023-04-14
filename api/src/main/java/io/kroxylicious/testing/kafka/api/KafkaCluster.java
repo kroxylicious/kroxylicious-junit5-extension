@@ -29,6 +29,7 @@ public interface KafkaCluster extends AutoCloseable {
     void close() throws Exception;
 
     /**
+     * Gets the number of brokers expected in the cluster
      * @return the size of the cluster.
      */
     int getNumOfBrokers();
@@ -40,6 +41,7 @@ public interface KafkaCluster extends AutoCloseable {
     String getBootstrapServers();
 
     /**
+     * Gets the cluster id
      * @return The cluster id for KRaft-based clusters, otherwise null;
      */
     String getClusterId();
