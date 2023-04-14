@@ -29,7 +29,7 @@ public interface KafkaCluster extends AutoCloseable {
     void close() throws Exception;
 
     /**
-     * @return the size of the cluster
+     *Returns the size of the cluster.
      */
     int getNumOfBrokers();
 
