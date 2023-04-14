@@ -29,6 +29,11 @@ public interface KafkaCluster extends AutoCloseable {
     void close() throws Exception;
 
     /**
+     * @return the size of the cluster
+     */
+    int getNumOfBrokers();
+
+    /**
      * Gets the bootstrap servers for this cluster
      * @return bootstrap servers
      */

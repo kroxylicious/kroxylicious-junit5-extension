@@ -223,3 +223,18 @@ This will produce tests as follows:
 Provisioning mechanisms can be provided externally by implementing `io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy` and declaring it as a [Java service](https://www.baeldung.com/java-spi) (e.g. in a  `META-INF/services/io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy` file that is available on the test-time classpath).
 
 You can also provide your own constraint annotation types by annotating them with the `@io.kroxylicious.testing.kafka.api.KafkaClusterConstraint` meta-annotation. Such custom constraint annotations will only be understood by your custom provisioning strategy, so the in-JVM and testcontainers-based clusters provided by this project then can't be used.
+
+## Compilation with format validator
+
+As the project should follow the same format for all the files, in case a format error is detected when running the `ci` profile:
+
+```shell
+mvn clean verify -Pci
+```
+
+the following commands shall be run to fix those format issues: 
+
+```shell
+mvn compile
+mvn formatter:validate
+```

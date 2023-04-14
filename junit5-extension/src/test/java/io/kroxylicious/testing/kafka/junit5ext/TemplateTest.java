@@ -6,10 +6,8 @@
 package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.lang.annotation.Annotation;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
@@ -48,46 +46,20 @@ public class TemplateTest {
                 brokerCluster(3));
     }
 
-    static Map<Integer, Integer> observedMultipleClusterSizes = new HashMap<>();
-
-    @Nested
-    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class MultipleClusterSizes {
-        @TestTemplate
-        public void testMultipleClusterSizes(
-                                             @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
-                throws ExecutionException, InterruptedException {
-            try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
-                observedMultipleClusterSizes.compute(admin.describeCluster().nodes().get().size(),
-                        (k, v) -> v == null ? 1 : v + 1);
-            }
-        }
-
-        @AfterAll
-        public void afterAll() {
-            assertEquals(Map.of(1, 1, 3, 1),
-                    observedMultipleClusterSizes);
+    @TestTemplate
+    public void testMultipleClusterSizes(
+                                         @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
+            throws ExecutionException, InterruptedException {
+        try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
+            assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
         }
     }
 
-    static Map<Integer, Integer> observedMultipleClusterSizesWithAdminParameters = new HashMap<>();
-
-    @Nested
-    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class MultipleClusterSizesWithAdminParameters {
-        @TestTemplate
-        public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
-                                                                Admin admin)
-                throws ExecutionException, InterruptedException {
-            observedMultipleClusterSizesWithAdminParameters.compute(admin.describeCluster().nodes().get().size(),
-                    (k, v) -> v == null ? 1 : v + 1);
-        }
-
-        @AfterAll
-        public void afterAll() {
-            assertEquals(Map.of(1, 1, 3, 1),
-                    observedMultipleClusterSizesWithAdminParameters);
-        }
+    @TestTemplate
+    public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
+                                                            Admin admin)
+            throws ExecutionException, InterruptedException {
+        assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
     }
 
     static Stream<BrokerConfig> compression() {
@@ -188,8 +160,7 @@ public class TemplateTest {
     public class Versions {
 
         @TestTemplate
-        public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster)
-                throws Exception {
+        public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster) {
             observedVersions.add(cluster.getKafkaVersion());
         }
 
