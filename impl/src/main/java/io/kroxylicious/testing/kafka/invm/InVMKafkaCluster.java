@@ -222,6 +222,11 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
     }
 
+    @Override
+    public int getNumOfBrokers() {
+        return clusterConfig.getBrokersNum();
+    }
+
     private void releaseAllPorts() {
         releasePorts(controllerPorts);
         releasePorts(interBrokerPorts);

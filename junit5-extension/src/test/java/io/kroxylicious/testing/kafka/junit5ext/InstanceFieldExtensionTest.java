@@ -30,7 +30,7 @@ public class InstanceFieldExtensionTest extends AbstractExtensionTest {
         var dc = describeCluster(instanceCluster.getKafkaClientConfiguration());
         assertEquals(1, dc.nodes().get().size());
         assertEquals(instanceCluster.getClusterId(), dc.clusterId().get());
-        var cbc = assertInstanceOf(InVMKafkaCluster.class, instanceCluster);
+        assertInstanceOf(InVMKafkaCluster.class, instanceCluster);
     }
 
     @Test

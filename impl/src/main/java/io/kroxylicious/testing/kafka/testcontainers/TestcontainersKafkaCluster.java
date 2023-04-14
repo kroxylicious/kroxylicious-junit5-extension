@@ -274,6 +274,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     @Override
+    public int getNumOfBrokers() {
+        return clusterConfig.getBrokersNum();
+    }
+
+    @Override
     public void stop() {
         allContainers().parallel().forEach(GenericContainer::stop);
     }
