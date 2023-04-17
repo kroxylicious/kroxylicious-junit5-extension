@@ -23,6 +23,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 @KafkaClusterConstraint
 public @interface KRaftCluster {
     /**
+     * The number of kraft controllers
      * @return The number of KRaft controllers
      */
     public int numControllers() default 1;

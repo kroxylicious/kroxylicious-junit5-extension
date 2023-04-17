@@ -24,17 +24,23 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 public @interface SaslPlainAuth {
 
     /**
+     * The value of configured users
      * @return The configured users, which must be non-empty.
      */
     UserPassword[] value();
 
+    /**
+     * The interface User password.
+     */
     @interface UserPassword {
         /**
+         * Gets the username
          * @return A user name.
          */
         String user();
 
         /**
+         * Gets the password
          * @return A password.
          */
         String password();

@@ -75,6 +75,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @KafkaClusterConstraint
 public @interface BrokerCluster {
     /**
+     * Number of brokers in the cluster
      * @return The number of brokers in the cluster
      */
     // TODO should this be minBrokers?

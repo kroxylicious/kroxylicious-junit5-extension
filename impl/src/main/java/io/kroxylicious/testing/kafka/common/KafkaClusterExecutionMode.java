@@ -6,6 +6,9 @@
 
 package io.kroxylicious.testing.kafka.common;
 
+/**
+ * The enum Kafka cluster execution mode.
+ */
 public enum KafkaClusterExecutionMode {
     /**
      * Kafka/Zookeeper will be run within the same JVM as the caller
@@ -16,6 +19,13 @@ public enum KafkaClusterExecutionMode {
      */
     CONTAINER;
 
+    /**
+     * Convert cluster execution mode kafka cluster execution mode.
+     *
+     * @param mode the mode
+     * @param defaultMode the default mode
+     * @return the kafka cluster execution mode
+     */
     public static KafkaClusterExecutionMode convertClusterExecutionMode(String mode, KafkaClusterExecutionMode defaultMode) {
         try {
             if (mode == null) {

@@ -13,7 +13,16 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 
+/**
+ * The type Testcontainers provisioning strategy.
+ */
 public class TestcontainersProvisioningStrategy implements KafkaClusterProvisioningStrategy {
+
+    /**
+     * Instantiates a new Testcontainers provisioning strategy.
+     */
+    public TestcontainersProvisioningStrategy() {
+    }
 
     @Override
     public boolean supportsAnnotation(Annotation constraint) {

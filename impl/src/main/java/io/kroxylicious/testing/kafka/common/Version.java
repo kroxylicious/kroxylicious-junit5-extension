@@ -12,9 +12,17 @@ import java.lang.annotation.Target;
 
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 
+/**
+ * The interface Version.
+ */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
 @KafkaClusterConstraint
 public @interface Version {
+    /**
+     * The value of the version.
+     *
+     * @return the value
+     */
     String value();
 }

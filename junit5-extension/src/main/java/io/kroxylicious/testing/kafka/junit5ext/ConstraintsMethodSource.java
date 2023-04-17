@@ -32,7 +32,7 @@ import java.lang.annotation.Target;
  * void matrixTest(@ConstraintMethodSource("clusters") KafkaCluster cluster) {
  *     // ....
  * }
- * }</pre>
+ * }*</pre>
  *
  * <p>If you want to execute a tests for each of the Cartesian product
  * of a number of dimensions you might find {@link DimensionMethodSource @DimensionMethodSource}
@@ -41,11 +41,17 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 public @interface ConstraintsMethodSource {
+    /**
+     * Value of contraints method source.
+     *
+     * @return the value
+     */
     String value();
 
     /**
      * The class where defining the static method, or Void.class (default), if the method
      * is defined with the class defining the annotation test.
+     * @return the class
      */
     Class<?> clazz() default Void.class;
 }

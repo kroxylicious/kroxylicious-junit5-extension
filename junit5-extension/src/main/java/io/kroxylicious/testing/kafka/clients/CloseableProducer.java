@@ -23,8 +23,23 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.ProducerFencedException;
 
+/**
+ * The type Closeable producer.
+ *
+ * @param <K>  the type parameter
+ * @param <V>  the type parameter
+ * @param instance the instance
+ */
 public record CloseableProducer<K, V>(Producer<K, V> instance) implements Producer<K, V>, AutoCloseable {
 
+    /**
+     * Wrap producer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param instance the instance
+     * @return the producer
+     */
     public static <K, V> Producer<K, V> wrap(Producer<K, V> instance) {
         return new CloseableProducer<>(instance);
     }

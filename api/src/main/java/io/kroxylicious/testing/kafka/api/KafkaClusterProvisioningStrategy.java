@@ -15,12 +15,14 @@ import java.util.List;
 public interface KafkaClusterProvisioningStrategy {
 
     /**
+     * Set the supported annotation by the provisioning strategy
      * @param constraint A {@link KafkaClusterConstraint}-annotated constraint annotation.
      * @return Whether this provisioning strategy supports/understands the given {@code constraint}.
      */
     boolean supportsAnnotation(Annotation constraint);
 
     /**
+     * Set the supported type by the provisioning strategy
      * @param declarationType The specific subtype of {@link KafkaCluster}
      * @return Whether this provisioning strategy supports creating instances that
      * are a subclass of the given {@code declarationType}.
@@ -28,7 +30,7 @@ public interface KafkaClusterProvisioningStrategy {
     boolean supportsType(Class<? extends KafkaCluster> declarationType);
 
     /**
-     * Estminate the time it would take to provision a cluster with the given configuration.
+     * Estimate the time it would take to provision a cluster with the given configuration.
      * @param constraints The {@link KafkaClusterConstraint}-annotated constraint annotations
      * @param declarationType The specific subtype of {@link KafkaCluster} to be created.
      * @return The estimated provisioning time (including the time taken for {@link KafkaCluster#start()}.

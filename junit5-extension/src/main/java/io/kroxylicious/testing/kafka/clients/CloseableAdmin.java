@@ -126,8 +126,18 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.quota.ClientQuotaAlteration;
 import org.apache.kafka.common.quota.ClientQuotaFilter;
 
+/**
+ * The type Closeable admin.
+ * @param instance the admin instance
+ */
 public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
 
+    /**
+     * Wrap admin.
+     *
+     * @param instance the instance
+     * @return the admin
+     */
     public static Admin wrap(Admin instance) {
         return new CloseableAdmin(instance);
     }
@@ -137,10 +147,22 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
         instance.close(Duration.ofSeconds(5L));
     }
 
+    /**
+     * Create admin.
+     *
+     * @param props the props
+     * @return the admin
+     */
     public static Admin create(Properties props) {
         return wrap(Admin.create(props));
     }
 
+    /**
+     * Create admin.
+     *
+     * @param conf the conf
+     * @return the admin
+     */
     public static Admin create(Map<String, Object> conf) {
         return wrap(Admin.create(conf));
     }

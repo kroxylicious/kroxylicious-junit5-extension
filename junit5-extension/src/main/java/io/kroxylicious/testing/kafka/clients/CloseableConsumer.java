@@ -26,7 +26,22 @@ import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 
+/**
+ * The type Closeable consumer.
+ *
+ * @param instance the consumer instance
+ * @param <K>  the type parameter
+ * @param <V>  the type parameter
+ */
 public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consumer<K, V>, AutoCloseable {
+    /**
+     * Wrap consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param instance the instance
+     * @return the consumer
+     */
     public static <K, V> Consumer<K, V> wrap(Consumer<K, V> instance) {
         return new CloseableConsumer<>(instance);
     }

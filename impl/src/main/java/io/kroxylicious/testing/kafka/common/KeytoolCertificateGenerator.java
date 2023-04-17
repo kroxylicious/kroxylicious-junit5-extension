@@ -23,6 +23,9 @@ import java.util.stream.Collectors;
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
 
+/**
+ * The type Keytool certificate generator.
+ */
 public class KeytoolCertificateGenerator {
     private String password;
     private final Path certFilePath;
@@ -30,10 +33,22 @@ public class KeytoolCertificateGenerator {
     private final Path trustStoreFilePath;
     private final System.Logger log = System.getLogger(KeytoolCertificateGenerator.class.getName());
 
+    /**
+     * Instantiates a new Keytool certificate generator.
+     *
+     * @throws IOException the io exception
+     */
     public KeytoolCertificateGenerator() throws IOException {
         this(null, null);
     }
 
+    /**
+     * Instantiates a new Keytool certificate generator.
+     *
+     * @param certFilePath the cert file path
+     * @param trustStorePath the trust store path
+     * @throws IOException the io exception
+     */
     public KeytoolCertificateGenerator(String certFilePath, String trustStorePath) throws IOException {
         Path certsDirectory = Files.createTempDirectory("kproxy");
         this.certFilePath = Path.of(certsDirectory.toAbsolutePath() + "/cert-file");
@@ -50,18 +65,38 @@ public class KeytoolCertificateGenerator {
         this.certFilePath.toFile().deleteOnExit();
     }
 
+    /**
+     * Gets cert file path.
+     *
+     * @return the cert file path
+     */
     public String getCertFilePath() {
         return certFilePath.toAbsolutePath().toString();
     }
 
+    /**
+     * Gets key store location.
+     *
+     * @return the key store location
+     */
     public String getKeyStoreLocation() {
         return keyStoreFilePath.toAbsolutePath().toString();
     }
 
+    /**
+     * Gets trust store location.
+     *
+     * @return the trust store location
+     */
     public String getTrustStoreLocation() {
         return trustStoreFilePath.toAbsolutePath().toString();
     }
 
+    /**
+     * Gets password.
+     *
+     * @return the password
+     */
     public String getPassword() {
         if (password == null) {
             password = UUID.randomUUID().toString().replace("-", "");
@@ -69,14 +104,36 @@ public class KeytoolCertificateGenerator {
         return password;
     }
 
+    /**
+     * Can generate wildcard san.
+     *
+     * @return true if java version is greater or equal to 17, false otherwise
+     */
     public boolean canGenerateWildcardSAN() {
         return Runtime.version().feature() >= 17;
     }
 
+    /**
+     * Generate trust store.
+     *
+     * @param certFilePath the cert file path
+     * @param alias the alias
+     * @throws GeneralSecurityException the general security exception
+     * @throws IOException the io exception
+     */
     public void generateTrustStore(String certFilePath, String alias) throws GeneralSecurityException, IOException {
         this.generateTrustStore(certFilePath, alias, getTrustStoreLocation());
     }
 
+    /**
+     * Generate trust store.
+     *
+     * @param certFilePath the cert file path
+     * @param alias the alias
+     * @param trustStoreFilePath the trust store file path
+     * @throws GeneralSecurityException the general security exception
+     * @throws IOException the io exception
+     */
     public void generateTrustStore(String certFilePath, String alias, String trustStoreFilePath)
             throws GeneralSecurityException, IOException {
         // keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
@@ -99,6 +156,19 @@ public class KeytoolCertificateGenerator {
         runCommand(commandParameters);
     }
 
+    /**
+     * Generate self-signed certificate entry.
+     *
+     * @param email the email
+     * @param domain the domain
+     * @param organizationUnit the organization unit
+     * @param organization the organization
+     * @param city the city
+     * @param state the state
+     * @param country the country
+     * @throws GeneralSecurityException the general security exception
+     * @throws IOException the io exception
+     */
     public void generateSelfSignedCertificateEntry(String email, String domain, String organizationUnit,
                                                    String organization, String city, String state,
                                                    String country)

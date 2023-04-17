@@ -24,16 +24,30 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @Repeatable(BrokerConfig.List.class)
 @KafkaClusterConstraint
 public @interface BrokerConfig {
-    /** The name of the <a href="https://kafka.apache.org/documentation.html#brokerconfigs">broker configuration parameter</a>. */
+    /**
+     * The name of the <a href="https://kafka.apache.org/documentation.html#brokerconfigs">broker configuration parameter</a>.
+     * @return the name
+     **/
     String name();
 
-    /** The value of the <a href="https://kafka.apache.org/documentation.html#brokerconfigs">broker configuration parameter</a>. */
+    /**
+     * The value of the <a href="https://kafka.apache.org/documentation.html#brokerconfigs">broker configuration parameter</a>.
+     * @return the value
+     */
     String value();
 
+    /**
+     * The interface List.
+     */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.FIELD, ElementType.PARAMETER })
     @KafkaClusterConstraint
     @interface List {
+        /**
+         * List of broker configs.
+         *
+         * @return the value of the broker config list
+         */
         BrokerConfig[] value();
     }
 }

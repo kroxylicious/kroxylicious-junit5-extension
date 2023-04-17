@@ -107,7 +107,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  *         producer.send(new ProducerRecord<>("hello", "world")).get();
  *     }
  * }
- * }</pre>
+ * }**</pre>
  *
  * <p>Notes:</p>
  * <ol>
@@ -130,7 +130,16 @@ public class KafkaClusterExtension implements
     private static final ExtensionContext.Namespace ADMIN_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, Admin.class);
     private static final ExtensionContext.Namespace PRODUCER_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, Producer.class);
     private static final ExtensionContext.Namespace CONSUMER_NAMESPACE = ExtensionContext.Namespace.create(KafkaClusterExtension.class, Consumer.class);
+    /**
+     * The constant STARTING_PREFIX.
+     */
     public static final String STARTING_PREFIX = "WY9Br5K1vAfov_8jjJ3KUA";
+
+    /**
+     * Instantiates a new Kafka cluster extension.
+     */
+    public KafkaClusterExtension() {
+    }
 
     @Override
     public boolean supportsTestTemplate(ExtensionContext context) {
@@ -379,6 +388,11 @@ public class KafkaClusterExtension implements
                 "Annotation type");
     }
 
+    /**
+     * The type Closeable.
+     *
+     * @param <T>   the type parameter
+     */
     static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
 
         private final String clusterName;
@@ -386,12 +400,24 @@ public class KafkaClusterExtension implements
         private final T resource;
         private final AnnotatedElement sourceElement;
 
+        /**
+         * Instantiates a new Closeable.
+         *
+         * @param sourceElement the source element
+         * @param clusterName the cluster name
+         * @param resource the resource
+         */
         public Closeable(AnnotatedElement sourceElement, String clusterName, T resource) {
             this.sourceElement = sourceElement;
             this.clusterName = clusterName;
             this.resource = resource;
         }
 
+        /**
+         * Get t.
+         *
+         * @return the t
+         */
         public T get() {
             return resource;
         }
@@ -437,6 +463,15 @@ public class KafkaClusterExtension implements
         return resolveParameter(parameterContext, extensionContext, List.of());
     }
 
+    /**
+     * Resolve parameter object.
+     *
+     * @param parameterContext the parameter context
+     * @param extensionContext the extension context
+     * @param extraConstraints the extra constraints
+     * @return the object
+     * @throws ParameterResolutionException the parameter resolution exception
+     */
     public static Object resolveParameter(
                                           ParameterContext parameterContext,
                                           ExtensionContext extensionContext,
@@ -961,6 +996,13 @@ public class KafkaClusterExtension implements
         return constraints;
     }
 
+    /**
+     * Find best provisioning strategy kafka cluster provisioning strategy.
+     *
+     * @param constraints the constraints
+     * @param declarationType the declaration type
+     * @return the kafka cluster provisioning strategy
+     */
     static KafkaClusterProvisioningStrategy findBestProvisioningStrategy(
                                                                          List<Annotation> constraints,
                                                                          Class<? extends KafkaCluster> declarationType) {

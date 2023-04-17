@@ -13,6 +13,9 @@ import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static java.lang.System.Logger.Level.DEBUG;
 
+/**
+ * The type Kafka cluster factory.
+ */
 public class KafkaClusterFactory {
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterFactory.class.getName());
 
@@ -41,6 +44,18 @@ public class KafkaClusterFactory {
      */
     public static final String TEST_CLUSTER_KRAFT_MODE = "TEST_CLUSTER_KRAFT_MODE";
 
+    /**
+     * Instantiates a new Kafka cluster factory.
+     */
+    public KafkaClusterFactory() {
+    }
+
+    /**
+     * Create kafka cluster.
+     *
+     * @param clusterConfig the cluster config
+     * @return the kafka cluster
+     */
     public static KafkaCluster create(KafkaClusterConfig clusterConfig) {
         if (clusterConfig == null) {
             throw new NullPointerException();
@@ -84,5 +99,4 @@ public class KafkaClusterFactory {
         }
         return Boolean.parseBoolean(mode);
     }
-
 }
