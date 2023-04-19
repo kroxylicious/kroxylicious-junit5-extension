@@ -24,7 +24,7 @@ public class ConstraintUtils {
     /**
      * The Broker cluster constraint instance.
      *
-     * @param numBrokers the num brokers
+     * @param numBrokers the number of brokers to form the cluster with
      * @return the broker cluster
      */
     public static BrokerCluster brokerCluster(int numBrokers) {
