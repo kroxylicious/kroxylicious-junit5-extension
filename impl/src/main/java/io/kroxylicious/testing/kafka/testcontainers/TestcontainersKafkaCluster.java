@@ -65,9 +65,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     public static final int ANON_PORT = 9094;
     private static final int INTER_BROKER_PORT = 9092;
     private static final int CONTROLLER_PORT = 9091;
-    /**
-     * The constant ZOOKEEPER_PORT.
-     */
     private static final int ZOOKEEPER_PORT = 2181;
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
