@@ -42,7 +42,7 @@ public class ConstraintUtils {
     }
 
     /**
-     * The broker config constraint instance
+     *  Creates a constraint to ensure the broker is configured with a particular configuration property.
      *
      * @param name the name
      * @param value the value
