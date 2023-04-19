@@ -107,7 +107,7 @@ public class KafkaClusterConfig {
             Version.class);
 
     /**
-     * Supports constraint boolean.
+     * Does the KafkaClusterConfiguration support the supplied constraint.
      *
      * @param annotation the annotation
      * @return the boolean
