@@ -88,7 +88,9 @@ public class ConstraintUtils {
     }
 
     /**
-     * The zookeeper cluster constraint instance.
+     * Creates a constraint to supply a cluster using ZooKeeper for controller nodes..     
+     * <p/>
+     * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @return the zookeeper cluster
      */
