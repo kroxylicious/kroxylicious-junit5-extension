@@ -27,7 +27,7 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 
 /**
- * The type Closeable consumer.
+ * Provides a simple wrapper around a Kafka Consumer to redirect `close()` so that it has a sensible timeout and can thus be safely used in a try-with-resources block. All other methods delegate to the wrapped Consumer client. 
  *
  * @param instance the consumer instance
  * @param <K>  the type parameter
