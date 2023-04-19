@@ -33,15 +33,12 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class Utils {
     private static final Logger log = getLogger(Utils.class);
 
-    /**
-     * Instantiates a new Utils.
-     */
-    public Utils() {
-    }
+    private Utils() {
 
     /**
      * Await expected broker count in cluster.
-     *
+     * <p/>
+     *  Verifies that each broker in cluster is returning the expected cluster size.
      * @param connectionConfig the connection config
      * @param timeout the timeout
      * @param timeUnit the time unit
