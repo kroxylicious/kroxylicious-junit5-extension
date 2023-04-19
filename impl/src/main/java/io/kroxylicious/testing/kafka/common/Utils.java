@@ -34,11 +34,12 @@ public class Utils {
     private static final Logger log = getLogger(Utils.class);
 
     private Utils() {
+    }
 
     /**
      * Await expected broker count in cluster.
-     * <p/>
-     *  Verifies that each broker in cluster is returning the expected cluster size.
+     * Verifies that each broker in cluster is returning the expected cluster size.
+     *
      * @param connectionConfig the connection config
      * @param timeout the timeout
      * @param timeUnit the time unit

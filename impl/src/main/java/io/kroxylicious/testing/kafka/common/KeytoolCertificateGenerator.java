@@ -24,7 +24,7 @@ import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
 
 /**
- * Used to configured and manage certificates using the JDK's keytool. 
+ * Used to configured and manage certificates using the JDK's keytool.
  */
 public class KeytoolCertificateGenerator {
     private String password;
