@@ -24,7 +24,7 @@ import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
 
 /**
- * The type Keytool certificate generator.
+ * Used to configured and manage certificates using the JDK's keytool. 
  */
 public class KeytoolCertificateGenerator {
     private String password;
@@ -68,7 +68,7 @@ public class KeytoolCertificateGenerator {
     /**
      * Gets cert file path.
      *
-     * @return the cert file path
+     * @return the absolute path to the certificate file
      */
     public String getCertFilePath() {
         return certFilePath.toAbsolutePath().toString();
@@ -77,7 +77,7 @@ public class KeytoolCertificateGenerator {
     /**
      * Gets key store location.
      *
-     * @return the key store location
+     * @return the absolute path to the key store
      */
     public String getKeyStoreLocation() {
         return keyStoreFilePath.toAbsolutePath().toString();
@@ -86,7 +86,7 @@ public class KeytoolCertificateGenerator {
     /**
      * Gets trust store location.
      *
-     * @return the trust store location
+     * @return the absolute path to the trust store
      */
     public String getTrustStoreLocation() {
         return trustStoreFilePath.toAbsolutePath().toString();

@@ -41,7 +41,7 @@ import scala.Option;
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
 /**
- * The type in VM kafka cluster.
+ * Configures and manages an in process (within the JVM) Kafka cluster.
  */
 public class InVMKafkaCluster implements KafkaCluster {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());

@@ -7,7 +7,7 @@
 package io.kroxylicious.testing.kafka.common;
 
 /**
- * The enum Kafka cluster execution mode.
+ * An enum defining how the Kafka cluster should be executed.
  */
 public enum KafkaClusterExecutionMode {
     /**

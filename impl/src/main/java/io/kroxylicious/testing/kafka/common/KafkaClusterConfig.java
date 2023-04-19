@@ -117,9 +117,9 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * From constraints kafka cluster config.
+     * Build the cluster constraints from the supplied list of annotations.
      *
-     * @param annotations the annotations
+     * @param annotations the annotations used to configure the KafkaCluster
      * @return the kafka cluster config
      */
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
@@ -327,7 +327,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Build client bootstrap servers string.
+     * Build the bootstrap servers string for general client access.
      *
      * @param endPointConfig the end point config
      * @return the client bootstrap servers
@@ -338,7 +338,8 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Build anon bootstrap servers string.
+     * Build the bootstrap servers string for connecting to the anonymous listeners.
+     * Generally expected to be used by the extension for validating cluster status.
      *
      * @param endPointConfig the end point config
      * @return the anon bootstrap servers
@@ -349,7 +350,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Build controller bootstrap servers string.
+     Build the bootstrap servers string for connecting to the controller listeners.
      *
      * @param kafkaEndpoints the kafka endpoints
      * @return the controller bootstrap servers
@@ -360,7 +361,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Build interbroker bootstrap servers string.
+     * Build the bootstrap servers string for connecting to the inter broker listeners.
      *
      * @param kafkaEndpoints the kafka endpoints
      * @return the interbroker bootstrap servers
@@ -371,7 +372,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Gets anon connect config for cluster.
+     * Generates client connection config to connect to the anonymous listeners within the cluster. Thus bypassing all authentication mechanisms.
      *
      * @param kafkaEndpoints the kafka endpoints
      * @return the anon connect config for cluster
@@ -381,7 +382,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Gets connect config for cluster.
+     * Generates client connection config to connect to the cluster via the supplied bootstrap address.
      *
      * @param bootstrapServers the bootstrap servers
      * @return the connect config for cluster
@@ -403,7 +404,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Gets connect config for cluster.
+     * Generates client connection config to connect to the cluster via the supplied bootstrap address and user credentials.
      *
      * @param bootstrapServers the bootstrap servers
      * @param user the user
@@ -415,7 +416,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Gets connect config for cluster.
+     * Generates client connection config to connect to the cluster via the supplied bootstrap address and authentication configuration.
      *
      * @param bootstrapServers the bootstrap servers
      * @param user the user
@@ -494,7 +495,7 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Is kraft mode.
+     * Is the cluster coppering using Kraft Controller nodes.
      *
      * @return true if kraft mode is used, false otherwise
      */
