@@ -41,6 +41,9 @@ import lombok.Getter;
 import lombok.Singular;
 import lombok.ToString;
 
+/**
+ * The Kafka cluster config class.
+ */
 @Builder(toBuilder = true)
 @Getter
 @ToString
@@ -103,10 +106,22 @@ public class KafkaClusterConfig {
             ZooKeeperCluster.class,
             Version.class);
 
+    /**
+     * Does the KafkaClusterConfiguration support the supplied constraint.
+     *
+     * @param annotation the annotation
+     * @return the boolean
+     */
     public static boolean supportsConstraint(Class<? extends Annotation> annotation) {
         return SUPPORTED_CONSTRAINTS.contains(annotation);
     }
 
+    /**
+     * Build the cluster constraints from the supplied list of annotations.
+     *
+     * @param annotations the annotations used to configure the KafkaCluster
+     * @return the kafka cluster config
+     */
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
         var builder = builder();
         builder.brokersNum(1);
@@ -159,6 +174,12 @@ public class KafkaClusterConfig {
         return builder.build();
     }
 
+    /**
+     * Gets broker configs.
+     *
+     * @param endPointConfigSupplier the end point config supplier
+     * @return the broker configs
+     */
     public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier) {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
@@ -305,30 +326,67 @@ public class KafkaClusterConfig {
         }
     }
 
+    /**
+     * Build the bootstrap servers string for general client access.
+     *
+     * @param endPointConfig the end point config
+     * @return the client bootstrap servers
+     */
     @NotNull
     public String buildClientBootstrapServers(KafkaEndpoints endPointConfig) {
         return buildBootstrapServers(getBrokersNum(), endPointConfig::getClientEndpoint);
     }
 
+    /**
+     * Build the bootstrap servers string for connecting to the anonymous listeners.
+     * Generally expected to be used by the extension for validating cluster status.
+     *
+     * @param endPointConfig the end point config
+     * @return the anon bootstrap servers
+     */
     @NotNull
     public String buildAnonBootstrapServers(KafkaEndpoints endPointConfig) {
         return buildBootstrapServers(getBrokersNum(), endPointConfig::getAnonEndpoint);
     }
 
+    /**
+     Build the bootstrap servers string for connecting to the controller listeners.
+     *
+     * @param kafkaEndpoints the kafka endpoints
+     * @return the controller bootstrap servers
+     */
     @NotNull
     public String buildControllerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
         return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getControllerEndpoint);
     }
 
+    /**
+     * Build the bootstrap servers string for connecting to the inter broker listeners.
+     *
+     * @param kafkaEndpoints the kafka endpoints
+     * @return the interbroker bootstrap servers
+     */
     @NotNull
     public String buildInterBrokerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
         return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getInterBrokerEndpoint);
     }
 
+    /**
+     * Generates client connection config to connect to the anonymous listeners within the cluster. Thus bypassing all authentication mechanisms.
+     *
+     * @param kafkaEndpoints the kafka endpoints
+     * @return the anon connect config for cluster
+     */
     public Map<String, Object> getAnonConnectConfigForCluster(KafkaEndpoints kafkaEndpoints) {
         return getConnectConfigForCluster(buildAnonBootstrapServers(kafkaEndpoints), null, null, null, null);
     }
 
+    /**
+     * Generates client connection config to connect to the cluster via the supplied bootstrap address.
+     *
+     * @param bootstrapServers the bootstrap servers
+     * @return the connect config for cluster
+     */
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
         if (saslMechanism != null) {
             Map<String, String> users = getUsers();
@@ -345,10 +403,28 @@ public class KafkaClusterConfig {
         }
     }
 
+    /**
+     * Generates client connection config to connect to the cluster via the supplied bootstrap address and user credentials.
+     *
+     * @param bootstrapServers the bootstrap servers
+     * @param user the user
+     * @param password the password
+     * @return the connect config for cluster
+     */
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password) {
         return getConnectConfigForCluster(bootstrapServers, user, password, getSecurityProtocol(), getSaslMechanism());
     }
 
+    /**
+     * Generates client connection config to connect to the cluster via the supplied bootstrap address and authentication configuration.
+     *
+     * @param bootstrapServers the bootstrap servers
+     * @param user the user
+     * @param password the password
+     * @param securityProtocol the security protocol
+     * @param saslMechanism the sasl mechanism
+     * @return the connect config for cluster
+     */
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers, String user, String password, String securityProtocol, String saslMechanism) {
         Map<String, Object> kafkaConfig = new HashMap<>();
 
@@ -418,10 +494,20 @@ public class KafkaClusterConfig {
         return kafkaConfig;
     }
 
+    /**
+     * Is the cluster coppering using Kraft Controller nodes.
+     *
+     * @return true if kraft mode is used, false otherwise
+     */
     public boolean isKraftMode() {
         return this.getKraftMode() == null || this.getKraftMode();
     }
 
+    /**
+     * Cluster id string.
+     *
+     * @return the id
+     */
     public String clusterId() {
         return isKraftMode() ? kafkaKraftClusterId : null;
     }
@@ -433,6 +519,9 @@ public class KafkaClusterConfig {
                 .collect(Collectors.joining(","));
     }
 
+    /**
+     * The type Config holder.
+     */
     @Builder
     @Getter
     public static class ConfigHolder {
@@ -442,35 +531,95 @@ public class KafkaClusterConfig {
         private final String endpoint;
         private final int brokerNum;
         private final String kafkaKraftClusterId;
+
+        /**
+         * Instantiates a new Config holder.
+         *
+         * @param properties the properties
+         * @param externalPort the external port
+         * @param anonPort the anon port
+         * @param endpoint the endpoint
+         * @param brokerNum the broker num
+         * @param kafkaKraftClusterId the kafka kraft cluster id
+         */
+        public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, String endpoint, int brokerNum, String kafkaKraftClusterId) {
+            this.properties = properties;
+            this.externalPort = externalPort;
+            this.anonPort = anonPort;
+            this.endpoint = endpoint;
+            this.brokerNum = brokerNum;
+            this.kafkaKraftClusterId = kafkaKraftClusterId;
+        }
     }
 
+    /**
+     * The interface Kafka endpoints.
+     */
     public interface KafkaEndpoints {
 
+        /**
+         * The type Endpoint pair.
+         */
         @Builder
         @Getter
         class EndpointPair {
             private final Endpoint bind;
             private final Endpoint connect;
 
+            /**
+             * Instantiates a new Endpoint pair.
+             *
+             * @param bind the bind
+             * @param connect the endpoint
+             */
+            public EndpointPair(Endpoint bind, Endpoint connect) {
+                this.bind = bind;
+                this.connect = connect;
+            }
+
+            /**
+             * Connect address string.
+             *
+             * @return the address
+             */
             public String connectAddress() {
                 return String.format("%s:%d", connect.host, connect.port);
             }
 
+            /**
+             * Listen address string.
+             *
+             * @return the listen address
+             */
             public String listenAddress() {
                 return String.format("//%s:%d", bind.host, bind.port);
             }
 
+            /**
+             * Advertised address string.
+             *
+             * @return the advertise address
+             */
             public String advertisedAddress() {
                 return String.format("//%s:%d", connect.host, connect.port);
             }
         }
 
+        /**
+         * The type Endpoint.
+         */
         @Builder
         @Getter
         class Endpoint {
             private final String host;
             private final int port;
 
+            /**
+             * Instantiates a new Endpoint.
+             *
+             * @param host the host
+             * @param port the port
+             */
             public Endpoint(String host, int port) {
                 this.host = host;
                 this.port = port;
@@ -482,12 +631,36 @@ public class KafkaClusterConfig {
             }
         }
 
+        /**
+         * Gets inter broker endpoint.
+         *
+         * @param brokerId the broker id
+         * @return the inter broker endpoint
+         */
         EndpointPair getInterBrokerEndpoint(int brokerId);
 
+        /**
+         * Gets controller endpoint.
+         *
+         * @param brokerId the broker id
+         * @return the controller endpoint
+         */
         EndpointPair getControllerEndpoint(int brokerId);
 
+        /**
+         * Gets client endpoint.
+         *
+         * @param brokerId the broker id
+         * @return the client endpoint
+         */
         EndpointPair getClientEndpoint(int brokerId);
 
+        /**
+         * Gets anon endpoint.
+         *
+         * @param brokerId the broker id
+         * @return the anon endpoint
+         */
         EndpointPair getAnonEndpoint(int brokerId);
     }
 }

@@ -13,7 +13,16 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 
+/**
+ * The in VM provisioning strategy.
+ */
 public class InVMProvisioningStrategy implements KafkaClusterProvisioningStrategy {
+
+    /**
+     * Instantiates a new In vm provisioning strategy.
+     */
+    public InVMProvisioningStrategy() {
+    }
 
     @Override
     public boolean supportsAnnotation(Annotation constraint) {

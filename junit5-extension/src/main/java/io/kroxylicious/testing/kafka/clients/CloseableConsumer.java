@@ -26,7 +26,24 @@ import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 
+/**
+ * Provides a simple wrapper around a Kafka Consumer to redirect `close()`
+ * so that it has a sensible timeout and can thus be safely used in a try-with-resources block.
+ * All other methods delegate to the wrapped Consumer client.
+ *
+ * @param instance the consumer instance
+ * @param <K>  the type parameter
+ * @param <V>  the type parameter
+ */
 public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consumer<K, V>, AutoCloseable {
+    /**
+     * Wrap consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param instance the instance
+     * @return the consumer
+     */
     public static <K, V> Consumer<K, V> wrap(Consumer<K, V> instance) {
         return new CloseableConsumer<>(instance);
     }

@@ -15,6 +15,11 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  */
 public class AmbiguousKafkaClusterException extends ParameterResolutionException {
 
+    /**
+     * Instantiates a new Ambiguous kafka cluster exception.
+     *
+     * @param message the message
+     */
     public AmbiguousKafkaClusterException(String message) {
         super(message);
     }

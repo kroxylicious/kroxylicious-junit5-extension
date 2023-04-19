@@ -27,9 +27,24 @@ import static java.util.function.Predicate.not;
 import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG;
 import static org.slf4j.LoggerFactory.getLogger;
 
+/**
+ * The type Utils.
+ */
 public class Utils {
     private static final Logger log = getLogger(Utils.class);
 
+    private Utils() {
+    }
+
+    /**
+     * Await expected broker count in cluster.
+     * Verifies that each broker in cluster is returning the expected cluster size.
+     *
+     * @param connectionConfig the connection config
+     * @param timeout the timeout
+     * @param timeUnit the time unit
+     * @param expectedBrokerCount the expected broker count
+     */
     public static void awaitExpectedBrokerCountInCluster(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
         var knownReady = Collections.synchronizedSet(new HashSet<String>());
         var toProbe = Collections.synchronizedSet(new HashSet<String>());

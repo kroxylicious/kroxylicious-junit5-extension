@@ -40,6 +40,9 @@ import scala.Option;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
+/**
+ * Configures and manages an in process (within the JVM) Kafka cluster.
+ */
 public class InVMKafkaCluster implements KafkaCluster {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
 
@@ -54,6 +57,11 @@ public class InVMKafkaCluster implements KafkaCluster {
     private final List<ServerSocket> interBrokerPorts;
     private final List<ServerSocket> controllerPorts;
 
+    /**
+     * Instantiates a new in VM kafka cluster.
+     *
+     * @param clusterConfig the cluster config
+     */
     public InVMKafkaCluster(KafkaClusterConfig clusterConfig) {
         this.clusterConfig = clusterConfig;
         try {

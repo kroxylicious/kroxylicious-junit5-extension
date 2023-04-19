@@ -24,7 +24,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  * KafkaCluster clusterB;
  * @Test
  * public void myTest(Producer<String, String> producer)
- * }</pre>
+ * }*</pre>
  *
  * <p>{@link KafkaClusterExtension} will fail parameter resolution with
  * {@link AmbiguousKafkaClusterException} in this case
@@ -37,7 +37,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
  * @Name("B") KafkaCluster clusterB;
  * @Test
  * public void myTest(@Name("A") Producer<String, String> producer)
- * }</pre>
+ * }*</pre>
  * <p>Where the {@code @Name} on the declaration of {@code producer}
  * associates it with {@code clusterA}.</p>
  *
@@ -46,5 +46,10 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Name {
+    /**
+     * Value of the name.
+     *
+     * @return the value
+     */
     String value();
 }

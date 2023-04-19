@@ -26,6 +26,12 @@ public class ListeningSocketPreallocator implements AutoCloseable {
     private final List<ServerSocket> all = new ArrayList<>();
 
     /**
+     * Instantiates a new Listening socket preallocator.
+     */
+    public ListeningSocketPreallocator() {
+    }
+
+    /**
      * Pre-allocate 1 or more ephemeral ports which are available for use once the #close method is called.
      *
      * @param num number of ports to pre-allocate

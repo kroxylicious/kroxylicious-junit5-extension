@@ -55,11 +55,17 @@ import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCoun
 public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
+    /**
+     * The constant CLIENT_PORT.
+     */
     public static final int CLIENT_PORT = 9093;
+    /**
+     * The constant ANON_PORT.
+     */
     public static final int ANON_PORT = 9094;
     private static final int INTER_BROKER_PORT = 9092;
     private static final int CONTROLLER_PORT = 9091;
-    public static final int ZOOKEEPER_PORT = 2181;
+    private static final int ZOOKEEPER_PORT = 2181;
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
@@ -83,10 +89,22 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private List<ServerSocket> clientPorts;
     private List<ServerSocket> anonPorts;
 
+    /**
+     * Instantiates a new Testcontainers kafka cluster.
+     *
+     * @param clusterConfig the cluster config
+     */
     public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
         this(null, null, clusterConfig);
     }
 
+    /**
+     * Instantiates a new Testcontainers kafka cluster.
+     *
+     * @param kafkaImage the kafka image
+     * @param zookeeperImage the zookeeper image
+     * @param clusterConfig the cluster config
+     */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
         setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
@@ -217,6 +235,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         return clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
     }
 
+    /**
+     * Gets kafka version.
+     *
+     * @return the kafka version
+     */
     public String getKafkaVersion() {
         return kafkaImage.getVersionPart();
     }
@@ -298,11 +321,19 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
     }
 
+    /**
+     * The type Kafka container.
+     */
     // In kraft mode, currently "Advertised listeners cannot be altered when using a Raft-based metadata quorum", so we
     // need to know the listening port before we start the kafka container. For this reason, we need this override
     // to expose addFixedExposedPort to for use.
     public static class KafkaContainer extends LoggingGenericContainer<KafkaContainer> {
 
+        /**
+         * Instantiates a new Kafka container.
+         *
+         * @param dockerImageName the docker image name
+         */
         public KafkaContainer(final DockerImageName dockerImageName) {
             super(dockerImageName);
         }
@@ -313,17 +344,35 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     }
 
+    /**
+     * The type Zookeeper container.
+     */
     public static class ZookeeperContainer extends LoggingGenericContainer<ZookeeperContainer> {
+        /**
+         * Instantiates a new Zookeeper container.
+         *
+         * @param zookeeperImage the zookeeper image
+         */
         public ZookeeperContainer(DockerImageName zookeeperImage) {
             super(zookeeperImage);
         }
     }
 
+    /**
+     * The type Logging generic container.
+     *
+     * @param <C>  the type parameter
+     */
     public static class LoggingGenericContainer<C extends GenericContainer<C>>
             extends GenericContainer<C> {
         private static final String CONTAINER_LOGS_DIR = "container.logs.dir";
         private String name;
 
+        /**
+         * Instantiates a new Logging generic container.
+         *
+         * @param dockerImageName the docker image name
+         */
         public LoggingGenericContainer(DockerImageName dockerImageName) {
             super(dockerImageName);
         }
@@ -362,6 +411,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
         }
 
+        /**
+         * With name logging generic container.
+         *
+         * @param name the name
+         * @return the logging generic container
+         */
         public LoggingGenericContainer<C> withName(String name) {
             this.name = name;
             return this;
