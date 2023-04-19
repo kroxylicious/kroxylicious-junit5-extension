@@ -53,7 +53,7 @@ public class ConstraintUtils {
     }
 
     /**
-     * The list of broker configs constraint instance
+     *  Creates a constraint to ensure the broker is configured with a list of configuration properties.
      *
      * @param configs the configs
      * @return the broker config list
