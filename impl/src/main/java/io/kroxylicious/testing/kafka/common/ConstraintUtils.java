@@ -76,7 +76,9 @@ public class ConstraintUtils {
     }
 
     /**
-     * The kraft cluster constraint instance.
+     * Creates a constraint to supply a cluster with a configured number of Kraft controller nodes.
+     * <p/>
+     * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @param numControllers the number of controllers
      * @return the kraft cluster
