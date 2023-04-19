@@ -77,7 +77,7 @@ public class ConstraintUtils {
 
     /**
      * Creates a constraint to supply a cluster with a configured number of Kraft controller nodes.
-     * <p/>
+     *
      * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @param numControllers the number of controllers
@@ -88,8 +88,8 @@ public class ConstraintUtils {
     }
 
     /**
-     * Creates a constraint to supply a cluster using ZooKeeper for controller nodes..     
-     * <p/>
+     * Creates a constraint to supply a cluster using ZooKeeper for controller nodes.
+     *
      * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @return the zookeeper cluster

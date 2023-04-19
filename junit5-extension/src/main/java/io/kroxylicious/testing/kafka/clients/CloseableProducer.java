@@ -24,7 +24,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.ProducerFencedException;
 
 /**
- * Provides a simple wrapper around a Kafka Producer to redirect `close()` so that it has a sensible timeout and can thus be safely used in a try-with-resources block. All other methods delegate to the wrapped Producer 
+ * Provides a simple wrapper around a Kafka Producer to redirect `close()`
+ * so that it has a sensible timeout and can thus be safely used in a try-with-resources block.
+ * All other methods delegate to the wrapped Producer
  *
  * @param <K>  the type parameter
  * @param <V>  the type parameter

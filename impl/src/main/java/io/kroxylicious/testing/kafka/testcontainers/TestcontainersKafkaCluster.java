@@ -68,7 +68,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     /**
      * The constant ZOOKEEPER_PORT.
      */
-    public static final int ZOOKEEPER_PORT = 2181;
+    private static final int ZOOKEEPER_PORT = 2181;
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");

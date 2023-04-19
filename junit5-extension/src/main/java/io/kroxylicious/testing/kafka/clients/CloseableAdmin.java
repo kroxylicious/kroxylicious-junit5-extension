@@ -127,7 +127,9 @@ import org.apache.kafka.common.quota.ClientQuotaAlteration;
 import org.apache.kafka.common.quota.ClientQuotaFilter;
 
 /**
- * Provides a simple wrapper around a Kafka Admin client to redirect `close()` so that it has a sensible timeout and can thus be safely used in a try-with-resources block. All other methods delegate to the wrapped Admin client. 
+ * Provides a simple wrapper around a Kafka Admin client to redirect `close()`
+ * so that it has a sensible timeout and can thus be safely used in a try-with-resources block.
+ * All other methods delegate to the wrapped Admin client.
  * @param instance the admin instance
  */
 public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
