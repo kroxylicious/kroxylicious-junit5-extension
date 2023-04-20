@@ -259,6 +259,11 @@
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>3.0.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-install-plugin</artifactId>
                     <version>3.1.1</version>
                 </plugin>
@@ -530,7 +535,6 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.0.1</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>
@@ -539,7 +543,8 @@
                                     <goal>sign</goal>
                                 </goals>
                                 <configuration>
-                                    <keyname>F33DF289</keyname>
+                                    <!--suppress UnresolvedMavenProperty -->
+                                    <keyname>${releaseSigningKey}</keyname>
                                 </configuration>
                             </execution>
                         </executions>
@@ -561,6 +566,32 @@
                                 </goals>
                                 <configuration>
                                     <deployAtEnd>true</deployAtEnd>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-enforcer-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>enforce-property</id>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <requireProperty>
+                                            <property>releaseSigningKey</property>
+                                            <message>You must specify your GPG key when running a release</message>
+                                        </requireProperty>
+                                        <requireReleaseDeps>
+                                            <message>No Snapshots Allowed!</message>
+                                        </requireReleaseDeps>
+                                        <requireReleaseVersion>
+                                            <message>Ensure all modules have a release version</message>
+                                        </requireReleaseVersion>
+                                    </rules>
                                 </configuration>
                             </execution>
                         </executions>
