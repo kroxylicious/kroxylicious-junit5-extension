@@ -76,21 +76,17 @@ git push --tags
 echo "Deploying release to maven central"
 mvn deploy -Prelease -DskipTests=true -DreleaseSigningKey="${GPG_KEY}"
 
+git checkout -b "prepare-development-${RELEASE_DATE}" "prepare-release-${RELEASE_VERSION}-${RELEASE_DATE}"
+mvn versions:set -DnextSnapshot=true -DnextSnapshotIndexToIncrement="${SNAPSHOT_INCREMENT_INDEX}" -DgenerateBackupPoms=false
+
+git add '**/pom.xml' 'pom.xml'
+git commit --message "Start next development version" --signoff
+
 if ! command -v gh &> /dev/null
 then
     echo "gh command could not be found. Please create a pull request by hand https://github.com/kroxylicious/kroxylicious/compare"
     exit
 fi
 
-BODY="Release version ${RELEASE_VERSION}"
-
-echo "Create pull request to merge the released version."
-gh pr create --base main --title "Kroxylicious junit extension Release v${RELEASE_VERSION} ${RELEASE_DATE}" --body "${BODY}"
-
-git checkout -b "prepare-development-${RELEASE_DATE}" "${REPOSITORY}/${BRANCH_FROM}"
-mvn versions:set -DnextSnapshot=true -DnextSnapshotIndexToIncrement="${SNAPSHOT_INCREMENT_INDEX}" -DgenerateBackupPoms=false
-
-git add '**/pom.xml' 'pom.xml'
-git commit --message "Start next development version" --signoff
-
+echo "Create pull request to merge the released version & update to new snapshot version for development"
 gh pr create --base main --title "Kroxylicious junit extension development version ${RELEASE_DATE}" --body "prepare for new development version"
