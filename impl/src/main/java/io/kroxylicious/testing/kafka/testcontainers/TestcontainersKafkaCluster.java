@@ -30,7 +30,6 @@ import java.util.stream.Stream;
 
 import org.apache.kafka.common.config.SslConfigs;
 import org.junit.jupiter.api.TestInfo;
-import org.rnorth.ducttape.unreliables.Unreliables;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
@@ -68,6 +67,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private static final int ZOOKEEPER_PORT = 2181;
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
+    private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
     private static final int READY_TIMEOUT_SECONDS = 120;
@@ -125,6 +125,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
+                    .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
                     .withNetworkAliases("zookeeper");
         }
@@ -188,6 +189,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                     .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                     .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
+                    .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                     .withStartupTimeout(Duration.ofMinutes(2));
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
             kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
@@ -254,9 +256,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     @SneakyThrows
     public void start() {
         try {
-
-            createNetwork();
-
             if (zookeeper != null) {
                 zookeeper.start();
             }
@@ -271,24 +270,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             stop();
             throw new RuntimeException("startup failed or timed out", e);
         }
-    }
-
-    // Workaround for https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/30
-    // This fix can be removed once https://github.com/testcontainers/testcontainers-java/issues/6667 is resolved.
-    private void createNetwork() {
-        Unreliables.retryUntilSuccess(
-                3,
-                () -> {
-                    try {
-                        network.getId(); // Has side effect of creating the network
-                    }
-                    catch (Throwable t) {
-                        // close is required to reset an internal state (atomic boolean). We are relying on the
-                        // fact that the network object allows itself to be re-initialised by another #getId invocation.
-                        network.close();
-                    }
-                    return null;
-                });
     }
 
     @Override
