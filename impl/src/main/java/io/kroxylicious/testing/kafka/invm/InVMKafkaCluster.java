@@ -22,10 +22,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
-import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
 
 import kafka.server.KafkaConfig;
@@ -41,12 +41,14 @@ import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
+import static org.awaitility.Awaitility.await;
 
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
 public class InVMKafkaCluster implements KafkaCluster {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
+    private static final int STARTUP_TIMEOUT = 30;
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;
@@ -184,11 +186,15 @@ public class InVMKafkaCluster implements KafkaCluster {
             }
         }
 
-        servers.stream().parallel().forEach(server -> Awaitility.await().atMost(Duration.ofSeconds(5)).pollDelay(Duration.ofMillis(50)).until(() -> {
-            // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
-            server.startup();
-            return true;
-        }));
+        servers.stream().parallel().forEach(server -> await().atMost(Duration.ofSeconds(STARTUP_TIMEOUT))
+                .catchUncaughtExceptions()
+                .ignoreException(KafkaException.class)
+                .pollInterval(Duration.ofMillis(50))
+                .until(() -> {
+                    // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
+                    server.startup();
+                    return true;
+                }));
         Utils.awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
     }
 
