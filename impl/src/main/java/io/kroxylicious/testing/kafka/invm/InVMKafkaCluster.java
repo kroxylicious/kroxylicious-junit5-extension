@@ -185,7 +185,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
 
         servers.stream().parallel().forEach(server -> Awaitility.await().atMost(Duration.ofSeconds(5)).pollDelay(Duration.ofMillis(50)).until(() -> {
-            //Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
+            // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
             server.startup();
             return true;
         }));
