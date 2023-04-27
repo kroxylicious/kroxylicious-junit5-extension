@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -24,12 +25,8 @@ import java.util.stream.Collectors;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
+import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
-
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
-import io.kroxylicious.testing.kafka.common.Utils;
 
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaRaftServer;
@@ -37,6 +34,11 @@ import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
 import scala.Option;
+
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
@@ -182,7 +184,11 @@ public class InVMKafkaCluster implements KafkaCluster {
             }
         }
 
-        servers.stream().parallel().forEach(Server::startup);
+        servers.stream().parallel().forEach(server -> Awaitility.await().atMost(Duration.ofSeconds(5)).pollDelay(Duration.ofMillis(50)).until(() -> {
+            //Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
+            server.startup();
+            return true;
+        }));
         Utils.awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
     }
 
