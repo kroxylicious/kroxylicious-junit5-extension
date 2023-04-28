@@ -234,7 +234,7 @@
                     <artifactId>impsort-maven-plugin</artifactId>
                     <version>1.8.0</version>
                     <configuration>
-                        <groups>java.,javax.,org.,com.</groups>
+                        <groups>java.,javax.,org.,com.,io.,*,io.kroxylicious</groups>
                         <removeUnused>true</removeUnused>
                         <staticAfter>true</staticAfter>
                         <compliance>${java.test.version}</compliance>
@@ -429,12 +429,6 @@
                                 <phase>process-sources</phase>
                             </execution>
                         </executions>
-                        <configuration>
-                            <groups>java.,javax.,org.,com.,io.,io.kroxylicious.</groups>
-                            <removeUnused>true</removeUnused>
-                            <staticAfter>true</staticAfter>
-                            <compliance>${java.test.version}</compliance>
-                        </configuration>
                     </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>

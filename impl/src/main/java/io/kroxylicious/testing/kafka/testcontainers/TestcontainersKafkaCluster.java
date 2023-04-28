@@ -40,11 +40,11 @@ import org.testcontainers.utility.DockerImageName;
 
 import com.github.dockerjava.api.command.InspectContainerResponse;
 
+import lombok.SneakyThrows;
+
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
-
-import lombok.SneakyThrows;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInCluster;
 
