@@ -192,8 +192,15 @@ public class InVMKafkaCluster implements KafkaCluster {
                 .pollInterval(Duration.ofMillis(50))
                 .until(() -> {
                     // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
-                    server.startup();
-                    return true;
+                    try {
+                        server.startup();
+                        return true;
+                    }
+                    catch (KafkaException e) {
+                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + e.getMessage(), e);
+                        server.awaitShutdown();
+                        return false;
+                    }
                 }));
         Utils.awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
     }
