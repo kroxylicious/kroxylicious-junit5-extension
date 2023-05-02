@@ -35,6 +35,7 @@ import static io.kroxylicious.testing.kafka.common.ConstraintUtils.kraftCluster;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(KafkaClusterExtension.class)
@@ -62,29 +63,34 @@ public class TemplateTest {
         assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
     }
 
-    static Stream<BrokerConfig> compression() {
-        return Stream.of(
-                brokerConfig("compression.type", "zstd"),
-                brokerConfig("compression.type", "snappy"));
-    }
-
     static Set<List<Object>> observedCartesianProduct = new HashSet<>();
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     public class CartesianProduct {
+        static Stream<BrokerConfig> compression() {
+            return Stream.of(
+                    brokerConfig("compression.type", "zstd"),
+                    brokerConfig("compression.type", "snappy"));
+        }
+
         @TestTemplate
-        public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression", clazz = TemplateTest.class) KafkaCluster cluster,
+        public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
                                          Admin admin)
                 throws ExecutionException, InterruptedException {
+            //Given
             assertSameCluster(cluster, admin);
-            int numBrokers = admin.describeCluster().nodes().get().size();
+            int actualClusterSize = admin.describeCluster().nodes().get().size();
+            assertThat(actualClusterSize).as("Expected cluster to have %s nodes", cluster.getNumOfBrokers()).isEqualTo(cluster.getNumOfBrokers());
             ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
-            Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-            var compression = configs.get("compression.type").value();
 
+            //When
+            Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+
+            //Then
+            var compression = configs.get("compression.type").value();
             observedCartesianProduct.add(List.of(
-                    numBrokers,
+                    actualClusterSize,
                     compression));
         }
 
