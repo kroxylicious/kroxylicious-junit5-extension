@@ -75,9 +75,9 @@ public class InVMKafkaCluster implements KafkaCluster {
             // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
             // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
             try (var preallocator = new ListeningSocketPreallocator()) {
-                externalPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-                anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
-                interBrokerPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+                externalPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
+                anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
+                interBrokerPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
                 controllerPorts = allocateControllerPorts(clusterConfig, preallocator);
             }
 
@@ -136,10 +136,10 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     private List<ServerSocket> allocateControllerPorts(KafkaClusterConfig clusterConfig, ListeningSocketPreallocator preallocator) {
         if (clusterConfig.isKraftMode()) {
-            return preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toUnmodifiableList());
+            return preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
         }
         else {
-            return preallocator.preAllocateListeningSockets(1).collect(Collectors.toUnmodifiableList());
+            return preallocator.preAllocateListeningSockets(1).toList();
         }
     }
 
