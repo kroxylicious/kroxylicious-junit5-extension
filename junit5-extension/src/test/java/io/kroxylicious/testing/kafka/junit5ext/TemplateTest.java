@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -26,6 +27,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
@@ -78,30 +80,33 @@ public class TemplateTest {
         public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
                                          Admin admin)
                 throws ExecutionException, InterruptedException {
-            //Given
+            // Given
             assertSameCluster(cluster, admin);
-            int actualClusterSize = admin.describeCluster().nodes().get().size();
-            assertThat(actualClusterSize).as("Expected cluster to have %s nodes", cluster.getNumOfBrokers()).isEqualTo(cluster.getNumOfBrokers());
+            Utils.awaitExpectedBrokerCountFromBootstrapServers(cluster.getKafkaClientConfiguration(), 30, TimeUnit.SECONDS, cluster.getNumOfBrokers());
+
             ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
 
-            //When
+            // When
             Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
 
-            //Then
+            // Then
+            int actualClusterSize = admin.describeCluster().nodes().get().size();
+            assertThat(actualClusterSize).as("Expected cluster to have %s nodes", cluster.getNumOfBrokers()).isEqualTo(cluster.getNumOfBrokers());
+
             var compression = configs.get("compression.type").value();
             observedCartesianProduct.add(List.of(
-                    actualClusterSize,
+                    cluster.getNumOfBrokers(),
                     compression));
         }
 
         @AfterAll
-        public void afterAll() throws Exception {
-            assertEquals(Set.of(
+        public void afterAll() {
+            // We are basically asserting that the test was invoked with all the expected combinations of parameters
+            assertThat(observedCartesianProduct).containsExactlyInAnyOrder(
                     List.of(1, "zstd"),
                     List.of(1, "snappy"),
                     List.of(3, "zstd"),
-                    List.of(3, "snappy")),
-                    observedCartesianProduct);
+                    List.of(3, "snappy"));
         }
     }
 

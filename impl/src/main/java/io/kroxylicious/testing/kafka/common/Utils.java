@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -20,11 +21,14 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.Node;
 import org.awaitility.Awaitility;
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import static java.util.function.Predicate.not;
 import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG;
+import static org.apache.kafka.clients.CommonClientConfigs.CLIENT_ID_CONFIG;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -38,7 +42,53 @@ public class Utils {
 
     /**
      * Await expected broker count in cluster.
-     * Verifies that each broker in cluster is returning the expected cluster size.
+     * Verifies that each broker in the bootstrap servers is returning the expected cluster size.
+     *
+     * @param connectionConfig the connection config
+     * @param timeout the timeout
+     * @param timeUnit the time unit
+     * @param expectedBrokerCount the expected broker count
+     */
+    public static void awaitExpectedBrokerCountFromBootstrapServers(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
+        var originalBootstrap = String.valueOf(connectionConfig.get(BOOTSTRAP_SERVERS_CONFIG));
+        final List<String> brokers = Arrays.asList(originalBootstrap.split(","));
+        // Assert that all brokers are listed in the bootstrap.
+        MatcherAssert.assertThat(brokers, Matchers.hasSize(expectedBrokerCount));
+
+        brokers.parallelStream().forEach(brokerAddress -> {
+
+            final Map<String, Object> customConnectionConfig = brokerSpecificConfig(connectionConfig, brokerAddress);
+
+            try (Admin admin = Admin.create(customConnectionConfig)) {
+                Awaitility.await()
+                        .pollDelay(Duration.ZERO)
+                        .pollInterval(1, TimeUnit.SECONDS)
+                        .atMost(timeout, timeUnit)
+                        .ignoreExceptions()
+                        .until(() -> {
+                            log.debug("describing cluster using address: {}", brokerAddress);
+                            try {
+                                var nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
+                                log.debug("{} sees peers: {}", brokerAddress, nodes);
+                                return nodes.size();
+
+                            }
+                            catch (InterruptedException | ExecutionException e) {
+                                log.warn("caught: {}", e.getMessage(), e);
+                            }
+                            catch (TimeoutException te) {
+                                log.warn("Kafka timed out describing the the cluster");
+                            }
+                            return 0;
+                        },
+                                Matchers.equalTo(expectedBrokerCount));
+            }
+        });
+    }
+
+    /**
+     * Await expected broker count in cluster.
+     * Verifies that each broker in the cluster is returning the expected cluster size.
      *
      * @param connectionConfig the connection config
      * @param timeout the timeout
@@ -71,9 +121,12 @@ public class Utils {
                                 var nodes = admin.describeCluster().nodes().get(10, TimeUnit.SECONDS);
                                 log.debug("{} sees peers: {}", probeAddress, nodes);
 
-                                toProbe.addAll(nodes.stream().filter(not(Node::isEmpty))
-                                        .map(Utils::nodeToAddr)
-                                        .filter(not(knownReady::contains)).collect(Collectors.toSet()));
+                                toProbe.addAll(
+                                        nodes.stream()
+                                                .filter(not(Node::isEmpty))
+                                                .map(Utils::nodeToAddr)
+                                                .filter(not(knownReady::contains))
+                                                .collect(Collectors.toSet()));
                                 return nodes;
                             }
                             catch (InterruptedException | ExecutionException e) {
@@ -83,7 +136,8 @@ public class Utils {
                                 log.warn("Kafka timed out describing the the cluster");
                             }
                             return Collections.emptyList();
-                        }, Matchers.hasSize(expectedBrokerCount));
+                        },
+                                Matchers.hasSize(expectedBrokerCount));
             }
             knownReady.add(probeAddress);
             toProbe.remove(probeAddress);
@@ -94,6 +148,14 @@ public class Utils {
             throw new IllegalArgumentException(String.format("Too few broker(s) became ready (%d), expected %d.", ready, expectedBrokerCount));
         }
 
+    }
+
+    @NotNull
+    private static Map<String, Object> brokerSpecificConfig(Map<String, Object> connectionConfig, String brokerAddress) {
+        final Map<String, Object> customConnectionConfig = new HashMap<>(connectionConfig);
+        customConnectionConfig.put(BOOTSTRAP_SERVERS_CONFIG, brokerAddress);
+        customConnectionConfig.put(CLIENT_ID_CONFIG, "adminProbe-" + brokerAddress);
+        return customConnectionConfig;
     }
 
     private static String nodeToAddr(Node node) {

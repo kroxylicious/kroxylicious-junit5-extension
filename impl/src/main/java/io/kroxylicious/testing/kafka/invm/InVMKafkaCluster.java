@@ -202,7 +202,8 @@ public class InVMKafkaCluster implements KafkaCluster {
                         return false;
                     }
                 }));
-        Utils.awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS, clusterConfig.getBrokersNum());
+        Utils.awaitExpectedBrokerCountFromBootstrapServers(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS,
+                clusterConfig.getBrokersNum());
     }
 
     @Override
