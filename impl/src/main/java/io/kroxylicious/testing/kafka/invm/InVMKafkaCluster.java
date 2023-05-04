@@ -196,8 +196,9 @@ public class InVMKafkaCluster implements KafkaCluster {
                         server.startup();
                         return true;
                     }
-                    catch (KafkaException e) {
-                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + e.getMessage(), e);
+                    catch (Throwable t) {
+                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage(), t);
+                        server.shutdown();
                         server.awaitShutdown();
                         return false;
                     }
