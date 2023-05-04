@@ -82,7 +82,7 @@ public class TemplateTest {
                 throws ExecutionException, InterruptedException {
             // Given
             assertSameCluster(cluster, admin);
-            Utils.awaitExpectedBrokerCountFromBootstrapServers(cluster.getKafkaClientConfiguration(), 30, TimeUnit.SECONDS, cluster.getNumOfBrokers());
+            Utils.awaitExpectedBrokerCountInCluster(cluster.getKafkaClientConfiguration(), 30, TimeUnit.SECONDS, cluster.getNumOfBrokers());
 
             ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
 
