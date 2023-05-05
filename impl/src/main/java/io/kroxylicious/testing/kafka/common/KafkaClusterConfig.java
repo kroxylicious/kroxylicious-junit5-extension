@@ -184,139 +184,145 @@ public class KafkaClusterConfig {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
-            Properties server = new Properties();
-            server.putAll(brokerConfigs);
-
-            putConfig(server, "broker.id", Integer.toString(brokerNum));
-
-            var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
-            var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
-            var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
-
-            // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
-            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
-            // - INTERNAL: used for inter-broker communications (always no auth)
-            // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
-
-            var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
-
-            var protocolMap = new TreeMap<String, String>();
-            var listeners = new TreeMap<String, String>();
-            var advertisedListeners = new TreeMap<String, String>();
-            var earlyStart = new TreeSet<String>();
-
-            protocolMap.put("EXTERNAL", externalListenerTransport);
-            listeners.put("EXTERNAL", clientEndpoint.listenAddress());
-            advertisedListeners.put("EXTERNAL", clientEndpoint.advertisedAddress());
-
-            protocolMap.put("ANON", SecurityProtocol.PLAINTEXT.name());
-            listeners.put("ANON", anonEndpoint.listenAddress());
-            advertisedListeners.put("ANON", anonEndpoint.advertisedAddress());
-
-            protocolMap.put("INTERNAL", SecurityProtocol.PLAINTEXT.name());
-            listeners.put("INTERNAL", interBrokerEndpoint.listenAddress());
-            advertisedListeners.put("INTERNAL", interBrokerEndpoint.advertisedAddress());
-            earlyStart.add("INTERNAL");
-            putConfig(server, "inter.broker.listener.name", "INTERNAL");
-
-            if (isKraftMode()) {
-                putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
-
-                var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
-                var quorumVoters = IntStream.range(0, kraftControllers)
-                        .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
-                        .collect(Collectors.joining(","));
-                putConfig(server, "controller.quorum.voters", quorumVoters);
-                putConfig(server, "controller.listener.names", "CONTROLLER");
-                protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
-
-                if (brokerNum == 0) {
-                    putConfig(server, "process.roles", "broker,controller");
-
-                    listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
-                    earlyStart.add("CONTROLLER");
-                }
-                else {
-                    putConfig(server, "process.roles", "broker");
-                }
-            }
-            else {
-                putConfig(server, "zookeeper.connect", kafkaEndpoints.getControllerEndpoint(0).connectAddress());
-                putConfig(server, "zookeeper.sasl.enabled", "false");
-                putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
-            }
-
-            putConfig(server, "listener.security.protocol.map",
-                    protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            putConfig(server, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            putConfig(server, "advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            putConfig(server, "early.start.listeners", earlyStart.stream().map(Object::toString).collect(Collectors.joining(",")));
-
-            if (saslMechanism != null) {
-                putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
-
-                var saslPairs = new StringBuilder();
-
-                Optional.of(users).orElse(Map.of()).forEach((key, value) -> {
-                    saslPairs.append(String.format("user_%s", key));
-                    saslPairs.append("=");
-                    saslPairs.append(value);
-                    saslPairs.append(" ");
-                });
-
-                // TODO support other than PLAIN
-                String plainModuleConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required %s;", saslPairs);
-                putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", "EXTERNAL".toLowerCase()), plainModuleConfig);
-            }
-
-            if (securityProtocol != null && securityProtocol.contains("SSL")) {
-                if (brokerKeytoolCertificateGenerator == null) {
-                    throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
-                }
-                try {
-                    brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.getConnect().getHost(), "Dev",
-                            "Kroxylicious.io", null,
-                            null,
-                            "US");
-                    if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
-                        if (securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())) {
-                            server.put("listener.name.EXTERNAL." + BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
-                        }
-                        else {
-                            server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
-                        }
-                        brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCertFilePath(), clientEndpoint.getConnect().getHost());
-                        server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreLocation());
-                        server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
-                    }
-                }
-                catch (GeneralSecurityException | IOException e) {
-                    throw new RuntimeException(e);
-                }
-
-                server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getKeyStoreLocation());
-                server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
-                server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
-            }
-
-            putConfig(server, "offsets.topic.replication.factor", ONE_CONFIG);
-            // 1 partition for the __consumer_offsets_ topic should be enough
-            putConfig(server, "offsets.topic.num.partitions", ONE_CONFIG);
-            // 1 partition for the __transaction_state_ topic should be enough
-            putConfig(server, "transaction.state.log.replication.factor", ONE_CONFIG);
-            putConfig(server, "transaction.state.log.min.isr", ONE_CONFIG);
-            // Disable delay during every re-balance
-            putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
-
-            // The test harness doesn't rely upon Kafka JMX metrics (and probably won't because JMX isn't supported by
-            // the kafka native). Registering/Unregistering the mbeans is time-consuming so we disable it.
-            putConfig(server, "metrics.jmx.exclude", ".*");
-
-            properties.add(new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
-                    clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId));
+            final ConfigHolder brokerConfigHolder = generateConfigForSpecificBroker(kafkaEndpoints, brokerNum);
+            properties.add(brokerConfigHolder);
         }
 
         return properties.stream();
+    }
+
+    @NotNull
+    public ConfigHolder generateConfigForSpecificBroker(KafkaEndpoints kafkaEndpoints, int brokerNum) {
+        Properties server = new Properties();
+        server.putAll(brokerConfigs);
+
+        putConfig(server, "broker.id", Integer.toString(brokerNum));
+
+        var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
+        var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
+        var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
+
+        // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
+        // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
+        // - INTERNAL: used for inter-broker communications (always no auth)
+        // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
+
+        var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
+
+        var protocolMap = new TreeMap<String, String>();
+        var listeners = new TreeMap<String, String>();
+        var advertisedListeners = new TreeMap<String, String>();
+        var earlyStart = new TreeSet<String>();
+
+        protocolMap.put("EXTERNAL", externalListenerTransport);
+        listeners.put("EXTERNAL", clientEndpoint.listenAddress());
+        advertisedListeners.put("EXTERNAL", clientEndpoint.advertisedAddress());
+
+        protocolMap.put("ANON", SecurityProtocol.PLAINTEXT.name());
+        listeners.put("ANON", anonEndpoint.listenAddress());
+        advertisedListeners.put("ANON", anonEndpoint.advertisedAddress());
+
+        protocolMap.put("INTERNAL", SecurityProtocol.PLAINTEXT.name());
+        listeners.put("INTERNAL", interBrokerEndpoint.listenAddress());
+        advertisedListeners.put("INTERNAL", interBrokerEndpoint.advertisedAddress());
+        earlyStart.add("INTERNAL");
+        putConfig(server, "inter.broker.listener.name", "INTERNAL");
+
+        if (isKraftMode()) {
+            putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
+
+            var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
+            var quorumVoters = IntStream.range(0, kraftControllers)
+                    .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
+                    .collect(Collectors.joining(","));
+            putConfig(server, "controller.quorum.voters", quorumVoters);
+            putConfig(server, "controller.listener.names", "CONTROLLER");
+            protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
+
+            if (brokerNum == 0) {
+                putConfig(server, "process.roles", "broker,controller");
+
+                listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
+                earlyStart.add("CONTROLLER");
+            }
+            else {
+                putConfig(server, "process.roles", "broker");
+            }
+        }
+        else {
+            putConfig(server, "zookeeper.connect", kafkaEndpoints.getControllerEndpoint(0).connectAddress());
+            putConfig(server, "zookeeper.sasl.enabled", "false");
+            putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
+        }
+
+        putConfig(server, "listener.security.protocol.map",
+                protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+        putConfig(server, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+        putConfig(server, "advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+        putConfig(server, "early.start.listeners", earlyStart.stream().map(Object::toString).collect(Collectors.joining(",")));
+
+        if (saslMechanism != null) {
+            putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
+
+            var saslPairs = new StringBuilder();
+
+            Optional.of(users).orElse(Map.of()).forEach((key, value) -> {
+                saslPairs.append(String.format("user_%s", key));
+                saslPairs.append("=");
+                saslPairs.append(value);
+                saslPairs.append(" ");
+            });
+
+            // TODO support other than PLAIN
+            String plainModuleConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required %s;", saslPairs);
+            putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", "EXTERNAL".toLowerCase()), plainModuleConfig);
+        }
+
+        if (securityProtocol != null && securityProtocol.contains("SSL")) {
+            if (brokerKeytoolCertificateGenerator == null) {
+                throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
+            }
+            try {
+                brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.getConnect().getHost(), "Dev",
+                        "Kroxylicious.io", null,
+                        null,
+                        "US");
+                if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
+                    if (securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())) {
+                        server.put("listener.name.EXTERNAL." + BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                    }
+                    else {
+                        server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                    }
+                    brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCertFilePath(), clientEndpoint.getConnect().getHost());
+                    server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreLocation());
+                    server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
+                }
+            }
+            catch (GeneralSecurityException | IOException e) {
+                throw new RuntimeException(e);
+            }
+
+            server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getKeyStoreLocation());
+            server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
+            server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
+        }
+
+        putConfig(server, "offsets.topic.replication.factor", ONE_CONFIG);
+        // 1 partition for the __consumer_offsets_ topic should be enough
+        putConfig(server, "offsets.topic.num.partitions", ONE_CONFIG);
+        // 1 partition for the __transaction_state_ topic should be enough
+        putConfig(server, "transaction.state.log.replication.factor", ONE_CONFIG);
+        putConfig(server, "transaction.state.log.min.isr", ONE_CONFIG);
+        // Disable delay during every re-balance
+        putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
+
+        // The test harness doesn't rely upon Kafka JMX metrics (and probably won't because JMX isn't supported by
+        // the kafka native). Registering/Unregistering the mbeans is time-consuming so we disable it.
+        putConfig(server, "metrics.jmx.exclude", ".*");
+
+        return new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
+                clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId);
     }
 
     private static void putConfig(Properties server, String key, String value) {
