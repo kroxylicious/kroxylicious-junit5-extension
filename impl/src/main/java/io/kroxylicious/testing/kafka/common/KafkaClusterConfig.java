@@ -266,7 +266,7 @@ public class KafkaClusterConfig {
 
             var saslPairs = new StringBuilder();
 
-            Optional.of(users).orElse(Map.of()).forEach((key, value) -> {
+            Optional.ofNullable(users).orElse(Map.of()).forEach((key, value) -> {
                 saslPairs.append(String.format("user_%s", key));
                 saslPairs.append("=");
                 saslPairs.append(value);
