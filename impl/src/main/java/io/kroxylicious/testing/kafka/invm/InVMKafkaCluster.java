@@ -172,35 +172,35 @@ public class InVMKafkaCluster implements KafkaCluster {
 
         buildAndStartZookeeper();
         servers = clusterConfig.getBrokerConfigs(() -> kafkaEndpoints).parallel().map(configHolder -> {
-                    final Server server = this.buildKafkaServer(configHolder);
-                    await().atMost(Duration.ofSeconds(STARTUP_TIMEOUT))
-                            .catchUncaughtExceptions()
-                            .ignoreException(KafkaException.class)
-                            .pollInterval(Duration.ofMillis(50))
-                            .until(() -> {
-                                // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
-                                try {
-                                    server.startup();
-                                    return true;
-                                }
-                                catch (Throwable t) {
-                                    LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
-                                    LOGGER.log(System.Logger.Level.WARNING, "anon: %s, client: %s, controller: %s, interBroker: %s, ",
-                                            kafkaEndpoints.getAnonEndpoint(configHolder.getBrokerNum()).getBind(),
-                                            kafkaEndpoints.getClientEndpoint(configHolder.getBrokerNum()).getBind(),
-                                            kafkaEndpoints.getControllerEndpoint(configHolder.getBrokerNum()).getBind(),
-                                            kafkaEndpoints.getInterBrokerEndpoint(configHolder.getBrokerNum()).getBind());
+            final Server server = this.buildKafkaServer(configHolder);
+            await().atMost(Duration.ofSeconds(STARTUP_TIMEOUT))
+                    .catchUncaughtExceptions()
+                    .ignoreException(KafkaException.class)
+                    .pollInterval(Duration.ofMillis(50))
+                    .until(() -> {
+                        // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
+                        try {
+                            server.startup();
+                            return true;
+                        }
+                        catch (Throwable t) {
+                            LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
+                            LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
+                                    kafkaEndpoints.getAnonEndpoint(configHolder.getBrokerNum()).getBind(),
+                                    kafkaEndpoints.getClientEndpoint(configHolder.getBrokerNum()).getBind(),
+                                    kafkaEndpoints.getControllerEndpoint(configHolder.getBrokerNum()).getBind(),
+                                    kafkaEndpoints.getInterBrokerEndpoint(configHolder.getBrokerNum()).getBind());
 
-                                    server.shutdown();
-                                    server.awaitShutdown();
-                                    return false;
-                                }
-                            });
-                    return server;
-                })
+                            server.shutdown();
+                            server.awaitShutdown();
+                            return false;
+                        }
+                    });
+            return server;
+        })
                 .collect(Collectors.toList());
 
-        Utils.awaitExpectedBrokerCountInCluster(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS,
+        Utils.awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
 

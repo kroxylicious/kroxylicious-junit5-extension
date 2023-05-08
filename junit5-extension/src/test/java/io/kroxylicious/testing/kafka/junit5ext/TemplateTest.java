@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -27,7 +26,6 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
-import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
@@ -82,7 +80,6 @@ public class TemplateTest {
                 throws ExecutionException, InterruptedException {
             // Given
             assertSameCluster(cluster, admin);
-            Utils.awaitExpectedBrokerCountInCluster(cluster.getKafkaClientConfiguration(), 30, TimeUnit.SECONDS, cluster.getNumOfBrokers());
 
             ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
 
