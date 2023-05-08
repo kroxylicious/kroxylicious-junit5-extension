@@ -13,7 +13,6 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,6 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
@@ -41,7 +39,6 @@ import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
-import static org.awaitility.Awaitility.await;
 
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
@@ -173,10 +170,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         buildAndStartZookeeper();
         servers = clusterConfig.getBrokerConfigs(() -> kafkaEndpoints).parallel().map(configHolder -> {
             final Server server = this.buildKafkaServer(configHolder);
-            await().atMost(Duration.ofSeconds(STARTUP_TIMEOUT))
-                    .catchUncaughtExceptions()
-                    .ignoreException(KafkaException.class)
-                    .pollInterval(Duration.ofMillis(50))
+            Utils.awaitCondition(30, TimeUnit.SECONDS)
                     .until(() -> {
                         // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                         try {
