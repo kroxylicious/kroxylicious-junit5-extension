@@ -101,11 +101,13 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     private static void ensureDirectoriesAreEmpty(Seq<String> directories) {
         directories.foreach(pathStr -> {
             final Path path = Path.of(pathStr);
             if (Files.exists(path)) {
-                try (var s = Files.walk(path)
+                try (var ps = Files.walk(path);
+                        var s = ps
                                 .sorted(Comparator.reverseOrder())
                                 .map(Path::toFile)) {
                     s.forEach(File::delete);
@@ -170,7 +172,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         buildAndStartZookeeper();
         servers = clusterConfig.getBrokerConfigs(() -> kafkaEndpoints).parallel().map(configHolder -> {
             final Server server = this.buildKafkaServer(configHolder);
-            Utils.awaitCondition(30, TimeUnit.SECONDS)
+            Utils.awaitCondition(STARTUP_TIMEOUT, TimeUnit.SECONDS)
                     .until(() -> {
                         // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                         try {
@@ -207,8 +209,8 @@ public class InVMKafkaCluster implements KafkaCluster {
                 var zoo = tempDirectory.resolve("zoo");
                 var snapshotDir = zoo.resolve("snapshot");
                 var logDir = zoo.resolve("log");
-                snapshotDir.toFile().mkdirs();
-                logDir.toFile().mkdirs();
+                Files.createDirectories(snapshotDir);
+                Files.createDirectories(logDir);
 
                 zooServer = new ZooKeeperServer(snapshotDir.toFile(), logDir.toFile(), 500);
                 zooFactory.startup(zooServer);
@@ -243,6 +245,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
     }
 
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public void close() throws Exception {
         try {
@@ -258,7 +261,8 @@ public class InVMKafkaCluster implements KafkaCluster {
         finally {
             releaseAllPorts();
             if (tempDirectory.toFile().exists()) {
-                try (var s = Files.walk(tempDirectory)
+                try (var ps = Files.walk(tempDirectory);
+                        var s = ps
                                 .sorted(Comparator.reverseOrder())
                                 .map(Path::toFile)) {
                     s.forEach(File::delete);
