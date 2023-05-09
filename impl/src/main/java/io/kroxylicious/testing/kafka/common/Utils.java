@@ -48,7 +48,7 @@ public class Utils {
 
     /**
      * Await expected broker count in cluster.
-     * Verifies that each broker in the cluster is returning the expected cluster size.
+     * Verifies that all expected brokers are present in the cluster.
      *
      * @param connectionConfig the connection config
      * @param timeout the timeout
