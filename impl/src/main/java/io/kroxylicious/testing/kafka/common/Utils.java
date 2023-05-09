@@ -41,7 +41,7 @@ import static org.slf4j.LoggerFactory.getLogger;
  */
 public class Utils {
     private static final Logger log = getLogger(Utils.class);
-    private static final String CONSISTENCY_TEST = "__consistencyTest";
+    private static final String CONSISTENCY_TEST = "__org_kroxylicious_testing_consistencyTest";
 
     private Utils() {
     }
