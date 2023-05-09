@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 /**
  * Allocates one or more groups listening sockets from the ephemeral port range.
@@ -27,8 +27,8 @@ import java.util.stream.Stream;
 public class ListeningSocketPreallocator implements AutoCloseable {
 
     private static final int PORT_RANGE_LOW = 10_000;
-    //Ideally this would be derived from `sysctl net.inet.ip.portrange.first` or `sysctl net.ipv4.ip_local_port_range` depending on the platform
-    //however that's not so easily achieved, so we hard code instead.
+    // Ideally this would be derived from `sysctl net.inet.ip.portrange.first` or `sysctl net.ipv4.ip_local_port_range` depending on the platform
+    // however that's not so easily achieved, so we hard code instead.
     private static final int PORT_RANGE_HIGH = 30_000;
 
     private final List<ServerSocket> all = new ArrayList<>();
@@ -48,9 +48,9 @@ public class ListeningSocketPreallocator implements AutoCloseable {
      * @param num number of ports to pre-allocate
      * @return stream of ephemeral ports
      */
-    public Stream<ServerSocket> preAllocateListeningSockets(int num) {
+    public List<ServerSocket> preAllocateListeningSockets(int num) {
         if (num < 1) {
-            return Stream.of();
+            return List.of();
         }
         if (num > PORT_RANGE_HIGH - PORT_RANGE_LOW) {
             throw new IllegalArgumentException("Can't request more than " + (PORT_RANGE_HIGH - PORT_RANGE_LOW) + " ports");
@@ -75,7 +75,8 @@ public class ListeningSocketPreallocator implements AutoCloseable {
                     return null;
                 }).filter(Objects::nonNull)
                 .peek(all::add)
-                .limit(num);
+                .limit(num)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -84,9 +85,9 @@ public class ListeningSocketPreallocator implements AutoCloseable {
      * @param num number of ports to pre-allocate
      * @return stream of ephemeral ports
      */
-    public Stream<ServerSocket> preAllocateEphemeralListeningSockets(int num) {
+    public List<ServerSocket> preAllocateEphemeralListeningSockets(int num) {
         if (num < 1) {
-            return Stream.of();
+            return List.of();
         }
 
         var ports = new ArrayList<ServerSocket>();
@@ -107,7 +108,7 @@ public class ListeningSocketPreallocator implements AutoCloseable {
         finally {
             all.addAll(ports);
         }
-        return ports.stream();
+        return ports;
     }
 
     @Override

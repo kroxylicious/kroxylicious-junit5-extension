@@ -75,10 +75,10 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     private List<ServerSocket> allocateControllerPorts(KafkaClusterConfig clusterConfig, ListeningSocketPreallocator preallocator) {
         if (clusterConfig.isKraftMode()) {
-            return preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
+            return preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
         }
         else {
-            return preallocator.preAllocateListeningSockets(1).toList();
+            return preallocator.preAllocateListeningSockets(1);
         }
     }
 
@@ -106,8 +106,8 @@ public class InVMKafkaCluster implements KafkaCluster {
             final Path path = Path.of(pathStr);
             if (Files.exists(path)) {
                 try (var s = Files.walk(path)
-                        .sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)) {
+                                .sorted(Comparator.reverseOrder())
+                                .map(Path::toFile)) {
                     s.forEach(File::delete);
                 }
                 catch (IOException e) {
@@ -133,9 +133,9 @@ public class InVMKafkaCluster implements KafkaCluster {
         // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
         // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
         try (var preallocator = new ListeningSocketPreallocator()) {
-            externalPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
-            anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
-            interBrokerPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).toList();
+            externalPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
+            anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
+            interBrokerPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
             controllerPorts = allocateControllerPorts(clusterConfig, preallocator);
         }
 
@@ -259,8 +259,8 @@ public class InVMKafkaCluster implements KafkaCluster {
             releaseAllPorts();
             if (tempDirectory.toFile().exists()) {
                 try (var s = Files.walk(tempDirectory)
-                        .sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)) {
+                                .sorted(Comparator.reverseOrder())
+                                .map(Path::toFile)) {
                     s.forEach(File::delete);
                 }
             }

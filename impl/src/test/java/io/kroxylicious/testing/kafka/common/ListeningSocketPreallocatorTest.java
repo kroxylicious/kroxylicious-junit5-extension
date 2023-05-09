@@ -29,7 +29,7 @@ class ListeningSocketPreallocatorTest {
     @ParameterizedTest
     @ValueSource(ints = { 1, 5, 100, 10_000 })
     void shouldAllocateOpenSockets(int numPorts) {
-        var sockets = preallocator.preAllocateEphemeralListeningSockets(numPorts).collect(Collectors.toSet());
+        var sockets = preallocator.preAllocateEphemeralListeningSockets(numPorts);
         assertThat(sockets).hasSize(numPorts);
         assertThat(sockets).allSatisfy(entry -> assertThat(entry.isClosed()).isFalse());
 
@@ -44,7 +44,7 @@ class ListeningSocketPreallocatorTest {
         // Given
 
         // When
-        var sockets = preallocator.preAllocateEphemeralListeningSockets(numPorts).collect(Collectors.toSet());
+        var sockets = preallocator.preAllocateEphemeralListeningSockets(numPorts);
 
         // Then
         final Set<Integer> localPorts = sockets.stream().map(ServerSocket::getLocalPort).collect(Collectors.toSet());
@@ -60,7 +60,7 @@ class ListeningSocketPreallocatorTest {
         // When
         final Set<Integer> localPorts = IntStream.rangeClosed(1, numAllocations)
                 .boxed()
-                .flatMap(idx -> preallocator.preAllocateEphemeralListeningSockets(portPerInvocation))
+                .flatMap(idx -> preallocator.preAllocateEphemeralListeningSockets(portPerInvocation).stream())
                 .map(ServerSocket::getLocalPort)
                 .collect(Collectors.toSet());
 
@@ -71,7 +71,7 @@ class ListeningSocketPreallocatorTest {
     @ParameterizedTest
     @ValueSource(ints = { 1, 5, 100, 10_000 })
     void shouldAllocateRandomOpenSockets(int numPorts) {
-        var sockets = preallocator.preAllocateListeningSockets(numPorts).collect(Collectors.toSet());
+        var sockets = preallocator.preAllocateListeningSockets(numPorts);
         assertThat(sockets).hasSize(numPorts);
         assertThat(sockets).allSatisfy(entry -> assertThat(entry.isClosed()).isFalse());
 
@@ -86,7 +86,7 @@ class ListeningSocketPreallocatorTest {
         // Given
 
         // When
-        var sockets = preallocator.preAllocateListeningSockets(numPorts).collect(Collectors.toSet());
+        var sockets = preallocator.preAllocateListeningSockets(numPorts);
 
         // Then
         final Set<Integer> localPorts = sockets.stream().map(ServerSocket::getLocalPort).collect(Collectors.toSet());
@@ -102,7 +102,7 @@ class ListeningSocketPreallocatorTest {
         // When
         final Set<Integer> localPorts = IntStream.rangeClosed(1, numAllocations)
                 .boxed()
-                .flatMap(idx -> preallocator.preAllocateListeningSockets(portPerInvocation))
+                .flatMap(idx -> preallocator.preAllocateListeningSockets(portPerInvocation).stream())
                 .map(ServerSocket::getLocalPort)
                 .collect(Collectors.toSet());
 

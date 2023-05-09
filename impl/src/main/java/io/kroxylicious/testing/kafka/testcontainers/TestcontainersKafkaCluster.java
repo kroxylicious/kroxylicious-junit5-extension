@@ -131,8 +131,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         }
 
         try (var preallocator = new ListeningSocketPreallocator()) {
-            clientPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
-            anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()).collect(Collectors.toList());
+            clientPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
+            anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
         }
 
         kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
