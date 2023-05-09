@@ -47,7 +47,7 @@ public class ListeningSocketPreallocator implements AutoCloseable {
      * which are available for use once the #close method is called.
      *
      * @param num number of ports to pre-allocate
-     * @return stream of ephemeral ports
+     * @return a List of bound sockets
      */
     public List<ServerSocket> preAllocateListeningSockets(int num) {
         if (num < 1) {
