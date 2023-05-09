@@ -12,10 +12,13 @@ import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ListeningSocketPreallocatorTest {
 
@@ -108,6 +111,33 @@ class ListeningSocketPreallocatorTest {
 
         // Then
         assertThat(localPorts).hasSize(numAllocations * portPerInvocation);
+    }
+
+    @Test
+    void shouldLimitNumberOfPortsAllocated() {
+        // Given
+
+        // When
+        assertThatThrownBy(() -> preallocator.preAllocateListeningSockets(20_001))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        // Then
+    }
+
+    @Test
+    @Disabled("Can't actually trigger the validation due to ulimits")
+    void shouldLimitNumberOfPortsAllocatedAcrossMultipleInvocations() {
+        // Given
+        // In theory this is a sensible test however we can't breach the port range as we get
+        // java.net.SocketException: Too many open files
+        // before reaching the limit.
+        preallocator.preAllocateListeningSockets(20_000);
+
+        // When
+        assertThatThrownBy(() -> preallocator.preAllocateListeningSockets(1))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        // Then
     }
 
     @AfterEach
