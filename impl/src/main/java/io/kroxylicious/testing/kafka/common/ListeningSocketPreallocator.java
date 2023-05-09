@@ -30,7 +30,6 @@ public class ListeningSocketPreallocator implements AutoCloseable {
     // Ideally this would be derived from `sysctl net.inet.ip.portrange.first` or `sysctl net.ipv4.ip_local_port_range` depending on the platform
     // however that's not so easily achieved, so we hard code instead.
     private static final int PORT_RANGE_HIGH = 30_000;
-    private static final int MAX_PORT_COUNT = PORT_RANGE_HIGH - PORT_RANGE_LOW;
 
     private final List<ServerSocket> all = new ArrayList<>();
 
@@ -52,9 +51,6 @@ public class ListeningSocketPreallocator implements AutoCloseable {
     public List<ServerSocket> preAllocateListeningSockets(int num) {
         if (num < 1) {
             return List.of();
-        }
-        if (all.size() + num > MAX_PORT_COUNT) {
-            throw new IllegalArgumentException("Can't request more than " + MAX_PORT_COUNT + " ports. There are already " + all.size() + " allocated.");
         }
         return random.ints(PORT_RANGE_LOW, PORT_RANGE_HIGH)
                 .mapToObj(number -> {
