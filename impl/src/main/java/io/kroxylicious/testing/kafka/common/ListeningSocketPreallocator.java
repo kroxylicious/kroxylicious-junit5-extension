@@ -71,41 +71,9 @@ public class ListeningSocketPreallocator implements AutoCloseable {
                     }
                     return null;
                 }).filter(Objects::nonNull)
-                .peek(all::add)
+                .peek(all::add) // We use peek for its side effects (collecting each socket allocated)
                 .limit(num)
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Pre-allocate 1 or more ephemeral ports which are available for use once the #close method is called.
-     *
-     * @param num number of ports to pre-allocate
-     * @return stream of ephemeral ports
-     */
-    public List<ServerSocket> preAllocateEphemeralListeningSockets(int num) {
-        if (num < 1) {
-            return List.of();
-        }
-
-        var ports = new ArrayList<ServerSocket>();
-        try {
-            for (int i = 0; i < num; i++) {
-                try {
-                    var serverSocket = new ServerSocket(0);
-                    ports.add(serverSocket);
-                    serverSocket.setReuseAddress(true);
-                }
-                catch (IOException e) {
-                    System.getLogger("portAllocator").log(System.Logger.Level.WARNING, "failed to allocate port: ", e);
-                    throw new UncheckedIOException(e);
-                }
-
-            }
-        }
-        finally {
-            all.addAll(ports);
-        }
-        return ports;
     }
 
     @Override
