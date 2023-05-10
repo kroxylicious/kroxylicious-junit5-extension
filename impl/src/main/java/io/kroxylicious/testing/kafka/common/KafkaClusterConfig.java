@@ -392,7 +392,7 @@ public class KafkaClusterConfig {
             Map<String, String> users = getUsers();
             if (!users.isEmpty()) {
                 Map.Entry<String, String> first = users.entrySet().iterator().next();
-                return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getKey(), getSecurityProtocol(), getSaslMechanism());
+                return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getValue(), getSecurityProtocol(), getSaslMechanism());
             }
             else {
                 return getConnectConfigForCluster(bootstrapServers, null, null, getSecurityProtocol(), getSaslMechanism());

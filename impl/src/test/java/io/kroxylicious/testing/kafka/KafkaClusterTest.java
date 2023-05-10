@@ -102,7 +102,7 @@ public class KafkaClusterTest {
                 .testInfo(testInfo)
                 .securityProtocol("SASL_PLAINTEXT")
                 .saslMechanism("PLAIN")
-                .user("guest", "guest")
+                .user("guest", "pass")
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -116,7 +116,7 @@ public class KafkaClusterTest {
                 .kraftMode(false)
                 .securityProtocol("SASL_PLAINTEXT")
                 .saslMechanism("PLAIN")
-                .user("guest", "guest")
+                .user("guest", "pass")
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -133,7 +133,7 @@ public class KafkaClusterTest {
                 .kraftMode(true)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
-                .user("guest", "guest")
+                .user("guest", "pass")
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -165,7 +165,7 @@ public class KafkaClusterTest {
                 .kraftMode(false)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
-                .user("guest", "guest")
+                .user("guest", "pass")
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
