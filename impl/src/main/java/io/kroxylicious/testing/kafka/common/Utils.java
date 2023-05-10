@@ -93,19 +93,20 @@ public class Utils {
 
     private static void checkReplicaDistribution(Integer expectedBrokerCount, CompletableFuture<Boolean> promise, Map<String, TopicDescription> topicDescriptions) {
         var topicDescription = topicDescriptions.get(CONSISTENCY_TEST);
-        final long distinctReplicas = topicDescription.partitions()
-                .stream()
-                .map(TopicPartitionInfo::replicas)
-                .flatMap(List::stream)
-                .filter(Objects::nonNull)
-                .distinct()
-                .count();
-        if (distinctReplicas == expectedBrokerCount) {
-            promise.complete(true);
+        if (topicDescription != null) {
+            final long distinctReplicas = topicDescription.partitions()
+                    .stream()
+                    .map(TopicPartitionInfo::replicas)
+                    .flatMap(List::stream)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .count();
+            if (distinctReplicas == expectedBrokerCount) {
+                promise.complete(true);
+                return;
+            }
         }
-        else {
-            promise.complete(false);
-        }
+        promise.complete(false);
     }
 
     private static KafkaFuture<Void> createTopic(Integer expectedBrokerCount, Admin admin) {
