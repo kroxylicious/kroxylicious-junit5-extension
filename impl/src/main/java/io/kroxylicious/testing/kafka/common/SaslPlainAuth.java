@@ -32,6 +32,9 @@ public @interface SaslPlainAuth {
     /**
      * The interface User password.
      */
+    @Target({ ElementType.FIELD, ElementType.PARAMETER })
+    @Retention(RetentionPolicy.RUNTIME)
+    @KafkaClusterConstraint
     @interface UserPassword {
         /**
          * Gets the username

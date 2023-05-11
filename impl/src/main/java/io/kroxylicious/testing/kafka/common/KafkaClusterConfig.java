@@ -103,6 +103,7 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslPlainAuth.class,
+            SaslPlainAuth.UserPassword.class,
             ZooKeeperCluster.class,
             Version.class);
 
@@ -154,6 +155,11 @@ public class KafkaClusterConfig {
                         .collect(Collectors.toMap(
                                 SaslPlainAuth.UserPassword::user,
                                 SaslPlainAuth.UserPassword::password)));
+            }
+            if (annotation instanceof SaslPlainAuth.UserPassword) {
+                builder.saslMechanism("PLAIN");
+                sasl = true;
+                builder.users(Map.of(((SaslPlainAuth.UserPassword) annotation).user(), ((SaslPlainAuth.UserPassword) annotation).password()));
             }
             if (annotation instanceof ClusterId) {
                 builder.kafkaKraftClusterId(((ClusterId) annotation).value());
