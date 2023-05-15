@@ -231,7 +231,6 @@ public class KafkaClusterConfig {
         if (isKraftMode()) {
             putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
 
-            var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
             var quorumVoters = IntStream.range(0, kraftControllers)
                     .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
                     .collect(Collectors.joining(","));
@@ -240,6 +239,7 @@ public class KafkaClusterConfig {
             protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
 
             if (brokerNum == 0) {
+                var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
                 putConfig(server, "process.roles", "broker,controller");
 
                 listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
@@ -336,11 +336,12 @@ public class KafkaClusterConfig {
      * Build the bootstrap servers string for general client access.
      *
      * @param endPointConfig the end point config
+     * @param brokersNum number of brokers
      * @return the client bootstrap servers
      */
     @NotNull
-    public String buildClientBootstrapServers(KafkaEndpoints endPointConfig) {
-        return buildBootstrapServers(getBrokersNum(), endPointConfig::getClientEndpoint);
+    public String buildClientBootstrapServers(KafkaEndpoints endPointConfig, int brokersNum) {
+        return buildBootstrapServers(brokersNum, endPointConfig::getClientEndpoint);
     }
 
     /**

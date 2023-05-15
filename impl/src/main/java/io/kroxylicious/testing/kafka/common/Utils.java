@@ -7,21 +7,30 @@
 package io.kroxylicious.testing.kafka.common;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
+import org.apache.kafka.common.internals.Topic;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 import org.junit.Assert;
@@ -38,6 +47,62 @@ public class Utils {
     private static final String CONSISTENCY_TEST = "__org_kroxylicious_testing_consistencyTest";
 
     private Utils() {
+    }
+
+
+    /**
+     * Reassign all kafka internal topic partitions that exist have a replica on <code>fromNodeId</code> and don't
+     * have at least one replica elsewhere in the cluster.
+     *
+     * @param connectionConfig the connection config
+     * @param fromNodeId nodeId being evacuated
+     * @param toNodeIs replacement nodeId
+     * @param timeout the timeout
+     * @param timeUnit the time unit
+     */
+    public static void awaitReassignmentOfKafkaInternalTopicsIfNecessary(Map<String, Object> connectionConfig, int fromNodeId, int toNodeIs, int timeout, TimeUnit timeUnit) {
+        var kafkaInternalTopics = List.of(Topic.GROUP_METADATA_TOPIC_NAME, Topic.TRANSACTION_STATE_TOPIC_NAME, Topic.CLUSTER_METADATA_TOPIC_NAME);
+
+        try (var admin = Admin.create(connectionConfig)) {
+            awaitCondition(timeout, timeUnit).until(() -> {
+
+                Map<String, TopicDescription> topicDescriptions = describeKnownTopics(kafkaInternalTopics, admin);
+                var movements = new HashMap<TopicPartition, Optional<NewPartitionReassignment>>();
+                var toNodeReassignment = Optional.of(new NewPartitionReassignment(List.of(toNodeIs)));
+                topicDescriptions.forEach((name, description) -> {
+                    // find all partitions that don't have a replica on at least one other node.
+                    var toMove = description.partitions().stream().filter(p -> p.replicas().stream().anyMatch(n -> n.id() == fromNodeId) && p.replicas().size() < 2).toList();
+
+                    toMove.forEach(tpi -> {
+                        movements.put(new TopicPartition(name, tpi.partition()), toNodeReassignment);
+                    });
+                });
+
+                if (movements.isEmpty()) {
+                    log.debug("No kafka internal topic partitions need re-assigning from node {}", fromNodeId);
+                    return true;
+                }
+
+                log.debug("Kafka internal topic partitions to re-assign: {}", movements);
+
+                admin.alterPartitionReassignments(movements).all().get();
+                return true;
+            });
+
+            awaitCondition(timeout, timeUnit)
+                    .until(() -> {
+                        var ongoingReassignments = admin.listPartitionReassignments().reassignments().get();
+
+                        var ongoingKafkaInternalReassignments = ongoingReassignments.keySet().stream().filter(o -> kafkaInternalTopics.contains(o.topic())).collect(Collectors.toSet());
+
+                        if (!ongoingKafkaInternalReassignments.isEmpty()) {
+                            log.debug("Kafka internal topic partitions re-assigment in-progress: {}", ongoingKafkaInternalReassignments);
+                            return false;
+                        }
+                        log.debug("Kafka internal topic partitions re-assigment complete.");
+                        return true;
+                    });
+        }
     }
 
     /**
@@ -132,5 +197,32 @@ public class Utils {
                 .pollInterval(500, TimeUnit.MILLISECONDS)
                 .atMost(timeout, timeUnit)
                 .ignoreExceptions();
+    }
+
+    private static Map<String, TopicDescription> describeKnownTopics(List<String> topics, Admin admin) throws Exception {
+        var known = new HashMap<String, TopicDescription>();
+        for (String name : topics) {
+            try {
+                known.putAll(admin.describeTopics(List.of(name)).allTopicNames().get());
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof UnknownTopicOrPartitionException) {
+                    // ignore
+                }
+                else if (e.getCause() instanceof RuntimeException re) {
+                    throw re;
+                }
+                else {
+                    throw new RuntimeException(e.getCause());
+                }
+            }
+        }
+
+        return known;
+    }
+
+    public static <U> void putAllListEntriesIntoMapKeyedByIndex(List<U> source, Map<Integer, U> target) {
+        target.putAll(IntStream.range(0, source.size())
+                .boxed()
+                .collect(Collectors.toMap(Function.identity(), source::get)));
     }
 }

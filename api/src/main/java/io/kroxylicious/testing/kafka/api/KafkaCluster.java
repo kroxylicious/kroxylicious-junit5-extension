@@ -23,6 +23,25 @@ public interface KafkaCluster extends AutoCloseable {
     void start();
 
     /**
+     * adds a new broker to the cluster. Once this method returns the caller is guaranteed that the new broker will
+     * be incorporated into the cluster.  In kraft mode, the broker added will always from the role 'broker'.
+     *
+     * @return kafka <code>node.id</code> of the created broker.
+     */
+    int addBroker();
+
+    /**
+     * removes broker identified by the given <code>node.id</code> from the cluster.  Once this method returns the
+     * caller is guaranteed that the broker has stopped and is no longer part of the cluster.
+     * <p>
+     * in kraft mode, it is not permitted to remove a broker that is the controller mode.
+     *
+     * @throws UnsupportedOperationException the <code>node.id</code> identifies a kraft controller
+     * @throws IllegalArgumentException      the node identified by <code>node.id</code> does not exist.
+     */
+    void removeBroker(int nodeId) throws UnsupportedOperationException, IllegalArgumentException;
+
+    /**
      * stops the cluster.
      */
     @Override

@@ -36,7 +36,7 @@ class KafkaClusterConfigTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
         // When
-        final String clientBootstrapServers = kafkaClusterConfig.buildClientBootstrapServers(endpointConfig);
+        final String clientBootstrapServers = kafkaClusterConfig.buildClientBootstrapServers(endpointConfig, kafkaClusterConfig.getBrokersNum());
 
         // Then
         assertThat(clientBootstrapServers).doesNotContain(",");
@@ -51,7 +51,7 @@ class KafkaClusterConfigTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
         // When
-        final String clientBootstrapServers = kafkaClusterConfig.buildClientBootstrapServers(endpointConfig);
+        final String clientBootstrapServers = kafkaClusterConfig.buildClientBootstrapServers(endpointConfig, kafkaClusterConfig.getBrokersNum());
 
         // Then
         assertThat(clientBootstrapServers).contains(",");

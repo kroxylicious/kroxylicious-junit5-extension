@@ -21,6 +21,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,12 +33,14 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
- * It intentional that this test does not involve the proxy.
  */
 public class KafkaClusterTest {
 
@@ -70,6 +73,49 @@ public class KafkaClusterTest {
     }
 
     @Test
+    public void kafkaClusterZookeeperAddBroker() throws Exception {
+        int brokersNum = 1;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(true)
+                .build())) {
+            cluster.start();
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
+
+            verifyRecordRoundTrip(brokersNum, cluster);
+
+            int nodeId = cluster.addBroker();
+            assertThat(nodeId).isEqualTo(1);
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum + 1);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum + 1);
+            verifyRecordRoundTrip(brokersNum + 1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterZookeeperRemoveBroker() throws Exception {
+        int brokersNum = 2;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(true)
+                .build())) {
+            cluster.start();
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
+            verifyRecordRoundTrip(brokersNum, cluster);
+
+            cluster.removeBroker(1);
+
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum - 1);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum - 1);
+            verifyRecordRoundTrip(brokersNum - 1, cluster);
+        }
+    }
+
+    @Test
     public void kafkaTwoNodeClusterKraftMode() throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
@@ -92,6 +138,45 @@ public class KafkaClusterTest {
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterKraftAddBroker() throws Exception {
+        int brokersNum = 1;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(true)
+                .build())) {
+            cluster.start();
+
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
+            verifyRecordRoundTrip(brokersNum, cluster);
+
+            int nodeId = cluster.addBroker();
+            assertThat(nodeId).isEqualTo(1);
+
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum + 1);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum + 1);
+            verifyRecordRoundTrip(brokersNum + 1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterKraftDisallowsControllerRemoval() throws Exception {
+        int brokersNum = 1;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(true)
+                .build())) {
+            cluster.start();
+
+            // Node zero is the controller
+            assertThrows(UnsupportedOperationException.class, () -> cluster.removeBroker(0),
+                    "Expect kraft to reject removal of controller");
         }
     }
 
@@ -244,17 +329,20 @@ public class KafkaClusterTest {
     }
 
     private void verifyRecordRoundTrip(int expected, KafkaCluster cluster) throws Exception {
-        var topic = "TOPIC_1";
+        var topic = "roundTrip" + Uuid.randomUuid();
         var message = "Hello, world!";
 
         try (var admin = KafkaAdminClient.create(cluster.getKafkaClientConfiguration())) {
             await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(expected, getActualNumberOfBrokers(admin)));
-            var rf = (short) Math.min(1, Math.max(expected, 3));
+            var rf = (short) Math.min(expected, 3);
             createTopic(admin, topic, rf);
+
+            produce(cluster, topic, message);
+            consume(cluster, topic, message);
+
+            deleteTopic(admin, topic);
         }
 
-        produce(cluster, topic, message);
-        consume(cluster, topic, "Hello, world!");
     }
 
     private void produce(KafkaCluster cluster, String topic, String message) throws Exception {
@@ -290,8 +378,12 @@ public class KafkaClusterTest {
         return describeClusterResult.nodes().get().size();
     }
 
-    private void createTopic(AdminClient admin1, String topic, short replicationFactor) throws Exception {
-        admin1.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
+    private void createTopic(AdminClient admin, String topic, short replicationFactor) throws Exception {
+        admin.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
+    }
+
+    private void deleteTopic(AdminClient admin, String topic) throws Exception {
+        admin.deleteTopics(List.of(topic)).all().get();
     }
 
     @BeforeEach
