@@ -14,6 +14,7 @@ import java.lang.System.Logger.Level;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -24,23 +25,21 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import io.kroxylicious.testing.kafka.common.Utils;
-import kafka.server.Server;
 import org.apache.kafka.common.config.SslConfigs;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
-import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
-import org.testcontainers.shaded.org.apache.commons.lang3.NotImplementedException;
 import org.testcontainers.utility.DockerImageName;
 
 import com.github.dockerjava.api.command.InspectContainerResponse;
@@ -50,6 +49,7 @@ import lombok.SneakyThrows;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.Utils;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
@@ -132,7 +132,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         this.name = Optional.ofNullable(clusterConfig.getTestInfo())
                 .map(TestInfo::getDisplayName)
                 .map(s -> s.replaceFirst("\\(\\)$", ""))
-                .map(s -> String.format("%s.%s", s, OffsetDateTime.now()))
+                .map(s -> String.format("%s.%s", s, OffsetDateTime.now(Clock.systemUTC())))
                 .orElse(null);
 
         if (this.clusterConfig.isKraftMode()) {
@@ -253,8 +253,15 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     @Override
-    public String getBootstrapServers() {
-        return clusterConfig.buildClientBootstrapServers(kafkaEndpoints, getNumOfBrokers());
+    public synchronized String getBootstrapServers() {
+        return buildServerList(kafkaEndpoints::getClientEndpoint);
+    }
+
+    private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+        return brokers.keySet().stream()
+                .map(endpointFunc)
+                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
+                .collect(Collectors.joining(","));
     }
 
     /**
@@ -280,7 +287,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 zookeeper.start();
             }
             Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
+            awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null),
+                    READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -314,13 +322,15 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         var kafkaContainer = buildKafkaContainer(configHolder);
         try {
             Startables.deepStart(kafkaContainer).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             kafkaContainer.stop();
             throw new RuntimeException(e);
         }
         brokers.put(configHolder.getBrokerNum(), kafkaContainer);
 
-        Utils.awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS,
+        Utils.awaitExpectedBrokerCountInClusterViaTopic(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -342,7 +352,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
             throw new IllegalStateException("Could not identify a node to be the re-assignment target");
         }
 
-        Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), nodeId, target.get(),  120, TimeUnit.SECONDS);
+        Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), nodeId,
+                target.get(), 120, TimeUnit.SECONDS);
 
         clientPorts.remove(nodeId);
         anonPorts.remove(nodeId);

@@ -21,7 +21,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -333,62 +332,6 @@ public class KafkaClusterConfig {
     }
 
     /**
-     * Build the bootstrap servers string for general client access.
-     *
-     * @param endPointConfig the end point config
-     * @param brokersNum number of brokers
-     * @return the client bootstrap servers
-     */
-    @NotNull
-    public String buildClientBootstrapServers(KafkaEndpoints endPointConfig, int brokersNum) {
-        return buildBootstrapServers(brokersNum, endPointConfig::getClientEndpoint);
-    }
-
-    /**
-     * Build the bootstrap servers string for connecting to the anonymous listeners.
-     * Generally expected to be used by the extension for validating cluster status.
-     *
-     * @param endPointConfig the end point config
-     * @return the anon bootstrap servers
-     */
-    @NotNull
-    public String buildAnonBootstrapServers(KafkaEndpoints endPointConfig) {
-        return buildBootstrapServers(getBrokersNum(), endPointConfig::getAnonEndpoint);
-    }
-
-    /**
-     Build the bootstrap servers string for connecting to the controller listeners.
-     *
-     * @param kafkaEndpoints the kafka endpoints
-     * @return the controller bootstrap servers
-     */
-    @NotNull
-    public String buildControllerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
-        return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getControllerEndpoint);
-    }
-
-    /**
-     * Build the bootstrap servers string for connecting to the inter broker listeners.
-     *
-     * @param kafkaEndpoints the kafka endpoints
-     * @return the interbroker bootstrap servers
-     */
-    @NotNull
-    public String buildInterBrokerBootstrapServers(KafkaEndpoints kafkaEndpoints) {
-        return buildBootstrapServers(getBrokersNum(), kafkaEndpoints::getInterBrokerEndpoint);
-    }
-
-    /**
-     * Generates client connection config to connect to the anonymous listeners within the cluster. Thus bypassing all authentication mechanisms.
-     *
-     * @param kafkaEndpoints the kafka endpoints
-     * @return the anon connect config for cluster
-     */
-    public Map<String, Object> getAnonConnectConfigForCluster(KafkaEndpoints kafkaEndpoints) {
-        return getConnectConfigForCluster(buildAnonBootstrapServers(kafkaEndpoints), null, null, null, null);
-    }
-
-    /**
      * Generates client connection config to connect to the cluster via the supplied bootstrap address.
      *
      * @param bootstrapServers the bootstrap servers
@@ -517,13 +460,6 @@ public class KafkaClusterConfig {
      */
     public String clusterId() {
         return isKraftMode() ? kafkaKraftClusterId : null;
-    }
-
-    private String buildBootstrapServers(Integer numBrokers, IntFunction<KafkaEndpoints.EndpointPair> brokerEndpoint) {
-        return IntStream.range(0, numBrokers)
-                .mapToObj(brokerEndpoint)
-                .map(KafkaEndpoints.EndpointPair::connectAddress)
-                .collect(Collectors.joining(","));
     }
 
     /**
@@ -669,5 +605,6 @@ public class KafkaClusterConfig {
          * @return the anon endpoint
          */
         EndpointPair getAnonEndpoint(int brokerId);
+
     }
 }

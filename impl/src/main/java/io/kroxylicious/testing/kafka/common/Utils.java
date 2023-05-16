@@ -28,6 +28,7 @@ import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.errors.InvalidReplicationFactorException;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.internals.Topic;
@@ -49,7 +50,6 @@ public class Utils {
     private Utils() {
     }
 
-
     /**
      * Reassign all kafka internal topic partitions that exist have a replica on <code>fromNodeId</code> and don't
      * have at least one replica elsewhere in the cluster.
@@ -60,7 +60,8 @@ public class Utils {
      * @param timeout the timeout
      * @param timeUnit the time unit
      */
-    public static void awaitReassignmentOfKafkaInternalTopicsIfNecessary(Map<String, Object> connectionConfig, int fromNodeId, int toNodeIs, int timeout, TimeUnit timeUnit) {
+    public static void awaitReassignmentOfKafkaInternalTopicsIfNecessary(Map<String, Object> connectionConfig, int fromNodeId, int toNodeIs, int timeout,
+                                                                         TimeUnit timeUnit) {
         var kafkaInternalTopics = List.of(Topic.GROUP_METADATA_TOPIC_NAME, Topic.TRANSACTION_STATE_TOPIC_NAME, Topic.CLUSTER_METADATA_TOPIC_NAME);
 
         try (var admin = Admin.create(connectionConfig)) {
@@ -71,7 +72,8 @@ public class Utils {
                 var toNodeReassignment = Optional.of(new NewPartitionReassignment(List.of(toNodeIs)));
                 topicDescriptions.forEach((name, description) -> {
                     // find all partitions that don't have a replica on at least one other node.
-                    var toMove = description.partitions().stream().filter(p -> p.replicas().stream().anyMatch(n -> n.id() == fromNodeId) && p.replicas().size() < 2).toList();
+                    var toMove = description.partitions().stream().filter(p -> p.replicas().stream().anyMatch(n -> n.id() == fromNodeId) && p.replicas().size() < 2)
+                            .toList();
 
                     toMove.forEach(tpi -> {
                         movements.put(new TopicPartition(name, tpi.partition()), toNodeReassignment);
@@ -93,7 +95,8 @@ public class Utils {
                     .until(() -> {
                         var ongoingReassignments = admin.listPartitionReassignments().reassignments().get();
 
-                        var ongoingKafkaInternalReassignments = ongoingReassignments.keySet().stream().filter(o -> kafkaInternalTopics.contains(o.topic())).collect(Collectors.toSet());
+                        var ongoingKafkaInternalReassignments = ongoingReassignments.keySet().stream().filter(o -> kafkaInternalTopics.contains(o.topic()))
+                                .collect(Collectors.toSet());
 
                         if (!ongoingKafkaInternalReassignments.isEmpty()) {
                             log.debug("Kafka internal topic partitions re-assigment in-progress: {}", ongoingKafkaInternalReassignments);
@@ -181,7 +184,7 @@ public class Utils {
                     log.debug("Create topic future completed.");
                     if (throwable != null) {
                         log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage(), throwable);
-                        if (throwable instanceof RetriableException) {
+                        if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
                             CompletableFuture.supplyAsync(() -> createTopic(expectedBrokerCount, admin));
                         }
                         else {
@@ -204,7 +207,8 @@ public class Utils {
         for (String name : topics) {
             try {
                 known.putAll(admin.describeTopics(List.of(name)).allTopicNames().get());
-            } catch (ExecutionException e) {
+            }
+            catch (ExecutionException e) {
                 if (e.getCause() instanceof UnknownTopicOrPartitionException) {
                     // ignore
                 }

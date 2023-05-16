@@ -21,6 +21,8 @@ import java.util.Properties;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.kafka.common.utils.Time;
@@ -198,9 +200,10 @@ public class InVMKafkaCluster implements KafkaCluster {
             final Server server = this.buildKafkaServer(configHolder);
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
-        });
 
-        Utils.awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS,
+        });
+        Utils.awaitExpectedBrokerCountInClusterViaTopic(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
 
@@ -259,7 +262,14 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     @Override
     public synchronized String getBootstrapServers() {
-        return clusterConfig.buildClientBootstrapServers(kafkaEndpoints, getNumOfBrokers());
+        return buildServerList(kafkaEndpoints::getClientEndpoint);
+    }
+
+    private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+        return servers.keySet().stream()
+                .map(endpointFunc)
+                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
+                .collect(Collectors.joining(","));
     }
 
     @Override
@@ -296,7 +306,8 @@ public class InVMKafkaCluster implements KafkaCluster {
         tryToStartServerWithRetry(configHolder, server);
         servers.put(configHolder.getBrokerNum(), server);
 
-        Utils.awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), 120, TimeUnit.SECONDS,
+        Utils.awaitExpectedBrokerCountInClusterViaTopic(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -318,7 +329,9 @@ public class InVMKafkaCluster implements KafkaCluster {
             throw new IllegalStateException("Could not identify a node to be the re-assignment target");
         }
 
-        Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), nodeId, target.get(),  120, TimeUnit.SECONDS);
+        Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), nodeId,
+                target.get(), 120, TimeUnit.SECONDS);
 
         externalPorts.remove(nodeId);
         anonPorts.remove(nodeId);
