@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,7 +102,7 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslPlainAuth.class,
-            SaslPlainAuth.UserPassword.class,
+            SaslPlainAuth.List.class,
             ZooKeeperCluster.class,
             Version.class);
 
@@ -148,18 +147,19 @@ public class KafkaClusterConfig {
                     throw new RuntimeException(e);
                 }
             }
-            if (annotation instanceof SaslPlainAuth) {
+            if (annotation instanceof SaslPlainAuth.List) {
                 builder.saslMechanism("PLAIN");
                 sasl = true;
-                builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
-                        .collect(Collectors.toMap(
-                                SaslPlainAuth.UserPassword::user,
-                                SaslPlainAuth.UserPassword::password)));
+                Map<String,String> users = new HashMap<>();
+                for (var user : ((SaslPlainAuth.List) annotation).value()) {
+                    users.put(user.user(), user.password());
+                }
+                builder.users(users);
             }
-            if (annotation instanceof SaslPlainAuth.UserPassword) {
+            else if (annotation instanceof SaslPlainAuth) {
                 builder.saslMechanism("PLAIN");
                 sasl = true;
-                builder.users(Map.of(((SaslPlainAuth.UserPassword) annotation).user(), ((SaslPlainAuth.UserPassword) annotation).password()));
+                builder.users(Map.of(((SaslPlainAuth) annotation).user(), ((SaslPlainAuth) annotation).password()));
             }
             if (annotation instanceof ClusterId) {
                 builder.kafkaKraftClusterId(((ClusterId) annotation).value());
