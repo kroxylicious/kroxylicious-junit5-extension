@@ -213,7 +213,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(((KafkaClusterConfig.KafkaEndpoints) this)::getClientEndpoint);
+        return buildServerList(nodeId -> this.getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
     private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
@@ -246,7 +246,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 zookeeper.start();
             }
             Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null),
+            awaitExpectedBrokerCountInClusterViaTopic(
+                    clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
@@ -289,7 +290,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         brokers.put(configHolder.getBrokerNum(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), 120,
+                TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -312,7 +314,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), nodeId,
+                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         clientPorts.remove(nodeId);
@@ -353,29 +355,30 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     @Override
-    public synchronized EndpointPair getClientEndpoint(int brokerId) {
-        return buildExposedEndpoint(brokerId, CLIENT_PORT, clientPorts);
-    }
-
-    @Override
-    public synchronized EndpointPair getAnonEndpoint(int brokerId) {
-        return buildExposedEndpoint(brokerId, ANON_PORT, anonPorts);
-    }
-
-    @Override
-    public EndpointPair getInterBrokerEndpoint(int brokerId) {
-        return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
-                .connect(new Endpoint(String.format("broker-%d", brokerId), INTER_BROKER_PORT)).build();
-    }
-
-    @Override
-    public EndpointPair getControllerEndpoint(int brokerId) {
-        if (clusterConfig.isKraftMode()) {
-            return EndpointPair.builder().bind(new Endpoint("0.0.0.0", CONTROLLER_PORT))
-                    .connect(new Endpoint(String.format("broker-%d", brokerId), CONTROLLER_PORT)).build();
-        }
-        else {
-            return EndpointPair.builder().bind(new Endpoint("0.0.0.0", ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
+    public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
+        switch (listener) {
+            case EXTERNAL -> {
+                return buildExposedEndpoint(nodeId, CLIENT_PORT, clientPorts);
+            }
+            case ANON -> {
+                return buildExposedEndpoint(nodeId, ANON_PORT, anonPorts);
+            }
+            case INTERNAL -> {
+                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
+                        .connect(new Endpoint(String.format("broker-%d", nodeId), INTER_BROKER_PORT)).build();
+            }
+            case CONTROLLER -> {
+                EndpointPair result;
+                if (clusterConfig.isKraftMode()) {
+                    result = EndpointPair.builder().bind(new Endpoint("0.0.0.0", CONTROLLER_PORT))
+                            .connect(new Endpoint(String.format("broker-%d", nodeId), CONTROLLER_PORT)).build();
+                }
+                else {
+                    result = EndpointPair.builder().bind(new Endpoint("0.0.0.0", ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
+                }
+                return result;
+            }
+            default -> throw new IllegalStateException("Unexpected value: " + listener);
         }
     }
 

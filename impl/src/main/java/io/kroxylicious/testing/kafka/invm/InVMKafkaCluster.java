@@ -171,7 +171,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), 120,
+                TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
 
@@ -186,10 +187,10 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                     catch (Throwable t) {
                         LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
                         LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
-                                this.getAnonEndpoint(configHolder.getBrokerNum()).getBind(),
-                                this.getClientEndpoint(configHolder.getBrokerNum()).getBind(),
-                                this.getControllerEndpoint(configHolder.getBrokerNum()).getBind(),
-                                this.getInterBrokerEndpoint(configHolder.getBrokerNum()).getBind());
+                                this.getEndpointPair(Listener.ANON, configHolder.getBrokerNum()).getBind(),
+                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind(),
+                                this.getEndpointPair(Listener.CONTROLLER, configHolder.getBrokerNum()).getBind(),
+                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind());
 
                         server.shutdown();
                         server.awaitShutdown();
@@ -230,7 +231,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(this::getClientEndpoint);
+        return buildServerList(brokerId -> getEndpointPair(Listener.EXTERNAL, brokerId));
     }
 
     private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
@@ -275,7 +276,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         servers.put(configHolder.getBrokerNum(), server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), 120,
+                TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -298,7 +300,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), nodeId,
+                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         externalPorts.remove(nodeId);
@@ -345,23 +347,22 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @Override
-    public synchronized EndpointPair getClientEndpoint(int brokerId) {
-        return buildEndpointPair(externalPorts, brokerId);
-    }
-
-    @Override
-    public synchronized EndpointPair getAnonEndpoint(int brokerId) {
-        return buildEndpointPair(anonPorts, brokerId);
-    }
-
-    @Override
-    public synchronized EndpointPair getInterBrokerEndpoint(int brokerId) {
-        return buildEndpointPair(interBrokerPorts, brokerId);
-    }
-
-    @Override
-    public synchronized EndpointPair getControllerEndpoint(int brokerId) {
-        return buildEndpointPair(controllerPorts, brokerId);
+    public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
+        switch (listener) {
+            case EXTERNAL -> {
+                return buildEndpointPair(externalPorts, nodeId);
+            }
+            case ANON -> {
+                return buildEndpointPair(anonPorts, nodeId);
+            }
+            case INTERNAL -> {
+                return buildEndpointPair(interBrokerPorts, nodeId);
+            }
+            case CONTROLLER -> {
+                return buildEndpointPair(controllerPorts, nodeId);
+            }
+            default -> throw new IllegalStateException("Unexpected value: " + listener);
+        }
     }
 
     private EndpointPair buildEndpointPair(SortedMap<Integer, ServerSocket> portRange, int brokerId) {

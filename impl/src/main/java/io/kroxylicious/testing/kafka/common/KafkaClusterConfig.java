@@ -40,6 +40,8 @@ import lombok.Getter;
 import lombok.Singular;
 import lombok.ToString;
 
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
+
 /**
  * The Kafka cluster config class.
  */
@@ -197,9 +199,9 @@ public class KafkaClusterConfig {
 
         putConfig(server, "broker.id", Integer.toString(brokerNum));
 
-        var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
-        var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
-        var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
+        var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, brokerNum);
+        var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, brokerNum);
+        var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, brokerNum);
 
         // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
         // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
@@ -231,14 +233,14 @@ public class KafkaClusterConfig {
             putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
 
             var quorumVoters = IntStream.range(0, kraftControllers)
-                    .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
+                    .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, controllerId).connectAddress()))
                     .collect(Collectors.joining(","));
             putConfig(server, "controller.quorum.voters", quorumVoters);
             putConfig(server, "controller.listener.names", "CONTROLLER");
             protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
 
             if (brokerNum == 0) {
-                var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
+                var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, brokerNum);
                 putConfig(server, "process.roles", "broker,controller");
 
                 listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
@@ -249,7 +251,7 @@ public class KafkaClusterConfig {
             }
         }
         else {
-            putConfig(server, "zookeeper.connect", kafkaEndpoints.getControllerEndpoint(0).connectAddress());
+            putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
             putConfig(server, "zookeeper.sasl.enabled", "false");
             putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
         }
@@ -500,6 +502,25 @@ public class KafkaClusterConfig {
      */
     public interface KafkaEndpoints {
 
+        enum Listener {
+            /**
+             * used for communications to/from consumers/producers optionally with authentication
+             */
+            EXTERNAL,
+            /**
+             * used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
+             */
+            ANON,
+            /**
+             * used for inter-broker communications (always no auth)
+             */
+            INTERNAL,
+            /**
+             * used for inter-broker controller communications (kraft - always no auth)
+             */
+            CONTROLLER
+        }
+
         /**
          * The type Endpoint pair.
          */
@@ -575,36 +596,13 @@ public class KafkaClusterConfig {
         }
 
         /**
-         * Gets inter broker endpoint.
+         * Gets the endpoint for the given listener and brokerId.
          *
-         * @param brokerId the broker id
-         * @return the inter broker endpoint
+         * @param listener listener
+         * @param nodeId kafka <code>node.id</code>
+         * @return endpoint poir.
          */
-        EndpointPair getInterBrokerEndpoint(int brokerId);
-
-        /**
-         * Gets controller endpoint.
-         *
-         * @param brokerId the broker id
-         * @return the controller endpoint
-         */
-        EndpointPair getControllerEndpoint(int brokerId);
-
-        /**
-         * Gets client endpoint.
-         *
-         * @param brokerId the broker id
-         * @return the client endpoint
-         */
-        EndpointPair getClientEndpoint(int brokerId);
-
-        /**
-         * Gets anon endpoint.
-         *
-         * @param brokerId the broker id
-         * @return the anon endpoint
-         */
-        EndpointPair getAnonEndpoint(int brokerId);
+        EndpointPair getEndpointPair(Listener listener, int nodeId);
 
     }
 }

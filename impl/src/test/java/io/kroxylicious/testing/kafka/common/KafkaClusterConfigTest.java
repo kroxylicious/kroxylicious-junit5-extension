@@ -48,30 +48,31 @@ class KafkaClusterConfigTest {
 
     static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {
 
-        @Override
-        public EndpointPair getInterBrokerEndpoint(int brokerId) {
-            return generateEndpoint(brokerId, INTER_BROKER_BASE_PORT);
-        }
-
-        @Override
-        public EndpointPair getControllerEndpoint(int brokerId) {
-            return generateEndpoint(brokerId, CONTROLLER_BASE_PORT);
-        }
-
-        @Override
-        public EndpointPair getClientEndpoint(int brokerId) {
-            return generateEndpoint(brokerId, CLIENT_BASE_PORT);
-        }
-
-        @Override
-        public EndpointPair getAnonEndpoint(int brokerId) {
-            return generateEndpoint(brokerId, ANON_BASE_PORT);
-        }
-
         @NotNull
         private static EndpointPair generateEndpoint(int brokerId, int basePort) {
             final int port = basePort + brokerId;
             return new EndpointPair(new Endpoint("0.0.0.0", port), new Endpoint("localhost", port));
+        }
+
+        @Override
+        public EndpointPair getEndpointPair(Listener listener, int nodeId) {
+            switch (listener) {
+
+                case EXTERNAL -> {
+                    return generateEndpoint(nodeId, CLIENT_BASE_PORT);
+                }
+                case ANON -> {
+                    return generateEndpoint(nodeId, ANON_BASE_PORT);
+                }
+                case INTERNAL -> {
+                    return generateEndpoint(nodeId, INTER_BROKER_BASE_PORT);
+                }
+                case CONTROLLER -> {
+                    return generateEndpoint(nodeId, CONTROLLER_BASE_PORT);
+                }
+
+                default -> throw new IllegalStateException("Unexpected value: " + listener);
+            }
         }
     }
 }
