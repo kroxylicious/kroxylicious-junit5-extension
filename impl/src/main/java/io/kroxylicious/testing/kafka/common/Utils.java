@@ -56,11 +56,11 @@ public class Utils {
      *
      * @param connectionConfig the connection config
      * @param fromNodeId nodeId being evacuated
-     * @param toNodeIs replacement nodeId
+     * @param toNodeId replacement nodeId
      * @param timeout the timeout
      * @param timeUnit the time unit
      */
-    public static void awaitReassignmentOfKafkaInternalTopicsIfNecessary(Map<String, Object> connectionConfig, int fromNodeId, int toNodeIs, int timeout,
+    public static void awaitReassignmentOfKafkaInternalTopicsIfNecessary(Map<String, Object> connectionConfig, int fromNodeId, int toNodeId, int timeout,
                                                                          TimeUnit timeUnit) {
         var kafkaInternalTopics = List.of(Topic.GROUP_METADATA_TOPIC_NAME, Topic.TRANSACTION_STATE_TOPIC_NAME, Topic.CLUSTER_METADATA_TOPIC_NAME);
 
@@ -69,7 +69,7 @@ public class Utils {
 
                 Map<String, TopicDescription> topicDescriptions = describeKnownTopics(kafkaInternalTopics, admin);
                 var movements = new HashMap<TopicPartition, Optional<NewPartitionReassignment>>();
-                var toNodeReassignment = Optional.of(new NewPartitionReassignment(List.of(toNodeIs)));
+                var toNodeReassignment = Optional.of(new NewPartitionReassignment(List.of(toNodeId)));
                 topicDescriptions.forEach((name, description) -> {
                     // find all partitions that don't have a replica on at least one other node.
                     var toMove = description.partitions().stream().filter(p -> p.replicas().stream().anyMatch(n -> n.id() == fromNodeId) && p.replicas().size() < 2)

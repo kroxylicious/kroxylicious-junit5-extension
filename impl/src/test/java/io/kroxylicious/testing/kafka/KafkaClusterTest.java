@@ -77,7 +77,7 @@ public class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(true)
+                .kraftMode(false)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -99,7 +99,7 @@ public class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(true)
+                .kraftMode(false)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -160,6 +160,27 @@ public class KafkaClusterTest {
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum + 1);
             assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum + 1);
             verifyRecordRoundTrip(brokersNum + 1, cluster);
+        }
+    }
+
+    @Test
+    public void kafkaClusterKraftRemoveBroker() throws Exception {
+        int brokersNum = 3;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(true)
+                .build())) {
+            cluster.start();
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
+            verifyRecordRoundTrip(brokersNum, cluster);
+
+            cluster.removeBroker(1);
+
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum - 1);
+            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum - 1);
+            verifyRecordRoundTrip(brokersNum - 1, cluster);
         }
     }
 

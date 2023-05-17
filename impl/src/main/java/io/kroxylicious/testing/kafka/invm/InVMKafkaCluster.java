@@ -190,7 +190,7 @@ public class InVMKafkaCluster implements KafkaCluster {
             }
 
             private EndpointPair buildEndpointPair(SortedMap<Integer, ServerSocket> portRange, int brokerId) {
-                var port = portRange.values().stream().toList().get(brokerId);
+                var port = portRange.get(brokerId);
                 return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port.getLocalPort())).connect(new Endpoint("localhost", port.getLocalPort())).build();
             }
         };
