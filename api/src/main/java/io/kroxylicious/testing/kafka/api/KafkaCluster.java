@@ -36,6 +36,7 @@ public interface KafkaCluster extends AutoCloseable {
      * <p>
      * in kraft mode, it is not permitted to remove a broker that is the controller mode.
      *
+     * @param nodeId node to be removed from the cluster
      * @throws UnsupportedOperationException the <code>node.id</code> identifies a kraft controller
      * @throws IllegalArgumentException      the node identified by <code>node.id</code> does not exist.
      */

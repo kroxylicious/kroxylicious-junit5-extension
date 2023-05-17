@@ -321,7 +321,23 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         ports.values().forEach(pm -> pm.remove(nodeId));
 
         var kafkaContainer = brokers.remove(nodeId);
-        kafkaContainer.stop();
+        // https://github.com/testcontainers/testcontainers-java/issues/1000
+        // Note that GenericContainer#stop actually implements stop using kill, so the broker doesn't have chance to
+        // tell the controller that it is going away.
+        var containerId = kafkaContainer.getContainerId();
+        try (var waitCmd = kafkaContainer.getDockerClient().waitContainerCmd(containerId);
+                var stopContainerCmd = kafkaContainer.getDockerClient().stopContainerCmd(containerId)) {
+            stopContainerCmd.exec();
+            var statusCode = waitCmd.start().awaitStatusCode(10, TimeUnit.SECONDS);
+            LOGGER.log(Level.DEBUG, "Shut-down broker {0}, exit status {1}", nodeId, statusCode);
+        }
+        catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Ignoring exception whilst shutting down broker {0}", nodeId, e);
+        }
+        finally {
+            // We need to do this regardless so that Testcontainer's internal state is correct.
+            kafkaContainer.stop();
+        }
     }
 
     @Override
