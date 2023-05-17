@@ -143,10 +143,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
 
     @Test
     public void saslPlainAuthenticatingClusterParameter2Users(
-                                                              @BrokerCluster
-                                                              @SaslPlainAuth(user = "alice", password = "foo")
-                                                              @SaslPlainAuth(user = "bob", password = "bar")
-                                                              KafkaCluster cluster)
+                                                              @BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
         var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
         assertEquals(1, dc.nodes().get().size());

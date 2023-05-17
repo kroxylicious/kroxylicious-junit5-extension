@@ -150,7 +150,7 @@ public class KafkaClusterConfig {
             if (annotation instanceof SaslPlainAuth.List) {
                 builder.saslMechanism("PLAIN");
                 sasl = true;
-                Map<String,String> users = new HashMap<>();
+                Map<String, String> users = new HashMap<>();
                 for (var user : ((SaslPlainAuth.List) annotation).value()) {
                     users.put(user.user(), user.password());
                 }
