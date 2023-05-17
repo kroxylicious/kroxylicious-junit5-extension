@@ -63,21 +63,15 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     private final Map<Integer, Server> servers = new HashMap<>();
 
     /**
+     * Tracks ports that are in-use by this cluster, by listener.
+     * The inner map is a mapping of kafka <code>node.id</code> to a closed server socket, with a port number
+     * previously defined from the ephemeral range.
      * Protected by lock of {@link InVMKafkaCluster itself.}
      */
-    private final SortedMap<Integer, ServerSocket> externalPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> anonPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> interBrokerPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> controllerPorts = new TreeMap<>();
+    private final Map<Listener, SortedMap<Integer, ServerSocket>> ports = Map.of(Listener.EXTERNAL, new TreeMap<>(),
+            Listener.ANON, new TreeMap<>(),
+            Listener.CONTROLLER, new TreeMap<>(),
+            Listener.INTERNAL, new TreeMap<>());
 
     /**
      * Instantiates a new in VM kafka cluster.
@@ -157,10 +151,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
         // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
         try (var preallocator = new ListeningSocketPreallocator()) {
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), externalPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), anonPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), interBrokerPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(allocateControllerPorts(preallocator, clusterConfig), controllerPorts);
+            List.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL)
+                    .forEach(l -> Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), ports.get(l)));
+            Utils.putAllListEntriesIntoMapKeyedByIndex(allocateControllerPorts(preallocator, clusterConfig), ports.get(Listener.CONTROLLER));
         }
 
         buildAndStartZookeeper();
@@ -202,7 +195,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     private void buildAndStartZookeeper() {
         if (!clusterConfig.isKraftMode()) {
             try {
-                final int zookeeperPort = controllerPorts.get(0).getLocalPort();
+                final int zookeeperPort = ports.get(Listener.CONTROLLER).get(0).getLocalPort();
                 ServerCnxnFactory zooFactory = ServerCnxnFactory.createFactory(new InetSocketAddress("localhost", zookeeperPort), 1024);
 
                 var zoo = tempDirectory.resolve("zoo");
@@ -265,9 +258,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
         // preallocate ports for the new broker
         try (var preallocator = new ListeningSocketPreallocator()) {
-            externalPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            anonPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            interBrokerPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+            ports.get(Listener.EXTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+            ports.get(Listener.ANON).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+            ports.get(Listener.INTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
         }
 
         var configHolder = clusterConfig.generateConfigForSpecificBroker(this, newNodeId);
@@ -287,7 +280,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (!servers.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && controllerPorts.containsKey(nodeId)) {
+        if (clusterConfig.isKraftMode() && ports.get(Listener.CONTROLLER).containsKey(nodeId)) {
             throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
         }
         if (servers.size() < 2) {
@@ -303,9 +296,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
-        externalPorts.remove(nodeId);
-        anonPorts.remove(nodeId);
-        interBrokerPorts.remove(nodeId);
+        ports.values().forEach(pm -> pm.remove(nodeId));
 
         var s = servers.remove(nodeId);
         s.shutdown();
@@ -348,26 +339,11 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
-        switch (listener) {
-            case EXTERNAL -> {
-                return buildEndpointPair(externalPorts, nodeId);
-            }
-            case ANON -> {
-                return buildEndpointPair(anonPorts, nodeId);
-            }
-            case INTERNAL -> {
-                return buildEndpointPair(interBrokerPorts, nodeId);
-            }
-            case CONTROLLER -> {
-                return buildEndpointPair(controllerPorts, nodeId);
-            }
-            default -> throw new IllegalStateException("Unexpected value: " + listener);
+        var portMap = ports.get(listener);
+        if (portMap == null) {
+            throw new IllegalStateException("Unexpected value: " + listener);
         }
-    }
-
-    private EndpointPair buildEndpointPair(SortedMap<Integer, ServerSocket> portRange, int brokerId) {
-        var port = portRange.get(brokerId);
+        var port = portMap.get(nodeId);
         return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port.getLocalPort())).connect(new Endpoint("localhost", port.getLocalPort())).build();
     }
-
 }

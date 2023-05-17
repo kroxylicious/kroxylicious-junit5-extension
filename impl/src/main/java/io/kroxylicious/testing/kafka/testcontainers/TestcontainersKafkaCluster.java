@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -88,21 +89,21 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      */
     private final Map<Integer, KafkaContainer> brokers = new TreeMap<>();
 
+    /**
+     * Tracks ports that are in-use by this cluster, by listener.
+     * The inner map is a mapping of kafka <code>node.id</code> to a closed server socket, with a port number
+     * previously defined from the ephemeral range.
+     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
+     */
+    private final Map<Listener, SortedMap<Integer, ServerSocket>> ports = Map.of(Listener.EXTERNAL, new TreeMap<>(),
+            Listener.ANON, new TreeMap<>());
+
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
             LOGGER.log(Level.WARNING,
                     "As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
         }
     }
-
-    /**
-     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> clientPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> anonPorts = new TreeMap<>();
 
     /**
      * Instantiates a new Testcontainers kafka cluster.
@@ -146,8 +147,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         try (var preallocator = new ListeningSocketPreallocator()) {
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), clientPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), anonPorts);
+            List.of(Listener.EXTERNAL, Listener.ANON)
+                    .forEach(l -> Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), ports.get(l)));
         }
 
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
@@ -274,8 +275,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
         // preallocate ports for the new broker
         try (var preallocator = new ListeningSocketPreallocator()) {
-            clientPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            anonPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+            ports.get(Listener.EXTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+            ports.get(Listener.ANON).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
         }
 
         var configHolder = clusterConfig.generateConfigForSpecificBroker(this, newNodeId);
@@ -317,8 +318,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
-        clientPorts.remove(nodeId);
-        anonPorts.remove(nodeId);
+        ports.values().forEach(pm -> pm.remove(nodeId));
 
         var kafkaContainer = brokers.remove(nodeId);
         kafkaContainer.stop();
@@ -358,10 +358,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
         switch (listener) {
             case EXTERNAL -> {
-                return buildExposedEndpoint(nodeId, CLIENT_PORT, clientPorts);
+                return buildExposedEndpoint(nodeId, CLIENT_PORT, ports.get(listener));
             }
             case ANON -> {
-                return buildExposedEndpoint(nodeId, ANON_PORT, anonPorts);
+                return buildExposedEndpoint(nodeId, ANON_PORT, ports.get(listener));
             }
             case INTERNAL -> {
                 return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
