@@ -48,7 +48,7 @@ import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_V
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
-public class InVMKafkaCluster implements KafkaCluster {
+public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final int STARTUP_TIMEOUT = 30;
 
@@ -62,10 +62,6 @@ public class InVMKafkaCluster implements KafkaCluster {
      */
     private final Map<Integer, Server> servers = new HashMap<>();
 
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
     /**
      * Protected by lock of {@link InVMKafkaCluster itself.}
      */
@@ -167,43 +163,15 @@ public class InVMKafkaCluster implements KafkaCluster {
             Utils.putAllListEntriesIntoMapKeyedByIndex(allocateControllerPorts(preallocator, clusterConfig), controllerPorts);
         }
 
-        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
-
-            @Override
-            public EndpointPair getClientEndpoint(int brokerId) {
-                return buildEndpointPair(externalPorts, brokerId);
-            }
-
-            @Override
-            public EndpointPair getAnonEndpoint(int brokerId) {
-                return buildEndpointPair(anonPorts, brokerId);
-            }
-
-            @Override
-            public EndpointPair getInterBrokerEndpoint(int brokerId) {
-                return buildEndpointPair(interBrokerPorts, brokerId);
-            }
-
-            @Override
-            public EndpointPair getControllerEndpoint(int brokerId) {
-                return buildEndpointPair(controllerPorts, brokerId);
-            }
-
-            private EndpointPair buildEndpointPair(SortedMap<Integer, ServerSocket> portRange, int brokerId) {
-                var port = portRange.get(brokerId);
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port.getLocalPort())).connect(new Endpoint("localhost", port.getLocalPort())).build();
-            }
-        };
-
         buildAndStartZookeeper();
-        clusterConfig.getBrokerConfigs(() -> kafkaEndpoints).parallel().forEach(configHolder -> {
+        clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
             final Server server = this.buildKafkaServer(configHolder);
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
 
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
 
@@ -218,10 +186,10 @@ public class InVMKafkaCluster implements KafkaCluster {
                     catch (Throwable t) {
                         LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
                         LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
-                                kafkaEndpoints.getAnonEndpoint(configHolder.getBrokerNum()).getBind(),
-                                kafkaEndpoints.getClientEndpoint(configHolder.getBrokerNum()).getBind(),
-                                kafkaEndpoints.getControllerEndpoint(configHolder.getBrokerNum()).getBind(),
-                                kafkaEndpoints.getInterBrokerEndpoint(configHolder.getBrokerNum()).getBind());
+                                this.getAnonEndpoint(configHolder.getBrokerNum()).getBind(),
+                                this.getClientEndpoint(configHolder.getBrokerNum()).getBind(),
+                                this.getControllerEndpoint(configHolder.getBrokerNum()).getBind(),
+                                this.getInterBrokerEndpoint(configHolder.getBrokerNum()).getBind());
 
                         server.shutdown();
                         server.awaitShutdown();
@@ -262,7 +230,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(kafkaEndpoints::getClientEndpoint);
+        return buildServerList(this::getClientEndpoint);
     }
 
     private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
@@ -301,13 +269,13 @@ public class InVMKafkaCluster implements KafkaCluster {
             interBrokerPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
         }
 
-        var configHolder = clusterConfig.generateConfigForSpecificBroker(kafkaEndpoints, newNodeId);
+        var configHolder = clusterConfig.generateConfigForSpecificBroker(this, newNodeId);
         final Server server = buildKafkaServer(configHolder);
         tryToStartServerWithRetry(configHolder, server);
         servers.put(configHolder.getBrokerNum(), server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -330,7 +298,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), nodeId,
+                clusterConfig.getConnectConfigForCluster(buildServerList(this::getAnonEndpoint), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         externalPorts.remove(nodeId);
@@ -375,4 +343,30 @@ public class InVMKafkaCluster implements KafkaCluster {
     public synchronized int getNumOfBrokers() {
         return servers.size();
     }
+
+    @Override
+    public synchronized EndpointPair getClientEndpoint(int brokerId) {
+        return buildEndpointPair(externalPorts, brokerId);
+    }
+
+    @Override
+    public synchronized EndpointPair getAnonEndpoint(int brokerId) {
+        return buildEndpointPair(anonPorts, brokerId);
+    }
+
+    @Override
+    public synchronized EndpointPair getInterBrokerEndpoint(int brokerId) {
+        return buildEndpointPair(interBrokerPorts, brokerId);
+    }
+
+    @Override
+    public synchronized EndpointPair getControllerEndpoint(int brokerId) {
+        return buildEndpointPair(controllerPorts, brokerId);
+    }
+
+    private EndpointPair buildEndpointPair(SortedMap<Integer, ServerSocket> portRange, int brokerId) {
+        var port = portRange.get(brokerId);
+        return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port.getLocalPort())).connect(new Endpoint("localhost", port.getLocalPort())).build();
+    }
+
 }
