@@ -248,7 +248,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             }
             Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             awaitExpectedBrokerCountInClusterViaTopic(
-                    clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null),
+                    clusterConfig.getConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)), null, null, null, null),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
@@ -279,7 +279,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             ports.get(Listener.ANON).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
         }
 
-        var configHolder = clusterConfig.generateConfigForSpecificBroker(this, newNodeId);
+        var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
         var kafkaContainer = buildKafkaContainer(configHolder);
         try {
             Startables.deepStart(kafkaContainer).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -291,7 +291,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         brokers.put(configHolder.getBrokerNum(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), 120,
+                clusterConfig.getConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)), null, null, null, null), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
@@ -315,7 +315,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), nodeId,
+                clusterConfig.getConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id)), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         ports.values().forEach(pm -> pm.remove(nodeId));
@@ -398,10 +398,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
     }
 
-    private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, SortedMap<Integer, ServerSocket> externalPortRange) {
+    private EndpointPair buildExposedEndpoint(int nodeId, int internalPort, SortedMap<Integer, ServerSocket> externalPortRange) {
         return EndpointPair.builder()
                 .bind(new Endpoint("0.0.0.0", internalPort))
-                .connect(new Endpoint("localhost", externalPortRange.get(brokerId).getLocalPort()))
+                .connect(new Endpoint("localhost", externalPortRange.get(nodeId).getLocalPort()))
                 .build();
     }
 

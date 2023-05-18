@@ -185,7 +185,7 @@ public class KafkaClusterConfig {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
-            final ConfigHolder brokerConfigHolder = generateConfigForSpecificBroker(kafkaEndpoints, brokerNum);
+            final ConfigHolder brokerConfigHolder = generateConfigForSpecificNode(kafkaEndpoints, brokerNum);
             properties.add(brokerConfigHolder);
         }
 
@@ -193,15 +193,15 @@ public class KafkaClusterConfig {
     }
 
     @NotNull
-    public ConfigHolder generateConfigForSpecificBroker(KafkaEndpoints kafkaEndpoints, int brokerNum) {
+    public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
         Properties server = new Properties();
         server.putAll(brokerConfigs);
 
-        putConfig(server, "broker.id", Integer.toString(brokerNum));
+        putConfig(server, "broker.id", Integer.toString(nodeId));
 
-        var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, brokerNum);
-        var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, brokerNum);
-        var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, brokerNum);
+        var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
+        var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
+        var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
 
         // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
         // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
@@ -230,7 +230,7 @@ public class KafkaClusterConfig {
         putConfig(server, "inter.broker.listener.name", "INTERNAL");
 
         if (isKraftMode()) {
-            putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
+            putConfig(server, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
 
             var quorumVoters = IntStream.range(0, kraftControllers)
                     .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, controllerId).connectAddress()))
@@ -239,8 +239,8 @@ public class KafkaClusterConfig {
             putConfig(server, "controller.listener.names", "CONTROLLER");
             protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
 
-            if (brokerNum == 0) {
-                var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, brokerNum);
+            if (nodeId == 0) {
+                var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
                 putConfig(server, "process.roles", "broker,controller");
 
                 listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
@@ -323,7 +323,7 @@ public class KafkaClusterConfig {
         putConfig(server, "metrics.jmx.exclude", ".*");
 
         return new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
-                clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId);
+                clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
     }
 
     private static void putConfig(Properties server, String key, String value) {

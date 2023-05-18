@@ -164,7 +164,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), 120,
+                clusterConfig.getConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)), null, null, null, null), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
@@ -224,7 +224,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(brokerId -> getEndpointPair(Listener.EXTERNAL, brokerId));
+        return buildServerList(nodeId -> getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
     private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
@@ -263,13 +263,13 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             ports.get(Listener.INTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
         }
 
-        var configHolder = clusterConfig.generateConfigForSpecificBroker(this, newNodeId);
+        var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
         final Server server = buildKafkaServer(configHolder);
         tryToStartServerWithRetry(configHolder, server);
-        servers.put(configHolder.getBrokerNum(), server);
+        servers.put(newNodeId, server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), 120,
+                clusterConfig.getConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)), null, null, null, null), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
@@ -293,7 +293,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(brokerId -> getEndpointPair(Listener.ANON, brokerId)), null, null, null, null), nodeId,
+                clusterConfig.getConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id)), null, null, null, null), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         ports.values().forEach(pm -> pm.remove(nodeId));

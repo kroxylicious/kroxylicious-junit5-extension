@@ -36,7 +36,7 @@ class KafkaClusterConfigTest {
         var kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
         // When
-        final var config = kafkaClusterConfig.generateConfigForSpecificBroker(endpointConfig, 0);
+        final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
 
         // Then
         assertThat(config.getBrokerNum()).isEqualTo(0);
@@ -49,8 +49,8 @@ class KafkaClusterConfigTest {
     static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {
 
         @NotNull
-        private static EndpointPair generateEndpoint(int brokerId, int basePort) {
-            final int port = basePort + brokerId;
+        private static EndpointPair generateEndpoint(int nodeId, int basePort) {
+            final int port = basePort + nodeId;
             return new EndpointPair(new Endpoint("0.0.0.0", port), new Endpoint("localhost", port));
         }
 
