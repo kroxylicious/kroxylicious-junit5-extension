@@ -308,9 +308,15 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     public synchronized void close() throws Exception {
         try {
             try {
-                // shutdown controller last seems to be significant to the kraft case.
+                // with kraft, if we don't shut down the controller last, we sometimes see a hang.
+                // https://issues.apache.org/jira/browse/KAFKA-14287
+                var controllers = ports.get(Listener.CONTROLLER).keySet();
                 servers.entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey(Comparator.reverseOrder()))
+                        .filter(e -> !controllers.contains(e.getKey()))
+                        .map(Map.Entry::getValue)
+                        .forEach(Server::shutdown);
+                servers.entrySet().stream()
+                        .filter(e -> controllers.contains(e.getKey()))
                         .map(Map.Entry::getValue)
                         .forEach(Server::shutdown);
             }
