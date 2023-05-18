@@ -30,7 +30,15 @@ public class PortAllocator {
     }
 
     public synchronized int getPort(Listener listener, int nodeId) {
-        return ports.get(listener).get(nodeId).getLocalPort();
+        var listenerPorts = ports.get(listener);
+        if (listenerPorts == null) {
+            throw new IllegalArgumentException("listener " + listener + " has not been registered with this allocator.");
+        }
+        var sock = listenerPorts.get(nodeId);
+        if (sock == null) {
+            throw new IllegalArgumentException("listener " + listener + " does not have a port for node " + nodeId + ".");
+        }
+        return sock.getLocalPort();
     }
 
     private synchronized void allocate(Set<Listener> listeners, int firstBrokerIdInclusive, int lastBrokerIdExclusive, ListeningSocketPreallocator preallocator) {
