@@ -14,21 +14,25 @@ import java.lang.System.Logger.Level;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.apache.kafka.common.config.SslConfigs;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -45,6 +49,7 @@ import lombok.SneakyThrows;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.Utils;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
@@ -75,8 +80,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
     private final Network network = Network.newNetwork();
+    private final String name;
     private final ZookeeperContainer zookeeper;
-    private final Collection<KafkaContainer> brokers;
+
+    /**
+     * Map of kafka <code>node.id</code> to {@link KafkaContainer}.
+     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
+     */
+    private final Map<Integer, KafkaContainer> brokers = new TreeMap<>();
 
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
@@ -85,9 +96,15 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         }
     }
 
+    /**
+     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
+     */
+    private final SortedMap<Integer, ServerSocket> clientPorts = new TreeMap<>();
+    /**
+     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
+     */
+    private final SortedMap<Integer, ServerSocket> anonPorts = new TreeMap<>();
     private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
-    private List<ServerSocket> clientPorts;
-    private List<ServerSocket> anonPorts;
 
     /**
      * Instantiates a new Testcontainers kafka cluster.
@@ -112,10 +129,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
         this.clusterConfig = clusterConfig;
 
-        var name = Optional.ofNullable(clusterConfig.getTestInfo())
+        this.name = Optional.ofNullable(clusterConfig.getTestInfo())
                 .map(TestInfo::getDisplayName)
                 .map(s -> s.replaceFirst("\\(\\)$", ""))
-                .map(s -> String.format("%s.%s", s, OffsetDateTime.now()))
+                .map(s -> String.format("%s.%s", s, OffsetDateTime.now(Clock.systemUTC())))
                 .orElse(null);
 
         if (this.clusterConfig.isKraftMode()) {
@@ -131,8 +148,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         }
 
         try (var preallocator = new ListeningSocketPreallocator()) {
-            clientPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
-            anonPorts = preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum());
+            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), clientPorts);
+            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), anonPorts);
         }
 
         kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
@@ -163,7 +180,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 }
             }
 
-            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, List<ServerSocket> externalPortRange) {
+            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, SortedMap<Integer, ServerSocket> externalPortRange) {
                 return EndpointPair.builder()
                         .bind(new Endpoint("0.0.0.0", internalPort))
                         .connect(new Endpoint("localhost", externalPortRange.get(brokerId).getLocalPort()))
@@ -172,33 +189,36 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         };
 
         Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> kafkaEndpoints;
-        Supplier<KafkaClusterConfig.KafkaEndpoints.Endpoint> zookeeperEndpointSupplier = () -> new KafkaClusterConfig.KafkaEndpoints.Endpoint("zookeeper",
-                TestcontainersKafkaCluster.ZOOKEEPER_PORT);
-        this.brokers = clusterConfig.getBrokerConfigs(endPointConfigSupplier).map(holder -> {
-            String netAlias = "broker-" + holder.getBrokerNum();
-            KafkaContainer kafkaContainer = new KafkaContainer(this.kafkaImage)
-                    .withName(name)
-                    .withNetwork(this.network)
-                    .withNetworkAliases(netAlias);
+        clusterConfig.getBrokerConfigs(endPointConfigSupplier).forEach(holder -> {
+            brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder));
+        });
+    }
 
-            copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
-            copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
+    @NotNull
+    private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
+        String netAlias = "broker-" + holder.getBrokerNum();
+        KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
+                .withName(name)
+                .withNetwork(network)
+                .withNetworkAliases(netAlias);
 
-            kafkaContainer
-                    // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
-                    .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
-                    .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
-                    .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
-                    .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
-                    .withStartupTimeout(Duration.ofMinutes(2));
-            kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
-            kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
+        copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
+        copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
-            if (!this.clusterConfig.isKraftMode()) {
-                kafkaContainer.dependsOn(this.zookeeper);
-            }
-            return kafkaContainer;
-        }).collect(Collectors.toList());
+        kafkaContainer
+                // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
+                .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
+                .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
+                .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
+                .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
+                .withStartupTimeout(Duration.ofMinutes(2));
+        kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
+        kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
+
+        if (!clusterConfig.isKraftMode()) {
+            kafkaContainer.dependsOn(this.zookeeper);
+        }
+        return kafkaContainer;
     }
 
     private void setDefaultKafkaImage(String kafkaVersion) {
@@ -233,8 +253,15 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     @Override
-    public String getBootstrapServers() {
-        return clusterConfig.buildClientBootstrapServers(kafkaEndpoints);
+    public synchronized String getBootstrapServers() {
+        return buildServerList(kafkaEndpoints::getClientEndpoint);
+    }
+
+    private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+        return brokers.keySet().stream()
+                .map(endpointFunc)
+                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
+                .collect(Collectors.joining(","));
     }
 
     /**
@@ -246,21 +273,22 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         return kafkaImage.getVersionPart();
     }
 
-    private Stream<GenericContainer<?>> allContainers() {
+    private synchronized Stream<GenericContainer<?>> allContainers() {
         return Stream.concat(
-                this.brokers.stream(),
+                this.brokers.values().stream(),
                 Stream.ofNullable(this.zookeeper));
     }
 
     @Override
     @SneakyThrows
-    public void start() {
+    public synchronized void start() {
         try {
             if (zookeeper != null) {
                 zookeeper.start();
             }
-            Startables.deepStart(brokers.stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getAnonConnectConfigForCluster(kafkaEndpoints), READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
+            Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null),
+                    READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -273,17 +301,80 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     }
 
     @Override
+    public synchronized int addBroker() {
+        // find next free kafka node.id
+        var first = IntStream.rangeClosed(0, getNumOfBrokers()).filter(cand -> !brokers.containsKey(cand)).findFirst();
+        if (first.isEmpty()) {
+            throw new IllegalStateException("Could not determine new nodeId, existing set " + brokers.keySet());
+        }
+        var newNodeId = first.getAsInt();
+
+        LOGGER.log(System.Logger.Level.DEBUG,
+                "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, brokers.keySet());
+
+        // preallocate ports for the new broker
+        try (var preallocator = new ListeningSocketPreallocator()) {
+            clientPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+            anonPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+        }
+
+        var configHolder = clusterConfig.generateConfigForSpecificBroker(kafkaEndpoints, newNodeId);
+        var kafkaContainer = buildKafkaContainer(configHolder);
+        try {
+            Startables.deepStart(kafkaContainer).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+        catch (Exception e) {
+            kafkaContainer.stop();
+            throw new RuntimeException(e);
+        }
+        brokers.put(configHolder.getBrokerNum(), kafkaContainer);
+
+        Utils.awaitExpectedBrokerCountInClusterViaTopic(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                getNumOfBrokers());
+        return configHolder.getBrokerNum();
+    }
+
+    @Override
+    public synchronized void removeBroker(int nodeId) throws UnsupportedOperationException, IllegalArgumentException {
+        if (!brokers.containsKey(nodeId)) {
+            throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
+        }
+        if (clusterConfig.isKraftMode() && nodeId < clusterConfig.getKraftControllers()) {
+            throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
+        }
+        if (brokers.size() < 2) {
+            throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(brokers.size()));
+        }
+
+        var target = brokers.keySet().stream().filter(n -> n != nodeId).findFirst();
+        if (target.isEmpty()) {
+            throw new IllegalStateException("Could not identify a node to be the re-assignment target");
+        }
+
+        Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
+                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), nodeId,
+                target.get(), 120, TimeUnit.SECONDS);
+
+        clientPorts.remove(nodeId);
+        anonPorts.remove(nodeId);
+
+        var kafkaContainer = brokers.remove(nodeId);
+        kafkaContainer.stop();
+    }
+
+    @Override
     public void close() {
         this.stop();
     }
 
     @Override
-    public int getNumOfBrokers() {
-        return clusterConfig.getBrokersNum();
+    public synchronized int getNumOfBrokers() {
+        return brokers.size();
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         allContainers().parallel().forEach(GenericContainer::stop);
     }
 
