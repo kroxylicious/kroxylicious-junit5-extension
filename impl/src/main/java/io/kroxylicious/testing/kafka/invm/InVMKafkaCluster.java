@@ -164,7 +164,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)), null, null, null, null), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
@@ -269,7 +269,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         servers.put(newNodeId, server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)), null, null, null, null), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
@@ -293,7 +293,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id)), null, null, null, null), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         ports.values().forEach(pm -> pm.remove(nodeId));

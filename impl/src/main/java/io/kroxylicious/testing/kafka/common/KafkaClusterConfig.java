@@ -334,6 +334,16 @@ public class KafkaClusterConfig {
     }
 
     /**
+     * Generates client connection config to connect to the anonymous listeners within the cluster. Thus bypassing all authentication mechanisms.
+     *
+     * @param bootstrapServers the bootstrap servers
+     * @return the anon connect config for cluster
+     */
+    public Map<String, Object> getAnonConnectConfigForCluster(String bootstrapServers) {
+        return getConnectConfigForCluster(bootstrapServers, null, null, null, null);
+    }
+
+    /**
      * Generates client connection config to connect to the cluster via the supplied bootstrap address.
      *
      * @param bootstrapServers the bootstrap servers
