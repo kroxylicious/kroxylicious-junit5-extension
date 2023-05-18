@@ -14,13 +14,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.DescribeClusterResult;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Uuid;
@@ -355,7 +350,7 @@ public class KafkaClusterTest {
         var topic = "roundTrip" + Uuid.randomUuid();
         var message = "Hello, world!";
 
-        try (var admin = CloseableAdmin.wrap(KafkaAdminClient.create(cluster.getKafkaClientConfiguration()))) {
+        try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
             var rf = (short) Math.min(expected, 3);
             createTopic(admin, topic, rf);
 
@@ -374,7 +369,7 @@ public class KafkaClusterTest {
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 3_600_000));
-        try (var producer = CloseableProducer.wrap(new KafkaProducer<String, String>(config))) {
+        try (var producer = CloseableProducer.create(config)) {
             producer.send(new ProducerRecord<>(topic, "my-key", message)).get(30, TimeUnit.SECONDS);
         }
     }
@@ -386,18 +381,13 @@ public class KafkaClusterTest {
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
                 ConsumerConfig.GROUP_ID_CONFIG, "my-group-id",
                 ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
-        try (var consumer = CloseableConsumer.wrap(new KafkaConsumer<String, String>(config))) {
+        try (var consumer = CloseableConsumer.create(config)) {
             consumer.subscribe(Set.of(topic));
             var records = consumer.poll(Duration.ofSeconds(10));
             assertEquals(1, records.count());
             assertEquals(message, records.iterator().next().value());
             consumer.unsubscribe();
         }
-    }
-
-    private int getActualNumberOfBrokers(AdminClient admin) throws Exception {
-        DescribeClusterResult describeClusterResult = admin.describeCluster();
-        return describeClusterResult.nodes().get().size();
     }
 
     private void createTopic(Admin admin, String topic, short replicationFactor) throws Exception {
