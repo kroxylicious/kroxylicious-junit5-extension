@@ -10,16 +10,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -40,7 +37,7 @@ import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
@@ -62,16 +59,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      */
     private final Map<Integer, Server> servers = new HashMap<>();
 
-    /**
-     * Tracks ports that are in-use by this cluster, by listener.
-     * The inner map is a mapping of kafka <code>node.id</code> to a closed server socket, with a port number
-     * previously defined from the ephemeral range.
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final Map<Listener, SortedMap<Integer, ServerSocket>> ports = Map.of(Listener.EXTERNAL, new TreeMap<>(),
-            Listener.ANON, new TreeMap<>(),
-            Listener.CONTROLLER, new TreeMap<>(),
-            Listener.INTERNAL, new TreeMap<>());
+    private final PortAllocator portsAllocator = new PortAllocator();
 
     /**
      * Instantiates a new in VM kafka cluster.
@@ -86,15 +74,6 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
         catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
-    }
-
-    private List<ServerSocket> allocateControllerPorts(ListeningSocketPreallocator preallocator, KafkaClusterConfig clusterConfig) {
-        if (clusterConfig.isKraftMode()) {
-            return preallocator.preAllocateListeningSockets(clusterConfig.getKraftControllers());
-        }
-        else {
-            return preallocator.preAllocateListeningSockets(1);
         }
     }
 
@@ -150,10 +129,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     public synchronized void start() {
         // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
         // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            List.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL)
-                    .forEach(l -> Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), ports.get(l)));
-            Utils.putAllListEntriesIntoMapKeyedByIndex(allocateControllerPorts(preallocator, clusterConfig), ports.get(Listener.CONTROLLER));
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL), 0, clusterConfig.getBrokersNum());
+            portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.isKraftMode() ? clusterConfig.getKraftControllers() : 1);
         }
 
         buildAndStartZookeeper();
@@ -195,7 +173,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     private void buildAndStartZookeeper() {
         if (!clusterConfig.isKraftMode()) {
             try {
-                final int zookeeperPort = ports.get(Listener.CONTROLLER).get(0).getLocalPort();
+                final int zookeeperPort = portsAllocator.getPort(Listener.CONTROLLER, 0);
                 ServerCnxnFactory zooFactory = ServerCnxnFactory.createFactory(new InetSocketAddress("localhost", zookeeperPort), 1024);
 
                 var zoo = tempDirectory.resolve("zoo");
@@ -257,10 +235,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, servers.keySet());
 
         // preallocate ports for the new broker
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            ports.get(Listener.EXTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            ports.get(Listener.ANON).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            ports.get(Listener.INTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL), newNodeId);
         }
 
         var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
@@ -280,7 +256,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (!servers.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && ports.get(Listener.CONTROLLER).containsKey(nodeId)) {
+        if (clusterConfig.isKraftMode() && portsAllocator.containsPort(Listener.CONTROLLER, nodeId)) {
             throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
         }
         if (servers.size() < 2) {
@@ -296,7 +272,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
-        ports.values().forEach(pm -> pm.remove(nodeId));
+        portsAllocator.deallocate(nodeId);
 
         var s = servers.remove(nodeId);
         s.shutdown();
@@ -310,13 +286,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             try {
                 // with kraft, if we don't shut down the controller last, we sometimes see a hang.
                 // https://issues.apache.org/jira/browse/KAFKA-14287
-                var controllers = ports.get(Listener.CONTROLLER).keySet();
                 servers.entrySet().stream()
-                        .filter(e -> !controllers.contains(e.getKey()))
+                        .filter(e -> !portsAllocator.containsPort(Listener.CONTROLLER, e.getKey()))
                         .map(Map.Entry::getValue)
                         .forEach(Server::shutdown);
                 servers.entrySet().stream()
-                        .filter(e -> controllers.contains(e.getKey()))
+                        .filter(e -> portsAllocator.containsPort(Listener.CONTROLLER, e.getKey()))
                         .map(Map.Entry::getValue)
                         .forEach(Server::shutdown);
             }
@@ -345,11 +320,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
-        var portMap = ports.get(listener);
-        if (portMap == null) {
-            throw new IllegalStateException("Unexpected value: " + listener);
-        }
-        var port = portMap.get(nodeId);
-        return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port.getLocalPort())).connect(new Endpoint("localhost", port.getLocalPort())).build();
+        var port = portsAllocator.getPort(listener, nodeId);
+        return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
     }
 }

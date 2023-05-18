@@ -17,9 +17,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewPartitionReassignment;
@@ -224,9 +222,4 @@ public class Utils {
         return known;
     }
 
-    public static <U> void putAllListEntriesIntoMapKeyedByIndex(List<U> source, Map<Integer, U> target) {
-        target.putAll(IntStream.range(0, source.size())
-                .boxed()
-                .collect(Collectors.toMap(Function.identity(), source::get)));
-    }
 }

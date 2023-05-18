@@ -11,17 +11,15 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.System.Logger.Level;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.SortedMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +46,7 @@ import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
@@ -89,14 +87,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      */
     private final Map<Integer, KafkaContainer> brokers = new TreeMap<>();
 
-    /**
-     * Tracks ports that are in-use by this cluster, by listener.
-     * The inner map is a mapping of kafka <code>node.id</code> to a closed server socket, with a port number
-     * previously defined from the ephemeral range.
-     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
-     */
-    private final Map<Listener, SortedMap<Integer, ServerSocket>> ports = Map.of(Listener.EXTERNAL, new TreeMap<>(),
-            Listener.ANON, new TreeMap<>());
+    private final PortAllocator portsAllocator = new PortAllocator();
 
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
@@ -146,9 +137,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                     .withNetworkAliases("zookeeper");
         }
 
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            List.of(Listener.EXTERNAL, Listener.ANON)
-                    .forEach(l -> Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), ports.get(l)));
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
         }
 
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
@@ -274,9 +264,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, brokers.keySet());
 
         // preallocate ports for the new broker
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            ports.get(Listener.EXTERNAL).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            ports.get(Listener.ANON).put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), newNodeId);
         }
 
         var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
@@ -318,7 +307,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
-        ports.values().forEach(pm -> pm.remove(nodeId));
+        portsAllocator.deallocate(nodeId);
 
         var kafkaContainer = brokers.remove(nodeId);
         // https://github.com/testcontainers/testcontainers-java/issues/1000
@@ -374,10 +363,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
         switch (listener) {
             case EXTERNAL -> {
-                return buildExposedEndpoint(nodeId, CLIENT_PORT, ports.get(listener));
+                return buildExposedEndpoint(listener, nodeId, CLIENT_PORT);
             }
             case ANON -> {
-                return buildExposedEndpoint(nodeId, ANON_PORT, ports.get(listener));
+                return buildExposedEndpoint(listener, nodeId, ANON_PORT);
             }
             case INTERNAL -> {
                 return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
@@ -398,10 +387,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
     }
 
-    private EndpointPair buildExposedEndpoint(int nodeId, int internalPort, SortedMap<Integer, ServerSocket> externalPortRange) {
+    private EndpointPair buildExposedEndpoint(Listener listener, int nodeId, int bindPort) {
         return EndpointPair.builder()
-                .bind(new Endpoint("0.0.0.0", internalPort))
-                .connect(new Endpoint("localhost", externalPortRange.get(nodeId).getLocalPort()))
+                .bind(new Endpoint("0.0.0.0", bindPort))
+                .connect(new Endpoint("localhost", portsAllocator.getPort(listener, nodeId)))
                 .build();
     }
 
