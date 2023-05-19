@@ -28,6 +28,9 @@ public class PortAllocator {
      */
     private final Map<Listener, Map<Integer, ServerSocket>> ports;
 
+    /**
+     * Constructs a port allocator.
+     */
     public PortAllocator() {
         ports = new HashMap<>();
     }
@@ -98,7 +101,11 @@ public class PortAllocator {
      * An allocation session where all ports allocated are unique within that session.
      */
     public class PortAllocationSession implements Closeable {
+
         ListeningSocketPreallocator preallocator = new ListeningSocketPreallocator();
+
+        private PortAllocationSession() {
+        }
 
         /**
          * Allocates a set of ports for the given range of node ids.

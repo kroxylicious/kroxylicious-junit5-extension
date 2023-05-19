@@ -192,6 +192,12 @@ public class Utils {
                 });
     }
 
+    /**
+     * Factory for {@link Awaitility#await()} preconfigured with defaults.
+     * @param timeout at most timeout
+     * @param timeUnit at most {@link TimeUnit}
+     * @return preconfigured factory
+     */
     public static ConditionFactory awaitCondition(int timeout, TimeUnit timeUnit) {
         return Awaitility.await()
                 .pollDelay(Duration.ZERO)

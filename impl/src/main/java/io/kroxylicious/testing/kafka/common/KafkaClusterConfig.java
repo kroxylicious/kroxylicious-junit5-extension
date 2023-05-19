@@ -192,6 +192,13 @@ public class KafkaClusterConfig {
         return properties.stream();
     }
 
+    /**
+     * Get a broker configs for a specific <code>node.id</code>.
+     *
+     * @param kafkaEndpoints the end point config
+     * @param nodeId kafka <code>node.id</code>
+     * @return broker configuration.
+     */
     @NotNull
     public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
         Properties server = new Properties();
@@ -512,6 +519,9 @@ public class KafkaClusterConfig {
      */
     public interface KafkaEndpoints {
 
+        /**
+         * Enumeration of kafka listeners used by the test harness.
+         */
         enum Listener {
             /**
              * used for communications to/from consumers/producers optionally with authentication

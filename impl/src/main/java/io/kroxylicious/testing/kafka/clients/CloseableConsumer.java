@@ -53,6 +53,8 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     /**
      * Create consumer.
      *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
      * @param properties   The consumer configs
      * @return the consumer
      */
@@ -63,6 +65,8 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     /**
      * Create consumer.
      *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
      * @param configs   The consumer configs
      * @return the consumer
      */

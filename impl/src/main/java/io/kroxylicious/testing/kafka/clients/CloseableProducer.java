@@ -51,6 +51,8 @@ public record CloseableProducer<K, V>(Producer<K, V> instance) implements Produc
     /**
      * Create producer.
      *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
      * @param properties   The producer configs
      * @return the producer
      */
@@ -61,6 +63,8 @@ public record CloseableProducer<K, V>(Producer<K, V> instance) implements Produc
     /**
      * Create producer.
      *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
      * @param configs   The producer configs
      * @return the producer
      */
