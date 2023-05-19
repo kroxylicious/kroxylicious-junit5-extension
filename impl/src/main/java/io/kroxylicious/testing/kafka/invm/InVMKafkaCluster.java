@@ -10,16 +10,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -40,7 +37,7 @@ import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
@@ -48,7 +45,7 @@ import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_V
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
-public class InVMKafkaCluster implements KafkaCluster {
+public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final int STARTUP_TIMEOUT = 30;
 
@@ -62,26 +59,7 @@ public class InVMKafkaCluster implements KafkaCluster {
      */
     private final Map<Integer, Server> servers = new HashMap<>();
 
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> externalPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> anonPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> interBrokerPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link InVMKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> controllerPorts = new TreeMap<>();
+    private final PortAllocator portsAllocator = new PortAllocator();
 
     /**
      * Instantiates a new in VM kafka cluster.
@@ -96,15 +74,6 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
         catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
-    }
-
-    private List<ServerSocket> allocateControllerPorts(ListeningSocketPreallocator preallocator, KafkaClusterConfig clusterConfig) {
-        if (clusterConfig.isKraftMode()) {
-            return preallocator.preAllocateListeningSockets(clusterConfig.getKraftControllers());
-        }
-        else {
-            return preallocator.preAllocateListeningSockets(1);
         }
     }
 
@@ -160,50 +129,21 @@ public class InVMKafkaCluster implements KafkaCluster {
     public synchronized void start() {
         // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
         // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), externalPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), anonPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), interBrokerPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(allocateControllerPorts(preallocator, clusterConfig), controllerPorts);
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL), 0, clusterConfig.getBrokersNum());
+            portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.isKraftMode() ? clusterConfig.getKraftControllers() : 1);
         }
 
-        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
-
-            @Override
-            public EndpointPair getClientEndpoint(int brokerId) {
-                return buildEndpointPair(externalPorts, brokerId);
-            }
-
-            @Override
-            public EndpointPair getAnonEndpoint(int brokerId) {
-                return buildEndpointPair(anonPorts, brokerId);
-            }
-
-            @Override
-            public EndpointPair getInterBrokerEndpoint(int brokerId) {
-                return buildEndpointPair(interBrokerPorts, brokerId);
-            }
-
-            @Override
-            public EndpointPair getControllerEndpoint(int brokerId) {
-                return buildEndpointPair(controllerPorts, brokerId);
-            }
-
-            private EndpointPair buildEndpointPair(SortedMap<Integer, ServerSocket> portRange, int brokerId) {
-                var port = portRange.get(brokerId);
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port.getLocalPort())).connect(new Endpoint("localhost", port.getLocalPort())).build();
-            }
-        };
-
         buildAndStartZookeeper();
-        clusterConfig.getBrokerConfigs(() -> kafkaEndpoints).parallel().forEach(configHolder -> {
+        clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
             final Server server = this.buildKafkaServer(configHolder);
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
 
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
 
@@ -218,10 +158,10 @@ public class InVMKafkaCluster implements KafkaCluster {
                     catch (Throwable t) {
                         LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
                         LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
-                                kafkaEndpoints.getAnonEndpoint(configHolder.getBrokerNum()).getBind(),
-                                kafkaEndpoints.getClientEndpoint(configHolder.getBrokerNum()).getBind(),
-                                kafkaEndpoints.getControllerEndpoint(configHolder.getBrokerNum()).getBind(),
-                                kafkaEndpoints.getInterBrokerEndpoint(configHolder.getBrokerNum()).getBind());
+                                this.getEndpointPair(Listener.ANON, configHolder.getBrokerNum()).getBind(),
+                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind(),
+                                this.getEndpointPair(Listener.CONTROLLER, configHolder.getBrokerNum()).getBind(),
+                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind());
 
                         server.shutdown();
                         server.awaitShutdown();
@@ -233,7 +173,7 @@ public class InVMKafkaCluster implements KafkaCluster {
     private void buildAndStartZookeeper() {
         if (!clusterConfig.isKraftMode()) {
             try {
-                final int zookeeperPort = controllerPorts.get(0).getLocalPort();
+                final int zookeeperPort = portsAllocator.getPort(Listener.CONTROLLER, 0);
                 ServerCnxnFactory zooFactory = ServerCnxnFactory.createFactory(new InetSocketAddress("localhost", zookeeperPort), 1024);
 
                 var zoo = tempDirectory.resolve("zoo");
@@ -262,7 +202,7 @@ public class InVMKafkaCluster implements KafkaCluster {
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(kafkaEndpoints::getClientEndpoint);
+        return buildServerList(nodeId -> getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
     private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
@@ -295,19 +235,18 @@ public class InVMKafkaCluster implements KafkaCluster {
                 "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, servers.keySet());
 
         // preallocate ports for the new broker
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            externalPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            anonPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            interBrokerPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL), newNodeId);
         }
 
-        var configHolder = clusterConfig.generateConfigForSpecificBroker(kafkaEndpoints, newNodeId);
+        var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
         final Server server = buildKafkaServer(configHolder);
         tryToStartServerWithRetry(configHolder, server);
-        servers.put(configHolder.getBrokerNum(), server);
+        servers.put(newNodeId, server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -317,7 +256,7 @@ public class InVMKafkaCluster implements KafkaCluster {
         if (!servers.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && controllerPorts.containsKey(nodeId)) {
+        if (clusterConfig.isKraftMode() && portsAllocator.hasRegisteredPort(Listener.CONTROLLER, nodeId)) {
             throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
         }
         if (servers.size() < 2) {
@@ -330,12 +269,10 @@ public class InVMKafkaCluster implements KafkaCluster {
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
-        externalPorts.remove(nodeId);
-        anonPorts.remove(nodeId);
-        interBrokerPorts.remove(nodeId);
+        portsAllocator.deallocate(nodeId);
 
         var s = servers.remove(nodeId);
         s.shutdown();
@@ -347,9 +284,14 @@ public class InVMKafkaCluster implements KafkaCluster {
     public synchronized void close() throws Exception {
         try {
             try {
-                // shutdown controller last seems to be significant to the kraft case.
+                // with kraft, if we don't shut down the controller last, we sometimes see a hang.
+                // https://issues.apache.org/jira/browse/KAFKA-14287
                 servers.entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey(Comparator.reverseOrder()))
+                        .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
+                        .map(Map.Entry::getValue)
+                        .forEach(Server::shutdown);
+                servers.entrySet().stream()
+                        .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
                         .map(Map.Entry::getValue)
                         .forEach(Server::shutdown);
             }
@@ -374,5 +316,11 @@ public class InVMKafkaCluster implements KafkaCluster {
     @Override
     public synchronized int getNumOfBrokers() {
         return servers.size();
+    }
+
+    @Override
+    public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
+        var port = portsAllocator.getPort(listener, nodeId);
+        return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
     }
 }

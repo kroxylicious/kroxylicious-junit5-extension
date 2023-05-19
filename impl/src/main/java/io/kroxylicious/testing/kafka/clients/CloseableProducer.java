@@ -9,11 +9,13 @@ package io.kroxylicious.testing.kafka.clients;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.Future;
 
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.producer.Callback;
+import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -44,6 +46,30 @@ public record CloseableProducer<K, V>(Producer<K, V> instance) implements Produc
      */
     public static <K, V> Producer<K, V> wrap(Producer<K, V> instance) {
         return new CloseableProducer<>(instance);
+    }
+
+    /**
+     * Create producer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param properties   The producer configs
+     * @return the producer
+     */
+    public static <K, V> Producer<K, V> create(Properties properties) {
+        return wrap(new KafkaProducer<>(properties));
+    }
+
+    /**
+     * Create producer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param configs   The producer configs
+     * @return the producer
+     */
+    public static <K, V> Producer<K, V> create(Map<String, Object> configs) {
+        return wrap(new KafkaProducer<>(configs));
     }
 
     @Override

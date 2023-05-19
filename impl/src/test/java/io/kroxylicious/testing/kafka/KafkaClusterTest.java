@@ -11,14 +11,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.kafka.clients.admin.AdminClient;
-import org.apache.kafka.clients.admin.DescribeClusterResult;
-import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Uuid;
@@ -29,6 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
+import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
+import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
@@ -36,7 +36,6 @@ import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -44,7 +43,6 @@ import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 public class KafkaClusterTest {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
-    private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
     private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
@@ -352,8 +350,7 @@ public class KafkaClusterTest {
         var topic = "roundTrip" + Uuid.randomUuid();
         var message = "Hello, world!";
 
-        try (var admin = KafkaAdminClient.create(cluster.getKafkaClientConfiguration())) {
-            await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(expected, getActualNumberOfBrokers(admin)));
+        try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
             var rf = (short) Math.min(expected, 3);
             createTopic(admin, topic, rf);
 
@@ -372,8 +369,8 @@ public class KafkaClusterTest {
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 3_600_000));
-        try (var producer = new KafkaProducer<String, String>(config)) {
-            producer.send(new ProducerRecord<>(topic, "my-key", message)).get();
+        try (var producer = CloseableProducer.create(config)) {
+            producer.send(new ProducerRecord<>(topic, "my-key", message)).get(30, TimeUnit.SECONDS);
         }
     }
 
@@ -384,7 +381,7 @@ public class KafkaClusterTest {
                 ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
                 ConsumerConfig.GROUP_ID_CONFIG, "my-group-id",
                 ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"));
-        try (var consumer = new KafkaConsumer<String, String>(config)) {
+        try (var consumer = CloseableConsumer.create(config)) {
             consumer.subscribe(Set.of(topic));
             var records = consumer.poll(Duration.ofSeconds(10));
             assertEquals(1, records.count());
@@ -393,16 +390,11 @@ public class KafkaClusterTest {
         }
     }
 
-    private int getActualNumberOfBrokers(AdminClient admin) throws Exception {
-        DescribeClusterResult describeClusterResult = admin.describeCluster();
-        return describeClusterResult.nodes().get().size();
-    }
-
-    private void createTopic(AdminClient admin, String topic, short replicationFactor) throws Exception {
+    private void createTopic(Admin admin, String topic, short replicationFactor) throws Exception {
         admin.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
     }
 
-    private void deleteTopic(AdminClient admin, String topic) throws Exception {
+    private void deleteTopic(Admin admin, String topic) throws Exception {
         admin.deleteTopics(List.of(topic)).all().get();
     }
 

@@ -40,6 +40,8 @@ import lombok.Getter;
 import lombok.Singular;
 import lombok.ToString;
 
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
+
 /**
  * The Kafka cluster config class.
  */
@@ -183,23 +185,30 @@ public class KafkaClusterConfig {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
-            final ConfigHolder brokerConfigHolder = generateConfigForSpecificBroker(kafkaEndpoints, brokerNum);
+            final ConfigHolder brokerConfigHolder = generateConfigForSpecificNode(kafkaEndpoints, brokerNum);
             properties.add(brokerConfigHolder);
         }
 
         return properties.stream();
     }
 
+    /**
+     * Get a broker configs for a specific <code>node.id</code>.
+     *
+     * @param kafkaEndpoints the end point config
+     * @param nodeId kafka <code>node.id</code>
+     * @return broker configuration.
+     */
     @NotNull
-    public ConfigHolder generateConfigForSpecificBroker(KafkaEndpoints kafkaEndpoints, int brokerNum) {
+    public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
         Properties server = new Properties();
         server.putAll(brokerConfigs);
 
-        putConfig(server, "broker.id", Integer.toString(brokerNum));
+        putConfig(server, "broker.id", Integer.toString(nodeId));
 
-        var interBrokerEndpoint = kafkaEndpoints.getInterBrokerEndpoint(brokerNum);
-        var clientEndpoint = kafkaEndpoints.getClientEndpoint(brokerNum);
-        var anonEndpoint = kafkaEndpoints.getAnonEndpoint(brokerNum);
+        var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
+        var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
+        var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
 
         // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
         // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
@@ -228,17 +237,17 @@ public class KafkaClusterConfig {
         putConfig(server, "inter.broker.listener.name", "INTERNAL");
 
         if (isKraftMode()) {
-            putConfig(server, "node.id", Integer.toString(brokerNum)); // Required by Kafka 3.3 onwards.
+            putConfig(server, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
 
             var quorumVoters = IntStream.range(0, kraftControllers)
-                    .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getControllerEndpoint(controllerId).connectAddress()))
+                    .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, controllerId).connectAddress()))
                     .collect(Collectors.joining(","));
             putConfig(server, "controller.quorum.voters", quorumVoters);
             putConfig(server, "controller.listener.names", "CONTROLLER");
             protocolMap.put("CONTROLLER", SecurityProtocol.PLAINTEXT.name());
 
-            if (brokerNum == 0) {
-                var controllerEndpoint = kafkaEndpoints.getControllerEndpoint(brokerNum);
+            if (nodeId == 0) {
+                var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
                 putConfig(server, "process.roles", "broker,controller");
 
                 listeners.put("CONTROLLER", controllerEndpoint.getBind().toString());
@@ -249,7 +258,7 @@ public class KafkaClusterConfig {
             }
         }
         else {
-            putConfig(server, "zookeeper.connect", kafkaEndpoints.getControllerEndpoint(0).connectAddress());
+            putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
             putConfig(server, "zookeeper.sasl.enabled", "false");
             putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
         }
@@ -321,7 +330,7 @@ public class KafkaClusterConfig {
         putConfig(server, "metrics.jmx.exclude", ".*");
 
         return new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
-                clientEndpoint.connectAddress(), brokerNum, kafkaKraftClusterId);
+                clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
     }
 
     private static void putConfig(Properties server, String key, String value) {
@@ -329,6 +338,16 @@ public class KafkaClusterConfig {
         if (orig != null) {
             throw new RuntimeException("Cannot override broker config '" + key + "=" + value + "' with new value " + orig);
         }
+    }
+
+    /**
+     * Generates client connection config to connect to the anonymous listeners within the cluster. Thus bypassing all authentication mechanisms.
+     *
+     * @param bootstrapServers the bootstrap servers
+     * @return the anon connect config for cluster
+     */
+    public Map<String, Object> getAnonConnectConfigForCluster(String bootstrapServers) {
+        return getConnectConfigForCluster(bootstrapServers, null, null, null, null);
     }
 
     /**
@@ -501,6 +520,28 @@ public class KafkaClusterConfig {
     public interface KafkaEndpoints {
 
         /**
+         * Enumeration of kafka listeners used by the test harness.
+         */
+        enum Listener {
+            /**
+             * used for communications to/from consumers/producers optionally with authentication
+             */
+            EXTERNAL,
+            /**
+             * used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
+             */
+            ANON,
+            /**
+             * used for inter-broker communications (always no auth)
+             */
+            INTERNAL,
+            /**
+             * used for inter-broker controller communications (kraft - always no auth)
+             */
+            CONTROLLER
+        }
+
+        /**
          * The type Endpoint pair.
          */
         @Builder
@@ -575,36 +616,13 @@ public class KafkaClusterConfig {
         }
 
         /**
-         * Gets inter broker endpoint.
+         * Gets the endpoint for the given listener and brokerId.
          *
-         * @param brokerId the broker id
-         * @return the inter broker endpoint
+         * @param listener listener
+         * @param nodeId kafka <code>node.id</code>
+         * @return endpoint poir.
          */
-        EndpointPair getInterBrokerEndpoint(int brokerId);
-
-        /**
-         * Gets controller endpoint.
-         *
-         * @param brokerId the broker id
-         * @return the controller endpoint
-         */
-        EndpointPair getControllerEndpoint(int brokerId);
-
-        /**
-         * Gets client endpoint.
-         *
-         * @param brokerId the broker id
-         * @return the client endpoint
-         */
-        EndpointPair getClientEndpoint(int brokerId);
-
-        /**
-         * Gets anon endpoint.
-         *
-         * @param brokerId the broker id
-         * @return the anon endpoint
-         */
-        EndpointPair getAnonEndpoint(int brokerId);
+        EndpointPair getEndpointPair(Listener listener, int nodeId);
 
     }
 }

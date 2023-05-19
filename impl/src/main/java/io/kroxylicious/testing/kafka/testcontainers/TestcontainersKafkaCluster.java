@@ -11,7 +11,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.System.Logger.Level;
-import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -20,13 +19,12 @@ import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.SortedMap;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -48,7 +46,7 @@ import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.ListeningSocketPreallocator;
+import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
@@ -56,7 +54,7 @@ import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCoun
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
  */
-public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
+public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
 
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     /**
@@ -89,22 +87,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
      */
     private final Map<Integer, KafkaContainer> brokers = new TreeMap<>();
 
+    private final PortAllocator portsAllocator = new PortAllocator();
+
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
             LOGGER.log(Level.WARNING,
                     "As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
         }
     }
-
-    /**
-     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> clientPorts = new TreeMap<>();
-    /**
-     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
-     */
-    private final SortedMap<Integer, ServerSocket> anonPorts = new TreeMap<>();
-    private final KafkaClusterConfig.KafkaEndpoints kafkaEndpoints;
 
     /**
      * Instantiates a new Testcontainers kafka cluster.
@@ -147,51 +137,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                     .withNetworkAliases("zookeeper");
         }
 
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), clientPorts);
-            Utils.putAllListEntriesIntoMapKeyedByIndex(preallocator.preAllocateListeningSockets(clusterConfig.getBrokersNum()), anonPorts);
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
         }
 
-        kafkaEndpoints = new KafkaClusterConfig.KafkaEndpoints() {
-            @Override
-            public EndpointPair getClientEndpoint(int brokerId) {
-                return buildExposedEndpoint(brokerId, CLIENT_PORT, clientPorts);
-            }
-
-            @Override
-            public EndpointPair getAnonEndpoint(int brokerId) {
-                return buildExposedEndpoint(brokerId, ANON_PORT, anonPorts);
-            }
-
-            @Override
-            public EndpointPair getInterBrokerEndpoint(int brokerId) {
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
-                        .connect(new Endpoint(String.format("broker-%d", brokerId), INTER_BROKER_PORT)).build();
-            }
-
-            @Override
-            public EndpointPair getControllerEndpoint(int brokerId) {
-                if (clusterConfig.isKraftMode()) {
-                    return EndpointPair.builder().bind(new Endpoint("0.0.0.0", CONTROLLER_PORT))
-                            .connect(new Endpoint(String.format("broker-%d", brokerId), CONTROLLER_PORT)).build();
-                }
-                else {
-                    return EndpointPair.builder().bind(new Endpoint("0.0.0.0", ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
-                }
-            }
-
-            private EndpointPair buildExposedEndpoint(int brokerId, int internalPort, SortedMap<Integer, ServerSocket> externalPortRange) {
-                return EndpointPair.builder()
-                        .bind(new Endpoint("0.0.0.0", internalPort))
-                        .connect(new Endpoint("localhost", externalPortRange.get(brokerId).getLocalPort()))
-                        .build();
-            }
-        };
-
-        Supplier<KafkaClusterConfig.KafkaEndpoints> endPointConfigSupplier = () -> kafkaEndpoints;
-        clusterConfig.getBrokerConfigs(endPointConfigSupplier).forEach(holder -> {
-            brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder));
-        });
+        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
     }
 
     @NotNull
@@ -254,7 +204,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(kafkaEndpoints::getClientEndpoint);
+        return buildServerList(nodeId -> this.getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
     private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
@@ -287,7 +237,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 zookeeper.start();
             }
             Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            awaitExpectedBrokerCountInClusterViaTopic(clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null),
+            awaitExpectedBrokerCountInClusterViaTopic(
+                    clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
@@ -313,12 +264,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
                 "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, brokers.keySet());
 
         // preallocate ports for the new broker
-        try (var preallocator = new ListeningSocketPreallocator()) {
-            clientPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
-            anonPorts.put(newNodeId, preallocator.preAllocateListeningSockets(1).get(0));
+        try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
+            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), newNodeId);
         }
 
-        var configHolder = clusterConfig.generateConfigForSpecificBroker(kafkaEndpoints, newNodeId);
+        var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
         var kafkaContainer = buildKafkaContainer(configHolder);
         try {
             Startables.deepStart(kafkaContainer).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -330,7 +280,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         brokers.put(configHolder.getBrokerNum(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), 120, TimeUnit.SECONDS,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
     }
@@ -353,14 +304,29 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getConnectConfigForCluster(buildServerList(kafkaEndpoints::getAnonEndpoint), null, null, null, null), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
-        clientPorts.remove(nodeId);
-        anonPorts.remove(nodeId);
+        portsAllocator.deallocate(nodeId);
 
         var kafkaContainer = brokers.remove(nodeId);
-        kafkaContainer.stop();
+        // https://github.com/testcontainers/testcontainers-java/issues/1000
+        // Note that GenericContainer#stop actually implements stop using kill, so the broker doesn't have chance to
+        // tell the controller that it is going away.
+        var containerId = kafkaContainer.getContainerId();
+        try (var waitCmd = kafkaContainer.getDockerClient().waitContainerCmd(containerId);
+                var stopContainerCmd = kafkaContainer.getDockerClient().stopContainerCmd(containerId)) {
+            stopContainerCmd.exec();
+            var statusCode = waitCmd.start().awaitStatusCode(10, TimeUnit.SECONDS);
+            LOGGER.log(Level.DEBUG, "Shut-down broker {0}, exit status {1}", nodeId, statusCode);
+        }
+        catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Ignoring exception whilst shutting down broker {0}", nodeId, e);
+        }
+        finally {
+            // We need to do this regardless so that Testcontainer's internal state is correct.
+            kafkaContainer.stop();
+        }
     }
 
     @Override
@@ -391,6 +357,41 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster {
     @Override
     public Map<String, Object> getKafkaClientConfiguration(String user, String password) {
         return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
+    }
+
+    @Override
+    public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
+        switch (listener) {
+            case EXTERNAL -> {
+                return buildExposedEndpoint(listener, nodeId, CLIENT_PORT);
+            }
+            case ANON -> {
+                return buildExposedEndpoint(listener, nodeId, ANON_PORT);
+            }
+            case INTERNAL -> {
+                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
+                        .connect(new Endpoint(String.format("broker-%d", nodeId), INTER_BROKER_PORT)).build();
+            }
+            case CONTROLLER -> {
+                EndpointPair result;
+                if (clusterConfig.isKraftMode()) {
+                    result = EndpointPair.builder().bind(new Endpoint("0.0.0.0", CONTROLLER_PORT))
+                            .connect(new Endpoint(String.format("broker-%d", nodeId), CONTROLLER_PORT)).build();
+                }
+                else {
+                    result = EndpointPair.builder().bind(new Endpoint("0.0.0.0", ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
+                }
+                return result;
+            }
+            default -> throw new IllegalStateException("Unexpected value: " + listener);
+        }
+    }
+
+    private EndpointPair buildExposedEndpoint(Listener listener, int nodeId, int bindPort) {
+        return EndpointPair.builder()
+                .bind(new Endpoint("0.0.0.0", bindPort))
+                .connect(new Endpoint("localhost", portsAllocator.getPort(listener, nodeId)))
+                .build();
     }
 
     /**

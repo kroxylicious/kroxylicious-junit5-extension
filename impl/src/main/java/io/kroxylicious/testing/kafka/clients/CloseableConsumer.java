@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -18,6 +19,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
@@ -46,6 +48,30 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
      */
     public static <K, V> Consumer<K, V> wrap(Consumer<K, V> instance) {
         return new CloseableConsumer<>(instance);
+    }
+
+    /**
+     * Create consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param properties   The consumer configs
+     * @return the consumer
+     */
+    public static <K, V> Consumer<K, V> create(Properties properties) {
+        return wrap(new KafkaConsumer<>(properties));
+    }
+
+    /**
+     * Create consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param configs   The consumer configs
+     * @return the consumer
+     */
+    public static<K, V> Consumer<K, V> create(Map<String, Object> configs) {
+        return wrap(new KafkaConsumer<>(configs));
     }
 
     @Override
