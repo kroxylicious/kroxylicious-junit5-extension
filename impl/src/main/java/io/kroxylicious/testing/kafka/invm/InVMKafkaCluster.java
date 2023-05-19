@@ -256,7 +256,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (!servers.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && portsAllocator.containsPort(Listener.CONTROLLER, nodeId)) {
+        if (clusterConfig.isKraftMode() && portsAllocator.hasRegisteredPort(Listener.CONTROLLER, nodeId)) {
             throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
         }
         if (servers.size() < 2) {
@@ -287,11 +287,11 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 // with kraft, if we don't shut down the controller last, we sometimes see a hang.
                 // https://issues.apache.org/jira/browse/KAFKA-14287
                 servers.entrySet().stream()
-                        .filter(e -> !portsAllocator.containsPort(Listener.CONTROLLER, e.getKey()))
+                        .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
                         .map(Map.Entry::getValue)
                         .forEach(Server::shutdown);
                 servers.entrySet().stream()
-                        .filter(e -> portsAllocator.containsPort(Listener.CONTROLLER, e.getKey()))
+                        .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
                         .map(Map.Entry::getValue)
                         .forEach(Server::shutdown);
             }

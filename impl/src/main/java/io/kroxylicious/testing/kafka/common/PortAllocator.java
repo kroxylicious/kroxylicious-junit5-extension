@@ -15,6 +15,9 @@ import java.util.Set;
 
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
 
+/**
+ * Allocates ports to a <code>listener</code> and <code>node.id</code> tuple.
+ */
 public class PortAllocator {
 
     /**
@@ -29,16 +32,51 @@ public class PortAllocator {
         ports = new HashMap<>();
     }
 
+    /**
+     * Gets the previously allocated port for the given <code>listener</code> and <code>node.id</code> tuple.
+     *
+     * @param listener listener
+     * @param nodeId node id
+     * @throws IllegalArgumentException if there is no allocated port for the given tuple.
+     * @return port number
+     */
     public synchronized int getPort(Listener listener, int nodeId) {
-        var listenerPorts = ports.get(listener);
-        if (listenerPorts == null) {
-            throw new IllegalArgumentException("listener " + listener + " has not been registered with this allocator.");
-        }
-        var sock = listenerPorts.get(nodeId);
-        if (sock == null) {
+        if (!hasRegisteredPort(listener, nodeId)) {
             throw new IllegalArgumentException("listener " + listener + " does not have a port for node " + nodeId + ".");
         }
-        return sock.getLocalPort();
+        return ports.get(listener).get(nodeId).getLocalPort();
+    }
+
+    /**
+     * Tests whether there is a port allocated for the given <code>listener</code> and <code>node.id</code> tuple.
+     * @param listener listener
+     * @param nodeId node id
+     * @return true if there is a port assigned to the tuple, false otherwise.
+     */
+    public synchronized boolean hasRegisteredPort(Listener listener, int nodeId) {
+        Map<Integer, ServerSocket> portsMap = ports.get(listener);
+        return portsMap != null && portsMap.containsKey(nodeId);
+    }
+
+    /**
+     * Since port pre-allocation is stateful (ensuring all ports assigned during pre-allocation
+     * are unique), we need to keep a reference to that pre-allocator while we are allocating all
+     * the initial ports for a cluster
+     *
+     * @return A session which holds the allocated ports open until it is closed
+     */
+    public PortAllocationSession allocationSession() {
+        return new PortAllocationSession();
+    }
+
+    /**
+     * De-allocates all ports for the given <code>nodeId</code>.
+     * @param nodeId node id.
+     */
+    public synchronized void deallocate(int nodeId) {
+        for (var value : ports.values()) {
+            value.remove(nodeId);
+        }
     }
 
     private synchronized void allocate(Set<Listener> listeners, int firstBrokerIdInclusive, int lastBrokerIdExclusive, ListeningSocketPreallocator preallocator) {
@@ -56,42 +94,36 @@ public class PortAllocator {
         }
     }
 
-    public synchronized boolean containsPort(Listener listener, int nodeId) {
-        Map<Integer, ServerSocket> portsMap = ports.get(listener);
-        return portsMap != null && portsMap.containsKey(nodeId);
-    }
-
-    /**
-     * Since port pre-allocation is stateful (ensuring all ports assigned during pre-allocation
-     * are unique), we need to keep a reference to that pre-allocator while we are allocating all
-     * the initial ports for a cluster
-     *
-     * @return A session which holds the allocated ports open until it is closed
-     */
-    public PortAllocationSession allocationSession() {
-        return new PortAllocationSession();
-    }
-
-    public synchronized void deallocate(int nodeId) {
-        for (var value : ports.values()) {
-            value.remove(nodeId);
-        }
-    }
-
     /**
      * An allocation session where all ports allocated are unique within that session.
      */
     public class PortAllocationSession implements Closeable {
         ListeningSocketPreallocator preallocator = new ListeningSocketPreallocator();
 
-        public void allocate(Set<Listener> listeners, int firstBrokerIdInclusive, int lastBrokerIdExclusive) {
-            PortAllocator.this.allocate(listeners, firstBrokerIdInclusive, lastBrokerIdExclusive, preallocator);
+        /**
+         * Allocates a set of ports for the given range of node ids.
+         *
+         * @param listeners set of listeners
+         * @param firstNodeIdInclusive first node id (inclusive)
+         * @param lastNodeIdExclusive last node id (exclusive)
+         */
+        public void allocate(Set<Listener> listeners, int firstNodeIdInclusive, int lastNodeIdExclusive) {
+            PortAllocator.this.allocate(listeners, firstNodeIdInclusive, lastNodeIdExclusive, preallocator);
         }
 
-        public void allocate(Set<Listener> listeners, int brokerId) {
-            PortAllocator.this.allocate(listeners, brokerId, brokerId + 1, preallocator);
+        /**
+         * Allocates a set of ports for the given node id.
+         *
+         * @param listeners set of listeners
+         * @param nodeId node id
+         */
+        public void allocate(Set<Listener> listeners, int nodeId) {
+            PortAllocator.this.allocate(listeners, nodeId, nodeId + 1, preallocator);
         }
 
+        /**
+         * Ends the allocation session.  This will make the  ports allocate available for use.
+         */
         @Override
         public void close() {
             preallocator.close();
