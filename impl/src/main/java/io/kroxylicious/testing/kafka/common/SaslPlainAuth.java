@@ -6,6 +6,7 @@
 package io.kroxylicious.testing.kafka.common;
 
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -20,29 +21,21 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
  */
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
+@Repeatable(SaslPlainAuth.List.class)
 @KafkaClusterConstraint
 public @interface SaslPlainAuth {
 
-    /**
-     * The value of configured users
-     * @return The configured users, which must be non-empty.
-     */
-    UserPassword[] value();
+    String user();
+
+    String password();
 
     /**
      * The interface User password.
      */
-    @interface UserPassword {
-        /**
-         * Gets the username
-         * @return A user name.
-         */
-        String user();
-
-        /**
-         * Gets the password
-         * @return A password.
-         */
-        String password();
+    @Target({ ElementType.FIELD, ElementType.PARAMETER })
+    @Retention(RetentionPolicy.RUNTIME)
+    @KafkaClusterConstraint
+    @interface List {
+        SaslPlainAuth[] value();
     }
 }

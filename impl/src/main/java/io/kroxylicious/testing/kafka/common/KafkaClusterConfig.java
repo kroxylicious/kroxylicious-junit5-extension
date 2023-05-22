@@ -12,7 +12,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +103,7 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslPlainAuth.class,
+            SaslPlainAuth.List.class,
             ZooKeeperCluster.class,
             Version.class);
 
@@ -129,12 +129,12 @@ public class KafkaClusterConfig {
         boolean sasl = false;
         boolean tls = false;
         for (Annotation annotation : annotations) {
-            if (annotation instanceof BrokerCluster) {
-                builder.brokersNum(((BrokerCluster) annotation).numBrokers());
+            if (annotation instanceof BrokerCluster brokerCluster) {
+                builder.brokersNum(brokerCluster.numBrokers());
             }
-            if (annotation instanceof KRaftCluster) {
+            if (annotation instanceof KRaftCluster kRaftCluster) {
                 builder.kraftMode(true);
-                builder.kraftControllers(((KRaftCluster) annotation).numControllers());
+                builder.kraftControllers(kRaftCluster.numControllers());
             }
             if (annotation instanceof ZooKeeperCluster) {
                 builder.kraftMode(false);
@@ -148,27 +148,33 @@ public class KafkaClusterConfig {
                     throw new RuntimeException(e);
                 }
             }
-            if (annotation instanceof SaslPlainAuth) {
+            if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
                 builder.saslMechanism("PLAIN");
                 sasl = true;
-                builder.users(Arrays.stream(((SaslPlainAuth) annotation).value())
-                        .collect(Collectors.toMap(
-                                SaslPlainAuth.UserPassword::user,
-                                SaslPlainAuth.UserPassword::password)));
+                Map<String, String> users = new HashMap<>();
+                for (var user : saslPlainAuthList.value()) {
+                    users.put(user.user(), user.password());
+                }
+                builder.users(users);
             }
-            if (annotation instanceof ClusterId) {
-                builder.kafkaKraftClusterId(((ClusterId) annotation).value());
+            else if (annotation instanceof SaslPlainAuth saslPlainAuth) {
+                builder.saslMechanism("PLAIN");
+                sasl = true;
+                builder.users(Map.of(saslPlainAuth.user(), saslPlainAuth.password()));
             }
-            if (annotation instanceof Version) {
-                builder.kafkaVersion(((Version) annotation).value());
+            if (annotation instanceof ClusterId clusterId) {
+                builder.kafkaKraftClusterId(clusterId.value());
             }
-            if (annotation instanceof BrokerConfig.List) {
-                for (var config : ((BrokerConfig.List) annotation).value()) {
+            if (annotation instanceof Version version) {
+                builder.kafkaVersion(version.value());
+            }
+            if (annotation instanceof BrokerConfig.List brokerConfigList) {
+                for (var config : brokerConfigList.value()) {
                     builder.brokerConfig(config.name(), config.value());
                 }
             }
-            else if (annotation instanceof BrokerConfig) {
-                builder.brokerConfig(((BrokerConfig) annotation).name(), ((BrokerConfig) annotation).value());
+            else if (annotation instanceof BrokerConfig brokerConfig) {
+                builder.brokerConfig(brokerConfig.name(), brokerConfig.value());
             }
         }
         builder.securityProtocol((sasl ? "SASL_" : "") + (tls ? "SSL" : "PLAINTEXT"));
