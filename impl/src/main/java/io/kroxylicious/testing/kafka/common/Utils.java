@@ -20,12 +20,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.InvalidReplicationFactorException;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
@@ -151,6 +153,14 @@ public class Utils {
                         final Boolean isQuorate = promise.getNow(false);
                         if (isQuorate) {
                             admin.deleteTopics(Set.of(CONSISTENCY_TEST));
+                            for (int i = 0; i < admin.describeCluster().nodes().get().size(); i++) {
+                                ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, String.valueOf(i));
+                                Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+                                if (!configs.get("delete.topic.enable").value().equals("false")) {
+                                    awaitCondition(timeout, timeUnit)
+                                            .until(() -> !admin.listTopics().names().get().contains(CONSISTENCY_TEST));
+                                }
+                            }
                         }
                         return isQuorate;
                     });
