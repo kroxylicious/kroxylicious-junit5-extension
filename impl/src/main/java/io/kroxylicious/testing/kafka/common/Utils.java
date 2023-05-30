@@ -152,10 +152,10 @@ public class Utils {
 
                         final Boolean isQuorate = promise.getNow(false);
                         if (isQuorate) {
-                            admin.deleteTopics(Set.of(CONSISTENCY_TEST));
                             ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
                             Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
                             if (configs != null && !configs.get("delete.topic.enable").value().equals("false")) {
+                                admin.deleteTopics(Set.of(CONSISTENCY_TEST));
                                 awaitCondition(timeout, timeUnit)
                                         .until(() -> !admin.listTopics().names().get().contains(CONSISTENCY_TEST));
                             }
