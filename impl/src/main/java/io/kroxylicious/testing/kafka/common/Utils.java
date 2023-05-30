@@ -155,7 +155,7 @@ public class Utils {
                             admin.deleteTopics(Set.of(CONSISTENCY_TEST));
                             ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
                             Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-                            if (!configs.get("delete.topic.enable").value().equals("false")) {
+                            if (configs != null && !configs.get("delete.topic.enable").value().equals("false")) {
                                 awaitCondition(timeout, timeUnit)
                                         .until(() -> !admin.listTopics().names().get().contains(CONSISTENCY_TEST));
                             }
