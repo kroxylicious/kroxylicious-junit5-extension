@@ -17,19 +17,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
-import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.InvalidReplicationFactorException;
 import org.apache.kafka.common.errors.RetriableException;
+import org.apache.kafka.common.errors.TopicDeletionDisabledException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.internals.Topic;
 import org.awaitility.Awaitility;
@@ -75,9 +75,7 @@ public class Utils {
                     var toMove = description.partitions().stream().filter(p -> p.replicas().stream().anyMatch(n -> n.id() == fromNodeId) && p.replicas().size() < 2)
                             .toList();
 
-                    toMove.forEach(tpi -> {
-                        movements.put(new TopicPartition(name, tpi.partition()), toNodeReassignment);
-                    });
+                    toMove.forEach(tpi -> movements.put(new TopicPartition(name, tpi.partition()), toNodeReassignment));
                 });
 
                 if (movements.isEmpty()) {
@@ -152,16 +150,32 @@ public class Utils {
 
                         final Boolean isQuorate = promise.getNow(false);
                         if (isQuorate) {
-                            ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
-                            Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-                            if (configs != null && !configs.get("delete.topic.enable").value().equals("false")) {
-                                admin.deleteTopics(Set.of(CONSISTENCY_TEST));
-                                awaitCondition(timeout, timeUnit)
-                                        .until(() -> !admin.listTopics().names().get().contains(CONSISTENCY_TEST));
-                            }
+                            deleteTopic(admin);
                         }
                         return isQuorate;
                     });
+        }
+    }
+
+    /*
+     * There are edge cases where deleting the topic isn't possible. Primarily `delete.topic.enable==false`.
+     * Rather than attempt to detect that in advance (as that requires an RPC) we catch that and return normally
+     * otherwise we rethrow the exception.
+     */
+    private static void deleteTopic(Admin admin) throws InterruptedException, TimeoutException, ExecutionException {
+        try {
+            admin.deleteTopics(Set.of(CONSISTENCY_TEST)).all().get(10, TimeUnit.SECONDS);
+        }
+        catch (ExecutionException ee) {
+            if (ee.getCause() instanceof TopicDeletionDisabledException cause) {
+                log.warn("Failed to delete {}. Caught: {} ", CONSISTENCY_TEST, cause.getMessage(), cause);
+            }
+            else {
+                throw ee;
+            }
+        }
+        catch (TopicDeletionDisabledException ke) {
+            log.warn("caught {} deleting {}", ke.getMessage(), CONSISTENCY_TEST, ke);
         }
     }
 
@@ -176,9 +190,11 @@ public class Utils {
                     .distinct()
                     .count();
             if (distinctReplicas == expectedBrokerCount) {
+                log.debug("Expected number of replicas found.");
                 promise.complete(true);
                 return;
             }
+            log.debug("Unexpected number of replicas found expected: {} got: {}", expectedBrokerCount, distinctReplicas);
         }
         promise.complete(false);
     }
@@ -221,8 +237,9 @@ public class Utils {
                 known.putAll(admin.describeTopics(List.of(name)).allTopicNames().get());
             }
             catch (ExecutionException e) {
+                //noinspection StatementWithEmptyBody
                 if (e.getCause() instanceof UnknownTopicOrPartitionException) {
-                    // ignore
+                    // ignored
                 }
                 else if (e.getCause() instanceof RuntimeException re) {
                     throw re;
