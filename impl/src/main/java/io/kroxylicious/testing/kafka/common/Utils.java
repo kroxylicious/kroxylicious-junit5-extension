@@ -237,7 +237,7 @@ public class Utils {
                 known.putAll(admin.describeTopics(List.of(name)).allTopicNames().get());
             }
             catch (ExecutionException e) {
-                //noinspection StatementWithEmptyBody
+                // noinspection StatementWithEmptyBody
                 if (e.getCause() instanceof UnknownTopicOrPartitionException) {
                     // ignored
                 }
