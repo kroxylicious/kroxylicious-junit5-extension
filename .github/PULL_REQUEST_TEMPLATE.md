@@ -11,6 +11,10 @@ _Select the type of your PR_
 
 _Please describe your pull request_
 
+### Additional Context
+
+_Why are you making this pull request?_
+
 ### Checklist
 
 _Please go through this checklist and make sure all applicable tasks have been done_
