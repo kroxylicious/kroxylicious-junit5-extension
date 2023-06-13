@@ -1,6 +1,6 @@
 # CHANGELOG
 
-Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`.
+Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
 ## 1.0.0
 
