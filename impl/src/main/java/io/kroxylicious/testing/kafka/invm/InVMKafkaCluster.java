@@ -89,7 +89,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             ensureDirectoriesAreEmpty(directories);
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
             StorageTool.formatCommand(System.out, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
-            return new KafkaRaftServer(config, Time.SYSTEM, threadNamePrefix);
+            return new KafkaRaftServer(config, Time.SYSTEM);
         }
         else {
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
