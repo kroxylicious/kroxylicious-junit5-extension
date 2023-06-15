@@ -9,12 +9,17 @@ package io.kroxylicious.testing.kafka.invm;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -89,11 +94,47 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             ensureDirectoriesAreEmpty(directories);
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
             StorageTool.formatCommand(System.out, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
-            return new KafkaRaftServer(config, Time.SYSTEM, threadNamePrefix);
+            return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
         }
+    }
+
+    /**
+     * We instantiate the KafkaRaftServer reflectively to support running against versions of kafka
+     * older than 3.5.0. This is to enable users to downgrade the broker used for embedded testing rather
+     * than forcing them to increase their kafka-clients version to 3.5.0 (broker 3.5.0 requires kafka-clients 3.5.0)
+     */
+    @NotNull
+    private Server instantiateKraftServer(KafkaConfig config, Option<String> threadNamePrefix) {
+        Object kraftServer = construct(KafkaRaftServer.class, config, Time.SYSTEM)
+                .orElseGet(() -> construct(KafkaRaftServer.class, config, Time.SYSTEM, threadNamePrefix).orElseThrow());
+        return (Server) kraftServer;
+    }
+
+    public Optional<Object> construct(Class<?> clazz, Object... parameters) {
+        Constructor<?>[] declaredConstructors = clazz.getDeclaredConstructors();
+        return Arrays.stream(declaredConstructors)
+                .filter(constructor -> Modifier.isPublic(constructor.getModifiers()))
+                .filter(constructor -> {
+                    if (constructor.getParameterCount() != parameters.length) {
+                        return false;
+                    }
+                    boolean allMatch = true;
+                    Class<?>[] parameterTypes = constructor.getParameterTypes();
+                    for (int i = 0; i < parameters.length; i++) {
+                        allMatch = allMatch && parameterTypes[i].isInstance(parameters[i]);
+                    }
+                    return allMatch;
+                }).findFirst().map(constructor -> {
+                    try {
+                        return constructor.newInstance(parameters);
+                    }
+                    catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
