@@ -4,6 +4,10 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 1.0.0
 
+## 0.5.0
+
+* [#130](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/130): Small KeytoolCertificateGenerator improvements (eliminates use of openssl)
+
 ## 0.4.0
 
 * [#127](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/127): Upgrade to kafka-clients 3.5.0

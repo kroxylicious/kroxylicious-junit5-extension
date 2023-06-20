@@ -5,7 +5,10 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -24,9 +27,11 @@ import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
 
 /**
- * Used to configured and manage certificates using the JDK's keytool.
+ * Used to configure and manage test certificates using the JDK's keytool.
  */
+@SuppressFBWarnings(value = "PATH_TRAVERSAL_IN", justification = "Requires ability to write test key material to file-system.")
 public class KeytoolCertificateGenerator {
+    private static final String PKCS12_KEYSTORE_TYPE = "PKCS12";
     private String password;
     private final Path certFilePath;
     private final Path keyStoreFilePath;
@@ -137,10 +142,8 @@ public class KeytoolCertificateGenerator {
     public void generateTrustStore(String certFilePath, String alias, String trustStoreFilePath)
             throws GeneralSecurityException, IOException {
         // keytool -import -trustcacerts -keystore truststore.jks -storepass password -noprompt -alias localhost -file cert.crt
-        KeyStore keyStore = KeyStore.getInstance("JKS");
         if (Path.of(trustStoreFilePath).toFile().exists()) {
-            keyStore.load(new FileInputStream(trustStoreFilePath), getPassword().toCharArray());
-
+            var keyStore = KeyStore.getInstance(new File(trustStoreFilePath), getPassword().toCharArray());
             if (keyStore.containsAlias(alias)) {
                 keyStore.deleteEntry(alias);
                 keyStore.store(new FileOutputStream(trustStoreFilePath), getPassword().toCharArray());
@@ -174,8 +177,8 @@ public class KeytoolCertificateGenerator {
                                                    String country)
             throws GeneralSecurityException, IOException {
 
-        KeyStore keyStore = KeyStore.getInstance("JKS");
         if (keyStoreFilePath.toFile().exists()) {
+            var keyStore = KeyStore.getInstance(keyStoreFilePath.toFile(), getPassword().toCharArray());
             keyStore.load(new FileInputStream(keyStoreFilePath.toFile()), getPassword().toCharArray());
 
             if (keyStore.containsAlias(domain)) {
@@ -189,28 +192,29 @@ public class KeytoolCertificateGenerator {
         commandParameters.addAll(List.of("-keyalg", "RSA"));
         commandParameters.addAll(List.of("-keysize", "2048"));
         commandParameters.addAll(List.of("-sigalg", "SHA256withRSA"));
-        commandParameters.addAll(List.of("-storetype", "JKS"));
+        commandParameters.addAll(List.of("-storetype", PKCS12_KEYSTORE_TYPE));
         commandParameters.addAll(List.of("-keystore", getKeyStoreLocation()));
         commandParameters.addAll(List.of("-storepass", getPassword()));
         commandParameters.addAll(List.of("-keypass", getPassword()));
         commandParameters.addAll(
                 List.of("-dname", getDomainName(email, domain, organizationUnit, organization, city, state, country)));
         commandParameters.addAll(List.of("-validity", "365"));
-        commandParameters.addAll(List.of("-deststoretype", "pkcs12"));
         if (canGenerateWildcardSAN() && !isWildcardDomain(domain)) {
             commandParameters.addAll(getSAN(domain));
         }
         runCommand(commandParameters);
 
-        createCrtFileToImport();
+        createCrtFileToImport(domain);
     }
 
-    private void createCrtFileToImport() throws IOException {
-        final List<String> commandParameters = new ArrayList<>(List.of("openssl", "pkcs12"));
-        commandParameters.addAll(List.of("-in", getKeyStoreLocation()));
-        commandParameters.addAll(List.of("-passin", "pass:" + getPassword()));
-        commandParameters.add("-nokeys");
-        commandParameters.addAll(List.of("-out", certFilePath.toAbsolutePath().toString()));
+    private void createCrtFileToImport(String alias) throws IOException {
+        // keytool -export -keystore examplestore -alias signFiles -file Example.cer
+        final List<String> commandParameters = new ArrayList<>(List.of("keytool", "-export", "-rfc"));
+        commandParameters.addAll(List.of("-keystore", getKeyStoreLocation()));
+        commandParameters.addAll(List.of("-storepass", getPassword()));
+        commandParameters.addAll(List.of("-storetype", getKeyStoreType()));
+        commandParameters.addAll(List.of("-alias", alias));
+        commandParameters.addAll(List.of("-file", certFilePath.toAbsolutePath().toString()));
         runCommand(commandParameters);
     }
 
@@ -254,5 +258,13 @@ public class KeytoolCertificateGenerator {
 
     private List<String> getSAN(String domain) {
         return List.of("-ext", "SAN=dns:" + domain);
+    }
+
+    public String getTrustStoreType() {
+        return PKCS12_KEYSTORE_TYPE;
+    }
+
+    public String getKeyStoreType() {
+        return PKCS12_KEYSTORE_TYPE;
     }
 }

@@ -88,6 +88,7 @@
         <testcontainers.version>1.18.3</testcontainers.version>
         <lombok.version>1.18.28</lombok.version>
         <assertj-core.version>3.24.2</assertj-core.version>
+        <findbugs.annotations.version>3.0.1</findbugs.annotations.version>
         <zookeeper.version>3.8.1</zookeeper.version>
         <log4j.version>2.20.0</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
@@ -194,6 +195,12 @@
                 <groupId>org.rnorth.duct-tape</groupId>
                 <artifactId>duct-tape</artifactId>
                 <version>${duct-tape.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.code.findbugs</groupId>
+                <artifactId>annotations</artifactId>
+                <version>${findbugs.annotations.version}</version>
+                <scope>provided</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
