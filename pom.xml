@@ -88,7 +88,7 @@
         <testcontainers.version>1.18.3</testcontainers.version>
         <lombok.version>1.18.28</lombok.version>
         <assertj-core.version>3.24.2</assertj-core.version>
-        <findbugs.annotations.version>3.0.1</findbugs.annotations.version>
+        <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
         <zookeeper.version>3.8.1</zookeeper.version>
         <log4j.version>2.20.0</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
