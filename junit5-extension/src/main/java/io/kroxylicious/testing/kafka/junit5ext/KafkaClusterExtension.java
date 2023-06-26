@@ -792,10 +792,10 @@ public class KafkaClusterExtension implements
         if (sourceElement.isAnnotationPresent(Name.class)
                 && !sourceElement.getAnnotation(Name.class).value().isEmpty()) {
             clusterName = sourceElement.getAnnotation(Name.class).value();
-            Object o = store.get(clusterName);
-            if (o != null) {
+            if (store.get(clusterName) != null && !constraints.isEmpty()) {
                 throw new ExtensionConfigurationException(
-                        "A " + KafkaCluster.class.getSimpleName() + "-typed declaration with @Name(\"" + clusterName + "\") is already in scope");
+                        "A " + KafkaCluster.class.getSimpleName() + "-typed declaration with @Name(\"" + clusterName
+                                + "\") already exists, we cannot apply new constraints");
             }
         }
         else {
@@ -820,7 +820,6 @@ public class KafkaClusterExtension implements
                 extensionContext.getUniqueId(),
                 sourceElement,
                 clusterName);
-        cluster.start();
         return cluster;
     }
 
@@ -953,6 +952,7 @@ public class KafkaClusterExtension implements
                 extensionContext.getUniqueId(),
                 sourceElement,
                 clusterName);
+        c.start();
         return new Closeable<>(sourceElement, clusterName, c);
     }
 

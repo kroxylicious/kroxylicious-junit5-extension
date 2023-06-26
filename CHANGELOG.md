@@ -6,7 +6,12 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.5.0
 
+* [#134](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/134): Support @BeforeEach and test cases referring to same cluster
 * [#130](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/130): Small KeytoolCertificateGenerator improvements (eliminates use of openssl)
+
+### Changes, deprecations and removals
+
+* It is now legal to declare multiple KafkaCluster parameters with the same explicit name, as long as later declarations only supply an @Name annotation and no constraint annotations. This will inject a reference to the existing cluster.
 
 ## 0.4.0
 
