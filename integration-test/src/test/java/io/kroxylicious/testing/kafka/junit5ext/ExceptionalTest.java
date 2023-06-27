@@ -6,6 +6,8 @@
 package io.kroxylicious.testing.kafka.junit5ext;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionConfigurationException;
@@ -92,6 +94,74 @@ public class ExceptionalTest {
                                         message("KafkaCluster to associate with parameter " +
                                                 "ambiguousAdmin is ambiguous, use @Name on the intended " +
                                                 "cluster and this element to disambiguate"))));
+    }
+
+    @ExtendWith(KafkaClusterExtension.class)
+    static class BeforeEachInjectionNotSupported {
+
+        // throw if KafkaCluster is part of a BeforeEach
+        @BeforeEach
+        public void setup(KafkaCluster cluster) {
+
+        }
+
+        @Test
+        public void arbitrary(KafkaCluster cluster) {
+            fail("Test execution shouldn't get this far");
+        }
+    }
+
+    @Test
+    void verifyBeforeEachInjectionNotSupported() {
+        String methodName = "arbitrary";
+
+        Events impossibleConstraint = engine("junit-jupiter")
+                .selectors(DiscoverySelectors.selectClass(BeforeEachInjectionNotSupported.class))
+                .execute()
+                .allEvents();
+        impossibleConstraint.assertStatistics(s -> s.failed(1));
+        impossibleConstraint
+                .assertThatEvents().haveExactly(1,
+                        event(test(methodName),
+                                finishedWithFailure(
+                                        instanceOf(ParameterResolutionException.class),
+                                        message("Cannot inject interface io.kroxylicious.testing.kafka.api.KafkaCluster " +
+                                                "into method setup of class BeforeEachInjectionNotSupported," +
+                                                " incompatible with [@BeforeEach]"))));
+    }
+
+    @ExtendWith(KafkaClusterExtension.class)
+    static class AfterEachInjectionNotSupported {
+
+        // throw if KafkaCluster is part of an AfterEach
+        @AfterEach
+        public void teardown(KafkaCluster cluster) {
+
+        }
+
+        @Test
+        public void arbitrary(KafkaCluster cluster) {
+            // do nothing, test method passes
+        }
+    }
+
+    @Test
+    void verifyAfterEachInjectionNotSupported() {
+        String methodName = "arbitrary";
+
+        Events impossibleConstraint = engine("junit-jupiter")
+                .selectors(DiscoverySelectors.selectClass(AfterEachInjectionNotSupported.class))
+                .execute()
+                .allEvents();
+        impossibleConstraint.assertStatistics(s -> s.failed(1));
+        impossibleConstraint
+                .assertThatEvents().haveExactly(1,
+                        event(test(methodName),
+                                finishedWithFailure(
+                                        instanceOf(ParameterResolutionException.class),
+                                        message("Cannot inject interface io.kroxylicious.testing.kafka.api.KafkaCluster " +
+                                                "into method teardown of class AfterEachInjectionNotSupported," +
+                                                " incompatible with [@AfterEach]"))));
     }
 
     @ExtendWith(KafkaClusterExtension.class)

@@ -7,6 +7,7 @@ package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -59,6 +60,8 @@ import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -80,6 +83,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 
 import static java.lang.System.Logger.Level.TRACE;
+import static java.util.stream.Collectors.toSet;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
 import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
 
@@ -391,7 +395,7 @@ public class KafkaClusterExtension implements
     /**
      * The type Closeable.
      *
-     * @param <T>   the type parameter
+     * @param <T> the type parameter
      */
     static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
 
@@ -404,8 +408,8 @@ public class KafkaClusterExtension implements
          * Instantiates a new Closeable.
          *
          * @param sourceElement the source element
-         * @param clusterName the cluster name
-         * @param resource the resource
+         * @param clusterName   the cluster name
+         * @param resource      the resource
          */
         public Closeable(AnnotatedElement sourceElement, String clusterName, T resource) {
             this.sourceElement = sourceElement;
@@ -439,19 +443,33 @@ public class KafkaClusterExtension implements
     private static boolean supportsParameter(Parameter parameter) {
         Class<?> type = parameter.getType();
         if (KafkaCluster.class.isAssignableFrom(type)) {
-            return true;
+            return methodSupportsInjection(parameter);
         }
         else if (Admin.class.isAssignableFrom(type)) {
-            return true;
+            return methodSupportsInjection(parameter);
         }
         else if (Producer.class.isAssignableFrom(type)) {
-            return true;
+            return methodSupportsInjection(parameter);
         }
         else if (Consumer.class.isAssignableFrom(type)) {
-            return true;
+            return methodSupportsInjection(parameter);
         }
         else {
             return false;
+        }
+    }
+
+    private static boolean methodSupportsInjection(Parameter parameter) {
+        Executable declaringExecutable = parameter.getDeclaringExecutable();
+        var present = Stream.of(BeforeEach.class, AfterEach.class)
+                .filter(declaringExecutable::isAnnotationPresent).collect(toSet());
+        if (!present.isEmpty()) {
+            throw new ParameterResolutionException("Cannot inject " + parameter.getType() + " into method "
+                    + declaringExecutable.getName() + " of class " + declaringExecutable.getDeclaringClass().getSimpleName()
+                    + ", incompatible with " + present.stream().map(annotationClazz -> "@" + annotationClazz.getSimpleName()).toList());
+        }
+        else {
+            return true;
         }
     }
 
@@ -957,7 +975,7 @@ public class KafkaClusterExtension implements
     }
 
     /**
-     * @param sourceElement The source element
+     * @param sourceElement      The source element
      * @param metaAnnotationType The meta-annotation
      * @return A mutable list of annotations from the source element that are meta-annotated with
      * the given {@code metaAnnotationType}.
@@ -999,7 +1017,7 @@ public class KafkaClusterExtension implements
     /**
      * Find best provisioning strategy kafka cluster provisioning strategy.
      *
-     * @param constraints the constraints
+     * @param constraints     the constraints
      * @param declarationType the declaration type
      * @return the kafka cluster provisioning strategy
      */
