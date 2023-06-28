@@ -34,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
@@ -109,6 +110,19 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         assertSameCluster(clusterB, adminB);
         await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(clusterB.getKafkaClientConfiguration()).nodes().get().size()));
         assertEquals(2, describeCluster(adminB).nodes().get().size());
+    }
+
+    @Test
+    public void multipleReferencesToTheSameCluster(
+                                                   @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+                                                   @Name("A") KafkaCluster clusterARef,
+                                                   @Name("A") Admin adminA)
+            throws ExecutionException, InterruptedException {
+        assertSameCluster(clusterA, adminA);
+        assertSameCluster(clusterARef, adminA);
+        assertEquals(1, describeCluster(clusterA.getKafkaClientConfiguration()).nodes().get().size());
+        assertEquals(1, describeCluster(adminA).nodes().get().size());
+        assertSame(clusterA, clusterARef);
     }
 
     // multiple clients connected to the same cluster (e.g. different users)

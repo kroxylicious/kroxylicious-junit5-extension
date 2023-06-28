@@ -95,22 +95,22 @@ public class ExceptionalTest {
     }
 
     @ExtendWith(KafkaClusterExtension.class)
-    static class DuplicateNameCase {
-        // throw if two clusters declared with same cluster id
+    static class RedeclareConfigurationForExistingClusterCase {
+        // throw if two clusters declared with same cluster id but different constraints
         @Test
-        public void duplicateName(
-                                  @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
-                                  @BrokerCluster(numBrokers = 2) @Name("A") KafkaCluster cluster2) {
+        public void declareConfigurationForClusterATwice(
+                                                         @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
+                                                         @BrokerCluster(numBrokers = 2) @Name("A") KafkaCluster cluster2) {
             fail("Test execution shouldn't get this far");
         }
     }
 
     @Test
-    void verifyDuplicateName() {
-        String methodName = "duplicateName";
+    void verifyClusterReconfigurationName() {
+        String methodName = "declareConfigurationForClusterATwice";
 
         Events impossibleConstraint = engine("junit-jupiter")
-                .selectors(DiscoverySelectors.selectClass(DuplicateNameCase.class))
+                .selectors(DiscoverySelectors.selectClass(RedeclareConfigurationForExistingClusterCase.class))
                 .execute()
                 .allEvents();
         impossibleConstraint.assertStatistics(s -> s.failed(1));
@@ -121,9 +121,9 @@ public class ExceptionalTest {
                                         instanceOf(ParameterResolutionException.class),
                                         message("Failed to resolve parameter " +
                                                 "[io.kroxylicious.testing.kafka.api.KafkaCluster cluster2] in method " +
-                                                "[public void io.kroxylicious.testing.kafka.junit5ext.ExceptionalTest$DuplicateNameCase.duplicateName(io.kroxylicious.testing.kafka.api.KafkaCluster,io.kroxylicious.testing.kafka.api.KafkaCluster)]: "
+                                                "[public void io.kroxylicious.testing.kafka.junit5ext.ExceptionalTest$RedeclareConfigurationForExistingClusterCase.declareConfigurationForClusterATwice(io.kroxylicious.testing.kafka.api.KafkaCluster,io.kroxylicious.testing.kafka.api.KafkaCluster)]: "
                                                 +
-                                                "A KafkaCluster-typed declaration with @Name(\"A\") is already in scope"))));
+                                                "A KafkaCluster-typed declaration with @Name(\"A\") already exists, we cannot apply new constraints"))));
     }
 
     @ExtendWith(KafkaClusterExtension.class)
