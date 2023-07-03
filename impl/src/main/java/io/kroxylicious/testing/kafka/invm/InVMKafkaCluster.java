@@ -18,12 +18,14 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -41,6 +43,7 @@ import scala.Option;
 import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -63,6 +66,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      * Protected by lock of {@link InVMKafkaCluster itself.}
      */
     private final Map<Integer, Server> servers = new HashMap<>();
+
+    /**
+     * Set of kafka <code>node.id</code> that are currently stopped.
+     * Protected by lock of {@link InVMKafkaCluster itself.}
+     */
+    private final Set<Integer> stoppedServers = new HashSet<>();
 
     private final PortAllocator portsAllocator = new PortAllocator();
 
@@ -303,6 +312,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (servers.size() < 2) {
             throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(servers.size()));
         }
+        if (!stoppedServers.isEmpty()) {
+            throw new IllegalStateException("Cannot remove nodes from a cluster with stopped nodes.");
+        }
 
         var target = servers.keySet().stream().filter(n -> n != nodeId).findFirst();
         if (target.isEmpty()) {
@@ -320,21 +332,40 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         s.awaitShutdown();
     }
 
+    @Override
+    public synchronized void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle) {
+        var kafkaServersToStop = servers.entrySet().stream()
+                .filter(e -> nodeIdPredicate.test(e.getKey()))
+                .filter(e -> !stoppedServers.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        roleOrderedShutdown(kafkaServersToStop, true);
+
+        stoppedServers.addAll(kafkaServersToStop.keySet());
+    }
+
+    @Override
+    public synchronized void startNodes(Predicate<Integer> nodeIdPredicate) {
+        var kafkaServersToStart = servers.entrySet().stream()
+                .filter(e -> nodeIdPredicate.test(e.getKey()))
+                .filter(e -> stoppedServers.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        kafkaServersToStart.forEach((key, value) -> {
+            var configHolder = clusterConfig.generateConfigForSpecificNode(this, key);
+            var replacement = buildKafkaServer(configHolder);
+            tryToStartServerWithRetry(configHolder, replacement);
+            servers.put(key, replacement);
+            stoppedServers.remove(key);
+        });
+    }
+
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public synchronized void close() throws Exception {
         try {
             try {
-                // with kraft, if we don't shut down the controller last, we sometimes see a hang.
-                // https://issues.apache.org/jira/browse/KAFKA-14287
-                servers.entrySet().stream()
-                        .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
-                        .map(Map.Entry::getValue)
-                        .forEach(Server::shutdown);
-                servers.entrySet().stream()
-                        .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
-                        .map(Map.Entry::getValue)
-                        .forEach(Server::shutdown);
+                roleOrderedShutdown(servers, false);
             }
             finally {
                 if (zooServer != null) {
@@ -354,9 +385,37 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
     }
 
+    /**
+     * Workaround for <a href="https://issues.apache.org/jira/browse/KAFKA-14287">KAFKA-14287</a>.
+     * with kraft, if we don't shut down the controller last, we sometimes see a hang.
+     */
+    private void roleOrderedShutdown(Map<Integer, Server> servers, boolean await) {
+        var justBrokers = servers.entrySet().stream()
+                .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
+                .map(Map.Entry::getValue)
+                .toList();
+        justBrokers.forEach(Server::shutdown);
+        if (await) {
+            justBrokers.forEach(Server::awaitShutdown);
+        }
+
+        var controllers = servers.entrySet().stream()
+                .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
+                .map(Map.Entry::getValue).toList();
+        controllers.forEach(Server::shutdown);
+        if (await) {
+            controllers.forEach(Server::awaitShutdown);
+        }
+    }
+
     @Override
     public synchronized int getNumOfBrokers() {
         return servers.size();
+    }
+
+    @Override
+    public synchronized Set<Integer> getStoppedBrokers() {
+        return Set.copyOf(this.stoppedServers);
     }
 
     @Override

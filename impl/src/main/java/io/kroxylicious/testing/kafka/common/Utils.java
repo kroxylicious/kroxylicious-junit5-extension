@@ -30,6 +30,7 @@ import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.errors.InvalidReplicationFactorException;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.TopicDeletionDisabledException;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.internals.Topic;
 import org.awaitility.Awaitility;
@@ -205,7 +206,8 @@ public class Utils {
                 .thenRun(() -> log.debug("Create future for topic {} completed.", CONSISTENCY_TEST))
                 .exceptionallyComposeAsync((throwable) -> {
                     log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage());
-                    if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
+                    if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException
+                            || (throwable instanceof TopicExistsException && throwable.getMessage().contains("is marked for deletion"))) {
                         // Retry the creation of the topic. The delayed executor used in this stage's handling avoids
                         // a tight spinning loop.
                         return createTopic(expectedBrokerCount, admin);

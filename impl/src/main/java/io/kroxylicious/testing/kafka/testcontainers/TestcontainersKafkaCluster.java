@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -25,11 +26,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.apache.kafka.common.config.SslConfigs;
+import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
@@ -40,11 +43,15 @@ import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
 
+import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.exception.NotFoundException;
 
+import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -71,6 +78,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
+    private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration RESTART_BACKOFF_DELAY = Duration.ofMillis(2500);
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
     private static final int READY_TIMEOUT_SECONDS = 120;
@@ -86,6 +95,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * Protected by lock of {@link TestcontainersKafkaCluster itself.}
      */
     private final Map<Integer, KafkaContainer> brokers = new TreeMap<>();
+
+    /**
+     * Set of kafka <code>node.id</code> that are currently stopped.
+     * Protected by lock of {@link TestcontainersKafkaCluster itself.}
+     */
+    private final Set<Integer> stoppedBrokers = new HashSet<>();
 
     private final PortAllocator portsAllocator = new PortAllocator();
 
@@ -161,7 +176,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                 .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
                 .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
-                .withStartupTimeout(Duration.ofMinutes(2));
+                .withStartupTimeout(STARTUP_TIMEOUT);
         kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
         kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
 
@@ -287,7 +302,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     @Override
-    public synchronized void removeBroker(int nodeId) throws UnsupportedOperationException, IllegalArgumentException {
+    public synchronized void removeBroker(int nodeId) throws UnsupportedOperationException, IllegalArgumentException, IllegalStateException {
         if (!brokers.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
@@ -296,6 +311,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
         if (brokers.size() < 2) {
             throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(brokers.size()));
+        }
+        if (!stoppedBrokers.isEmpty()) {
+            throw new IllegalStateException("Cannot remove nodes from a cluster with stopped nodes.");
         }
 
         var target = brokers.keySet().stream().filter(n -> n != nodeId).findFirst();
@@ -309,24 +327,127 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
         portsAllocator.deallocate(nodeId);
 
-        var kafkaContainer = brokers.remove(nodeId);
+        gracefulStop(brokers.remove(nodeId));
+    }
+
+    private void gracefulStop(KafkaContainer kafkaContainer) {
         // https://github.com/testcontainers/testcontainers-java/issues/1000
         // Note that GenericContainer#stop actually implements stop using kill, so the broker doesn't have chance to
         // tell the controller that it is going away.
+
         var containerId = kafkaContainer.getContainerId();
-        try (var waitCmd = kafkaContainer.getDockerClient().waitContainerCmd(containerId);
-                var stopContainerCmd = kafkaContainer.getDockerClient().stopContainerCmd(containerId)) {
+        try (var stopContainerCmd = kafkaContainer.getDockerClient().stopContainerCmd(containerId);
+                var waitCmd = kafkaContainer.getDockerClient().waitContainerCmd(containerId)) {
             stopContainerCmd.exec();
             var statusCode = waitCmd.start().awaitStatusCode(10, TimeUnit.SECONDS);
-            LOGGER.log(Level.DEBUG, "Shut-down broker {0}, exit status {1}", nodeId, statusCode);
+            LOGGER.log(Level.DEBUG, "Shut-down broker {0}, exit status {1}", containerId, statusCode);
         }
         catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Ignoring exception whilst shutting down broker {0}", nodeId, e);
+            LOGGER.log(Level.WARNING, "Ignoring exception whilst shutting down broker {0}", containerId, e);
         }
         finally {
             // We need to do this regardless so that Testcontainer's internal state is correct.
             kafkaContainer.stop();
         }
+    }
+
+    @Override
+    public synchronized void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle) {
+        var kafkaContainersToStop = brokers.entrySet().stream()
+                .filter(e -> nodeIdPredicate.test(e.getKey()))
+                .filter(e -> !stoppedBrokers.contains(e.getKey()))
+                .toList();
+
+        if (kafkaContainersToStop.isEmpty()) {
+            return;
+        }
+
+        LOGGER.log(Level.DEBUG, "Stopping {0}/{1} nodes(s)", kafkaContainersToStop.size(), getNumOfBrokers());
+
+        var inspectCommands = kafkaContainersToStop.stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> buildInspectionCommandFor(e.getValue())));
+
+        kafkaContainersToStop.stream().map(Map.Entry::getValue).forEach(kc -> {
+            if (terminationStyle == TerminationStyle.ABRUPT) {
+                kc.stop();
+            }
+            else {
+                gracefulStop(kc);
+            }
+        });
+
+        // Await the existing containers going away.
+        inspectCommands
+                .forEach((nodeId, inspectContainer) -> Utils.awaitCondition(Long.valueOf(STARTUP_TIMEOUT.toMillis()).intValue(), TimeUnit.MILLISECONDS).until(() -> {
+                    try {
+                        inspectContainer.exec();
+                    }
+                    catch (NotFoundException e) {
+                        stoppedBrokers.add(nodeId);
+                        return true;
+                    }
+                    return false;
+                }));
+
+        if (zookeeper != null) {
+            // In the zookeeper case, we may as well wait for the zookeeper session timeout. This serves to prevent a
+            // subsequent call to startBroker spinning excessively.
+            var config = clusterConfig.getBrokerConfigs(() -> this).findFirst();
+            var zkSessionTimeout = config.map(KafkaClusterConfig.ConfigHolder::getProperties).map(p -> p.getProperty(KafkaConfig.ZkSessionTimeoutMsProp(), "0"))
+                    .map(Long::parseLong);
+            zkSessionTimeout.filter(timeout -> timeout > 0).ifPresent(
+                    timeOut -> {
+                        try {
+                            LOGGER.log(Level.DEBUG, "Awaiting zookeeper session timeout {0}ms so that the broker ephemeral nodes expire.", timeOut);
+                            Thread.sleep(timeOut);
+                        }
+                        catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+    }
+
+    @Override
+    public synchronized void startNodes(Predicate<Integer> nodeIdPredicate) {
+        var kafkaContainersToStart = brokers.entrySet().stream()
+                .filter(e -> nodeIdPredicate.test(e.getKey()))
+                .filter(e -> stoppedBrokers.contains(e.getKey()))
+                .toList();
+
+        if (kafkaContainersToStart.isEmpty()) {
+            return;
+        }
+
+        LOGGER.log(Level.DEBUG, "Starting {0}/{1} node(s)", kafkaContainersToStart.size(), getNumOfBrokers());
+        kafkaContainersToStart.forEach(entry -> {
+            var nodeId = entry.getKey();
+            var kc = entry.getValue();
+            var originalStartupAttempts = kc.getStartupAttempts();
+            try {
+                // We need to control the restart loop ourselves. Unfortunately testcontainers does not
+                // allow a delay to be introduced between startup attempts and start-ups in a tight loop
+                // seems to lead to podman unreliability (at least on the Mac).
+                kc.withStartupAttempts(1);
+                Awaitility.waitAtMost(STARTUP_TIMEOUT)
+                        .pollDelay(RESTART_BACKOFF_DELAY)
+                        .until(() -> {
+                            try {
+                                kc.start();
+                                return true;
+                            }
+                            catch (Exception e) {
+                                kc.stop();
+                                LOGGER.log(Level.DEBUG, "Failed to restart container", e);
+                                return false;
+                            }
+                        });
+            }
+            finally {
+                kc.setStartupAttempts(originalStartupAttempts);
+                stoppedBrokers.remove(nodeId);
+            }
+        });
     }
 
     @Override
@@ -337,6 +458,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @Override
     public synchronized int getNumOfBrokers() {
         return brokers.size();
+    }
+
+    @Override
+    public synchronized Set<Integer> getStoppedBrokers() {
+        return Set.copyOf(this.stoppedBrokers);
     }
 
     @Override
@@ -397,6 +523,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .bind(new Endpoint("0.0.0.0", bindPort))
                 .connect(new Endpoint("localhost", portsAllocator.getPort(listener, nodeId)))
                 .build();
+    }
+
+    private InspectContainerCmd buildInspectionCommandFor(KafkaContainer kc) {
+        return kc.getDockerClient().inspectContainerCmd(kc.getContainerId());
     }
 
     /**
