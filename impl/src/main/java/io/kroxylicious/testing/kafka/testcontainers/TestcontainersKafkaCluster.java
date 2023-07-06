@@ -341,7 +341,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized void stop() {
-        allContainers().parallel().forEach(GenericContainer::stop);
+        try {
+            allContainers().parallel().forEach(GenericContainer::stop);
+        }
+        finally {
+            network.close();
+        }
     }
 
     @Override
