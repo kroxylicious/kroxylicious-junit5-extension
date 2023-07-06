@@ -40,7 +40,6 @@ import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
 import scala.Option;
-import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -93,15 +92,16 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @NotNull
     private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c) {
-        KafkaConfig config = buildBrokerConfig(c, tempDirectory);
+        KafkaConfig config = buildBrokerConfig(c);
         Option<String> threadNamePrefix = Option.apply(null);
 
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
             var clusterId = c.getKafkaKraftClusterId();
             var directories = StorageTool.configToLogDirectories(config);
-            ensureDirectoriesAreEmpty(directories);
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
+            // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
+            // required to support start/stop.
             StorageTool.formatCommand(System.out, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
             return instantiateKraftServer(config, threadNamePrefix);
         }
@@ -146,33 +146,19 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 });
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    private static void ensureDirectoriesAreEmpty(Seq<String> directories) {
-        directories.foreach(pathStr -> {
-            final Path path = Path.of(pathStr);
-            if (Files.exists(path)) {
-                try (var ps = Files.walk(path);
-                        var s = ps
-                                .sorted(Comparator.reverseOrder())
-                                .map(Path::toFile)) {
-                    s.forEach(File::delete);
-                }
-                catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return true;
-        });
-    }
-
     @NotNull
-    private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c, Path tempDirectory) {
+    private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
         properties.putAll(c.getProperties());
-        Path logsDir = tempDirectory.resolve(String.format("broker-%d", c.getBrokerNum()));
+        var logsDir = getBrokerLogDir(c.getBrokerNum());
         properties.setProperty(KafkaConfig.LogDirProp(), logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
+    }
+
+    @NotNull
+    private Path getBrokerLogDir(int brokerNum) {
+        return this.tempDirectory.resolve(String.format("broker-%d", brokerNum));
     }
 
     @Override
@@ -330,6 +316,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         var s = servers.remove(nodeId);
         s.shutdown();
         s.awaitShutdown();
+        ensureDirectoryIsEmpty(getBrokerLogDir(nodeId));
     }
 
     @Override
@@ -405,6 +392,21 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         controllers.forEach(Server::shutdown);
         if (await) {
             controllers.forEach(Server::awaitShutdown);
+        }
+    }
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private static void ensureDirectoryIsEmpty(Path path) {
+        if (Files.exists(path)) {
+            try (var ps = Files.walk(path);
+                    var s = ps
+                            .sorted(Comparator.reverseOrder())
+                            .map(Path::toFile)) {
+                s.forEach(File::delete);
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException("Error whilst deleting " + path, e);
+            }
         }
     }
 

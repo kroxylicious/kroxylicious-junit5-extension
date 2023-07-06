@@ -16,12 +16,16 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -31,13 +35,16 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.github.dockerjava.api.model.VersionComponent;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
+import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
@@ -46,6 +53,9 @@ import org.testcontainers.utility.DockerImageName;
 import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.NotFoundException;
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.VersionPlatform;
+import com.github.dockerjava.api.model.Volume;
 
 import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
@@ -84,12 +94,18 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     // If Zookeeper or Kafka run for less than 500ms, there's almost certainly a problem. This makes it be treated
     // as a startup failure.
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
+    private static final boolean CONTAINER_ENGINE_DOCKER = isContainerEngineDocker();
+    private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
+
+    // This uid needs to match the uid used by the kafka container to execute the kafka process
+    private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
+    private final String logDirVolumeName = createNamedVolume();
     private final Network network = Network.newNetwork();
     private final String name;
     private final ZookeeperContainer zookeeper;
@@ -107,12 +123,16 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private final Set<Integer> stoppedBrokers = new HashSet<>();
 
     private final PortAllocator portsAllocator = new PortAllocator();
+    private static final Set<String> volumesPendingCleanup = ConcurrentHashMap.newKeySet();
 
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
             LOGGER.log(Level.WARNING,
                     "As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
         }
+        // Install a shutdown hook to remove any volumes that remain. This is a best effort approach to leaving
+        // container resources behind.
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> Set.copyOf(volumesPendingCleanup).forEach(TestcontainersKafkaCluster::removeNamedVolume)));
     }
 
     /**
@@ -176,6 +196,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
         kafkaContainer
+                // KAFKA_LOG_DIR overrides a key in the quarkus kafka image application.properties. The quarkus app uses
+                // that to set log.dir. Any value we set for log.dir in server.properties is lost.
+                .withEnv("KAFKA_LOG_DIR", getBrokerLogDirectory(holder.getBrokerNum()))
                 // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
@@ -185,11 +208,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withStartupTimeout(STARTUP_TIMEOUT);
         kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
         kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
+        kafkaContainer.addGenericBind(new Bind(logDirVolumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)));
 
         if (!clusterConfig.isKraftMode()) {
             kafkaContainer.dependsOn(this.zookeeper);
         }
         return kafkaContainer;
+    }
+
+    @NotNull
+    private String getBrokerLogDirectory(int brokerNum) {
+        return KAFKA_CONTAINER_MOUNT_POINT + "/broker-" + brokerNum;
     }
 
     private void setDefaultKafkaImage(String kafkaVersion) {
@@ -334,6 +363,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         portsAllocator.deallocate(nodeId);
 
         gracefulStop(brokers.remove(nodeId));
+
+        try (var cleanBrokerLogDir = new OneShotContainer()) {
+            cleanBrokerLogDir.withName("cleanBrokerLogDir")
+                    .addGenericBind(new Bind(logDirVolumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
+                    .withCommand("rm", "-rf", getBrokerLogDirectory(nodeId));
+            cleanBrokerLogDir.start();
+        }
     }
 
     private void gracefulStop(KafkaContainer kafkaContainer) {
@@ -479,7 +515,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             allContainers().parallel().forEach(GenericContainer::stop);
         }
         finally {
-            network.close();
+            try {
+                network.close();
+            }
+            finally {
+                removeNamedVolume(this.logDirVolumeName);
+            }
         }
     }
 
@@ -537,12 +578,60 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return kc.getDockerClient().inspectContainerCmd(kc.getContainerId());
     }
 
+    @SuppressWarnings({ "try" })
+    private static String createNamedVolume() {
+        var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd();
+        if (!CONTAINER_ENGINE_DOCKER) {
+            volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
+        }
+        var volumeName = volumeCmd.exec().getName();
+        volumesPendingCleanup.add(volumeName);
+        if (CONTAINER_ENGINE_DOCKER) {
+            // On Docker, use a container to chown the volume.
+            // This is a workaround for https://github.com/moby/moby/issues/45714
+            try (var c = new OneShotContainer()) {
+                c.withName("prepareKafkaVolume")
+                        .addGenericBind(new Bind(volumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
+                        .withCommand("chown", "-R", KAFKA_CONTAINER_UID, KAFKA_CONTAINER_MOUNT_POINT)
+                        .withStartupCheckStrategy(new OneShotStartupCheckStrategy());
+                c.start();
+            }
+        }
+        return volumeName;
+    }
+
+    @SuppressWarnings({ "try" })
+    private static void removeNamedVolume(String name) {
+        try {
+            DockerClientFactory.lazyClient().removeVolumeCmd(name).exec();
+        }
+        catch (NotFoundException ignored) {
+            // volume is gone
+            volumesPendingCleanup.remove(name);
+        }
+        catch (Throwable t) {
+            LOGGER.log(Level.WARNING, "Failed to remove container volume {0}.", name, t);
+            LOGGER.log(Level.WARNING, "Please run `(podman|docker) volume ls` and check for orphaned resources.");
+        }
+    }
+
+    private static boolean isContainerEngineDocker() {
+        var ver = DockerClientFactory.lazyClient().versionCmd().exec();
+        var platformDocker = Optional.ofNullable(ver.getPlatform()).map(VersionPlatform::getName).filter(Objects::nonNull).map(s -> s.toLowerCase(Locale.ROOT))
+                .map(s -> s.contains("docker")).orElse(false);
+        var componentDocker = Optional.ofNullable(ver.getComponents()).stream().flatMap(Collection::stream).map(VersionComponent::getName).filter(Objects::nonNull)
+                .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("docker"));
+        var docker = platformDocker || componentDocker;
+        LOGGER.log(Level.INFO, "Detected container engine as Docker : {0}", docker);
+        return docker;
+    }
+
     /**
      * The type Kafka container.
      */
     // In kraft mode, currently "Advertised listeners cannot be altered when using a Raft-based metadata quorum", so we
     // need to know the listening port before we start the kafka container. For this reason, we need this override
-    // to expose addFixedExposedPort to for use.
+    // to expose addFixedExposedPort for use.
     public static class KafkaContainer extends LoggingGenericContainer<KafkaContainer> {
 
         /**
@@ -571,6 +660,19 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
          */
         public ZookeeperContainer(DockerImageName zookeeperImage) {
             super(zookeeperImage);
+        }
+    }
+
+    /**
+     * Container used for running one-short commands.
+     */
+    public static class OneShotContainer extends LoggingGenericContainer<OneShotContainer> {
+        /**
+         * Instantiates a new one-shot container
+         */
+        public OneShotContainer() {
+            super(DockerImageName.parse("busybox"));
+            this.withStartupCheckStrategy(new OneShotStartupCheckStrategy());
         }
     }
 
@@ -637,5 +739,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             this.name = name;
             return this;
         }
+
+        public LoggingGenericContainer<C> addGenericBind(Bind bind) {
+            super.getBinds().add(bind);
+            return this;
+        }
+
     }
 }

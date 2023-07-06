@@ -198,12 +198,44 @@ public class KafkaClusterTest {
             cluster.stopNodes((u) -> true, null);
             assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(0, 1);
 
-            cluster.startNodes((n) -> n == 1);
-            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(0);
+            // restart one node (in the kraft case, this needs to be the controller).
+            cluster.startNodes((n) -> n == 0);
+            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
 
             cluster.startNodes((u) -> true);
             assertThat(cluster.getStoppedBrokers()).hasSize(0);
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void topicPersistsThroughStopAndStart(boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(kraft)
+                .brokersNum(1)
+                .build())) {
+            cluster.start();
+
+            var topic = "roundTrip" + Uuid.randomUuid();
+            var message = "Hello, world " + Uuid.randomUuid();
+            short min = (short) Math.min(cluster.getNumOfBrokers(), 3);
+
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                createTopic(admin, topic, min);
+
+                produce(cluster, topic, message);
+
+                cluster.stopNodes((u) -> true, null);
+                cluster.startNodes((u) -> true);
+                verifyRecordRoundTrip(min, cluster);
+
+                // now consume the message we sent before the stop.
+                consume(cluster, topic, message);
+
+                deleteTopic(admin, topic);
+            }
         }
     }
 
