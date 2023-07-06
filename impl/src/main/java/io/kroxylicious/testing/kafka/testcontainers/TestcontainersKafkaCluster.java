@@ -80,6 +80,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration RESTART_BACKOFF_DELAY = Duration.ofMillis(2500);
+
+    // If Zookeeper or Kafka run for less than 500ms, there's almost certainly a problem. This makes it be treated
+    // as a startup failure.
+    private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
     private static final int READY_TIMEOUT_SECONDS = 120;
@@ -147,6 +151,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
+                    .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                     .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                     // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.zookeeper logging too
                     .withNetworkAliases("zookeeper");
@@ -176,6 +181,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                 .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
                 .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
+                .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
         kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
         kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
@@ -426,7 +432,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             var originalStartupAttempts = kc.getStartupAttempts();
             try {
                 // We need to control the restart loop ourselves. Unfortunately testcontainers does not
-                // allow a delay to be introduced between startup attempts and start-ups in a tight loop
+                // allow a delay to be introduced between startup attempt. Start-ups in a tight loop
                 // seems to lead to podman unreliability (at least on the Mac).
                 kc.withStartupAttempts(1);
                 Awaitility.waitAtMost(STARTUP_TIMEOUT)
@@ -442,6 +448,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                                 return false;
                             }
                         });
+
+                ;
             }
             finally {
                 kc.setStartupAttempts(originalStartupAttempts);
@@ -630,5 +638,4 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             return this;
         }
     }
-
 }
