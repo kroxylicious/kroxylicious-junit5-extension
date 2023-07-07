@@ -5,15 +5,16 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
