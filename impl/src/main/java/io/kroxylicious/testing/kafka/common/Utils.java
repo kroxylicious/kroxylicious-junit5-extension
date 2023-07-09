@@ -204,10 +204,10 @@ public class Utils {
                 .toCompletionStage()
                 .thenRun(() -> log.debug("Create future for topic {} completed.", CONSISTENCY_TEST))
                 .exceptionallyComposeAsync((throwable) -> {
-                    log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage(), throwable);
+                    log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage());
                     if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
                         // Retry the creation of the topic. The delayed executor used in this stage's handling avoids
-                        // a tight loop.
+                        // a tight spinning loop.
                         return createTopic(expectedBrokerCount, admin);
                     }
                     else {
