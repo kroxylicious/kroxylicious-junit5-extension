@@ -121,10 +121,16 @@ public class Utils {
         try (var admin = Admin.create(connectionConfig)) {
             log.debug("Creating topic: {} via {}", CONSISTENCY_TEST, connectionConfig.get(BOOTSTRAP_SERVERS_CONFIG));
             // Note we don't wait for the Topic to be created, we assume it will complete eventually.
-            // As the thing we care about is it actually being replicated to the other brokers anyway so we wait to confirm replication.
-            var ignored = createTopic(expectedBrokerCount, admin);
+            // As the thing we care about is it actually being replicated to the other brokers anyway, so we wait to confirm replication.
+            var createTopicStage = createTopic(expectedBrokerCount, admin);
             log.debug("Waiting for {} to be replicated to {} brokers", CONSISTENCY_TEST, expectedBrokerCount);
             awaitCondition(timeout, timeUnit)
+                    .failFast(() -> {
+                        var f = createTopicStage.toCompletableFuture();
+                        if (f.isCompletedExceptionally()) {
+                            f.get();
+                        }
+                    })
                     .until(() -> {
                         log.debug("Calling describe topic");
                         final var promise = new CompletableFuture<Boolean>();
@@ -205,6 +211,9 @@ public class Utils {
                 .thenRun(() -> log.debug("Create future for topic {} completed.", CONSISTENCY_TEST))
                 .exceptionallyComposeAsync((throwable) -> {
                     log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage());
+                    if (throwable instanceof CompletionException && throwable.getCause() != null) {
+                        throwable = throwable.getCause();
+                    }
                     if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
                         // Retry the creation of the topic. The delayed executor used in this stage's handling avoids
                         // a tight spinning loop.
