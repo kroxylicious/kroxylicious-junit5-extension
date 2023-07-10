@@ -94,6 +94,7 @@
         <awaitility.version>4.2.0</awaitility.version>
         <annotations.version>24.0.1</annotations.version>
         <duct-tape.version>1.0.8</duct-tape.version>
+        <mockito.version>5.4.0</mockito.version>
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
     </properties>
@@ -202,6 +203,14 @@
                 <version>${findbugs.annotations.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-bom</artifactId>
+                <version>${mockito.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
         </dependencies>
     </dependencyManagement>
 
