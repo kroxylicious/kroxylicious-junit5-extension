@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import com.github.dockerjava.api.model.VersionComponent;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
@@ -54,7 +53,7 @@ import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.VersionPlatform;
+import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
 import kafka.server.KafkaConfig;
@@ -94,7 +93,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     // If Zookeeper or Kafka run for less than 500ms, there's almost certainly a problem. This makes it be treated
     // as a startup failure.
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
-    private static final boolean CONTAINER_ENGINE_DOCKER = isContainerEngineDocker();
+    private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
@@ -581,12 +580,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @SuppressWarnings({ "try" })
     private static String createNamedVolume() {
         var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd();
-        if (!CONTAINER_ENGINE_DOCKER) {
+        if (CONTAINER_ENGINE_PODMAN) {
             volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
         }
         var volumeName = volumeCmd.exec().getName();
         volumesPendingCleanup.add(volumeName);
-        if (CONTAINER_ENGINE_DOCKER) {
+        if (!CONTAINER_ENGINE_PODMAN) {
             // On Docker, use a container to chown the volume.
             // This is a workaround for https://github.com/moby/moby/issues/45714
             try (var c = new OneShotContainer()) {
@@ -615,15 +614,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
     }
 
-    private static boolean isContainerEngineDocker() {
+    private static boolean isContainerEnginePodman() {
         var ver = DockerClientFactory.lazyClient().versionCmd().exec();
-        var platformDocker = Optional.ofNullable(ver.getPlatform()).map(VersionPlatform::getName).filter(Objects::nonNull).map(s -> s.toLowerCase(Locale.ROOT))
-                .map(s -> s.contains("docker")).orElse(false);
-        var componentDocker = Optional.ofNullable(ver.getComponents()).stream().flatMap(Collection::stream).map(VersionComponent::getName).filter(Objects::nonNull)
-                .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("docker"));
-        var docker = platformDocker || componentDocker;
-        LOGGER.log(Level.INFO, "Detected container engine as Docker : {0}", docker);
-        return docker;
+        var hasComponentNamedPodman = Optional.ofNullable(ver.getComponents()).stream().flatMap(Collection::stream).map(VersionComponent::getName)
+                .filter(Objects::nonNull)
+                .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("podman"));
+        LOGGER.log(Level.INFO, "Detected container engine as Podman : {0}", hasComponentNamedPodman);
+        return hasComponentNamedPodman;
     }
 
     /**
