@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -24,7 +25,6 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.common.KafkaFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.errors.InvalidReplicationFactorException;
@@ -34,7 +34,6 @@ import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.internals.Topic;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
-import org.junit.Assert;
 import org.slf4j.Logger;
 
 import static org.apache.kafka.clients.CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG;
@@ -123,7 +122,7 @@ public class Utils {
             log.debug("Creating topic: {} via {}", CONSISTENCY_TEST, connectionConfig.get(BOOTSTRAP_SERVERS_CONFIG));
             // Note we don't wait for the Topic to be created, we assume it will complete eventually.
             // As the thing we care about is it actually being replicated to the other brokers anyway so we wait to confirm replication.
-            createTopic(expectedBrokerCount, admin);
+            var ignored = createTopic(expectedBrokerCount, admin);
             log.debug("Waiting for {} to be replicated to {} brokers", CONSISTENCY_TEST, expectedBrokerCount);
             awaitCondition(timeout, timeUnit)
                     .until(() -> {
@@ -199,21 +198,22 @@ public class Utils {
         promise.complete(false);
     }
 
-    private static KafkaFuture<Void> createTopic(Integer expectedBrokerCount, Admin admin) {
+    private static CompletionStage<Void> createTopic(Integer expectedBrokerCount, Admin admin) {
         return admin.createTopics(Set.of(new NewTopic(CONSISTENCY_TEST, 1, expectedBrokerCount.shortValue())))
                 .all()
-                .whenComplete((unused, throwable) -> {
-                    log.debug("Create topic future completed.");
-                    if (throwable != null) {
-                        log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage(), throwable);
-                        if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
-                            CompletableFuture.supplyAsync(() -> createTopic(expectedBrokerCount, admin));
-                        }
-                        else {
-                            Assert.fail("Failed to create topic: " + CONSISTENCY_TEST + "  due to " + throwable.getMessage());
-                        }
+                .toCompletionStage()
+                .thenRun(() -> log.debug("Create future for topic {} completed.", CONSISTENCY_TEST))
+                .exceptionallyComposeAsync((throwable) -> {
+                    log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage());
+                    if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
+                        // Retry the creation of the topic. The delayed executor used in this stage's handling avoids
+                        // a tight spinning loop.
+                        return createTopic(expectedBrokerCount, admin);
                     }
-                });
+                    else {
+                        return CompletableFuture.failedStage(new RuntimeException("Failed to create topic: " + CONSISTENCY_TEST, throwable));
+                    }
+                }, CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS));
     }
 
     /**
