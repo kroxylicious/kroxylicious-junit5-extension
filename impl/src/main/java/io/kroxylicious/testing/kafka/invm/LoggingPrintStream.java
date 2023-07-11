@@ -46,13 +46,13 @@ final class LoggingPrintStream {
         }
 
         private void logPending() {
-            if(logger.isLoggable(level) {
-                 var log = os.toString(Charset.defaultCharset()).stripTrailing();
-                 if (!log.isEmpty()) {
-                     logger.log(level, "{0}", log);
-                 }
-                 os.reset();
+            if (logger.isLoggable(level)) {
+                var log = os.toString(Charset.defaultCharset()).stripTrailing();
+                if (!log.isEmpty()) {
+                    logger.log(level, "{0}", log);
+                }
             }
+            os.reset();
         }
     }
 

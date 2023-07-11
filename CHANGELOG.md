@@ -6,6 +6,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.5.0
 
+* [#145](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/145) Direct storage formatting stdout to the log
 * [#142](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/142) Prevent spinning in Utils#createTopic.
 * [#140](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/140) Prevent docker networks accumulations during test runs.
 * [#134](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/134): Support @BeforeEach and test cases referring to same cluster
