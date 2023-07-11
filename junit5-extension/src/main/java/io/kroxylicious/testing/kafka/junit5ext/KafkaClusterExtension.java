@@ -78,6 +78,7 @@ import org.junit.platform.commons.util.ReflectionUtils;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
+import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -946,7 +947,7 @@ public class KafkaClusterExtension implements
                 sourceElement,
                 clusterName,
                 best);
-        KafkaCluster c = best.create(constraints, type);
+        KafkaCluster c = best.create(constraints, type, generateTestInfo(extensionContext));
         LOGGER.log(TRACE,
                 "test {0}: decl: {1}: cluster ''{2}'': Created",
                 extensionContext.getUniqueId(),
@@ -954,6 +955,11 @@ public class KafkaClusterExtension implements
                 clusterName);
         c.start();
         return new Closeable<>(sourceElement, clusterName, c);
+    }
+
+    @NotNull
+    private static KroxyliciousTestInfo generateTestInfo(ExtensionContext extensionContext) {
+        return new KroxyliciousTestInfo(extensionContext.getDisplayName(), extensionContext.getTestClass(), extensionContext.getTestMethod(), extensionContext.getTags());
     }
 
     /**
