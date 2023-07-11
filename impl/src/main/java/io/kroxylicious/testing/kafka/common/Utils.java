@@ -30,6 +30,7 @@ import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.errors.InvalidReplicationFactorException;
 import org.apache.kafka.common.errors.RetriableException;
 import org.apache.kafka.common.errors.TopicDeletionDisabledException;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.errors.UnknownTopicOrPartitionException;
 import org.apache.kafka.common.internals.Topic;
 import org.awaitility.Awaitility;
@@ -211,10 +212,7 @@ public class Utils {
                 .thenRun(() -> log.debug("Create future for topic {} completed.", CONSISTENCY_TEST))
                 .exceptionallyComposeAsync((throwable) -> {
                     log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage());
-                    if (throwable instanceof CompletionException && throwable.getCause() != null) {
-                        throwable = throwable.getCause();
-                    }
-                    if (throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException) {
+                    if (isRetriable(throwable)) {
                         // Retry the creation of the topic. The delayed executor used in this stage's handling avoids
                         // a tight spinning loop.
                         return createTopic(expectedBrokerCount, admin);
@@ -223,6 +221,14 @@ public class Utils {
                         return CompletableFuture.failedStage(new RuntimeException("Failed to create topic: " + CONSISTENCY_TEST, throwable));
                     }
                 }, CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS));
+    }
+
+    private static boolean isRetriable(Throwable potentiallyWrapped) {
+        // If the throwable originates from within a CompletionStage's handler, it will be wrapped within a
+        // CompletionException.
+        var throwable = potentiallyWrapped instanceof CompletionException && potentiallyWrapped.getCause() != null ? potentiallyWrapped.getCause() : potentiallyWrapped;
+        return throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException
+                || (throwable instanceof TopicExistsException && throwable.getMessage().contains("is marked for deletion"));
     }
 
     /**

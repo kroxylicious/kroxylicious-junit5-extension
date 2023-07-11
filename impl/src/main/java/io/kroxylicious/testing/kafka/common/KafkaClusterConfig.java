@@ -34,6 +34,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 
+import kafka.server.KafkaConfig;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Singular;
@@ -267,6 +268,7 @@ public class KafkaClusterConfig {
             putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
             putConfig(server, "zookeeper.sasl.enabled", "false");
             putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
+            putConfig(server, KafkaConfig.ZkSessionTimeoutMsProp(), Long.toString(6000));
         }
 
         putConfig(server, "listener.security.protocol.map",
