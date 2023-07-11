@@ -170,6 +170,7 @@ public class TemplateTest {
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     public class Versions {
 
+        // Versions can only be tested using TestContainers.
         @TestTemplate
         public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster) {
             observedVersions.add(cluster.getKafkaVersion());
