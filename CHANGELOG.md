@@ -6,6 +6,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.5.0
 
+* [#146](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/146): Expose TestInfo (and thus DisplayName) when clusters are injected via  annotations.
 * [#145](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/145) Direct storage formatting stdout to the log
 * [#86](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/86) Added API to restart one or more brokers of a kafka cluster.
 * [#142](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/142) Prevent spinning in Utils#createTopic.
