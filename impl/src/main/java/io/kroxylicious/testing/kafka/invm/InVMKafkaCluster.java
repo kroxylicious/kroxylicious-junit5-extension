@@ -8,6 +8,7 @@ package io.kroxylicious.testing.kafka.invm;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -54,6 +55,7 @@ import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_V
  */
 public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
+    private static final PrintStream LOGGING_PRINT_STREAM = LoggingPrintStream.loggingPrintStream(LOGGER, System.Logger.Level.DEBUG);
     private static final int STARTUP_TIMEOUT = 30;
 
     private final KafkaClusterConfig clusterConfig;
@@ -102,7 +104,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
             // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
             // required to support start/stop.
-            StorageTool.formatCommand(System.out, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
+            StorageTool.formatCommand(LOGGING_PRINT_STREAM, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
