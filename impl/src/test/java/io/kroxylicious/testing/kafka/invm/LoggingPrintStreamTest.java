@@ -56,10 +56,14 @@ class LoggingPrintStreamTest {
 
     @Test
     void closeLogsUnfinishedPrint() {
-        try (var lps = LoggingPrintStream.loggingPrintStream(logger, System.Logger.Level.INFO)) {
-            lps.print("There's no newline");
-        }
-
+        // Given
+        var lps = LoggingPrintStream.loggingPrintStream(logger, System.Logger.Level.INFO)) {
+        lps.print("There's no newline");
+        
+        //When
+        lps.close();
+        
+        //Then
         verify(logger, times(1)).log(System.Logger.Level.INFO, "{0}", "There's no newline");
         verifyNoMoreInteractions(logger);
     }
