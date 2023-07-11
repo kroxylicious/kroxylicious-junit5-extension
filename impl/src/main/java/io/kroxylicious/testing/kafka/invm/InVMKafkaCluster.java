@@ -19,12 +19,14 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -39,9 +41,9 @@ import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
 import scala.Option;
-import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -66,6 +68,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      */
     private final Map<Integer, Server> servers = new HashMap<>();
 
+    /**
+     * Set of kafka <code>node.id</code> that are currently stopped.
+     * Protected by lock of {@link InVMKafkaCluster itself.}
+     */
+    private final Set<Integer> stoppedServers = new HashSet<>();
+
     private final PortAllocator portsAllocator = new PortAllocator();
 
     /**
@@ -86,15 +94,16 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @NotNull
     private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c) {
-        KafkaConfig config = buildBrokerConfig(c, tempDirectory);
+        KafkaConfig config = buildBrokerConfig(c);
         Option<String> threadNamePrefix = Option.apply(null);
 
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
             var clusterId = c.getKafkaKraftClusterId();
             var directories = StorageTool.configToLogDirectories(config);
-            ensureDirectoriesAreEmpty(directories);
             var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
+            // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
+            // required to support start/stop.
             StorageTool.formatCommand(LOGGING_PRINT_STREAM, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
             return instantiateKraftServer(config, threadNamePrefix);
         }
@@ -139,33 +148,19 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 });
     }
 
-    @SuppressWarnings("ResultOfMethodCallIgnored")
-    private static void ensureDirectoriesAreEmpty(Seq<String> directories) {
-        directories.foreach(pathStr -> {
-            final Path path = Path.of(pathStr);
-            if (Files.exists(path)) {
-                try (var ps = Files.walk(path);
-                        var s = ps
-                                .sorted(Comparator.reverseOrder())
-                                .map(Path::toFile)) {
-                    s.forEach(File::delete);
-                }
-                catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return true;
-        });
-    }
-
     @NotNull
-    private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c, Path tempDirectory) {
+    private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
         properties.putAll(c.getProperties());
-        Path logsDir = tempDirectory.resolve(String.format("broker-%d", c.getBrokerNum()));
+        var logsDir = getBrokerLogDir(c.getBrokerNum());
         properties.setProperty(KafkaConfig.LogDirProp(), logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
+    }
+
+    @NotNull
+    private Path getBrokerLogDir(int brokerNum) {
+        return this.tempDirectory.resolve(String.format("broker-%d", brokerNum));
     }
 
     @Override
@@ -305,6 +300,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (servers.size() < 2) {
             throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(servers.size()));
         }
+        if (!stoppedServers.isEmpty()) {
+            throw new IllegalStateException("Cannot remove nodes from a cluster with stopped nodes.");
+        }
 
         var target = servers.keySet().stream().filter(n -> n != nodeId).findFirst();
         if (target.isEmpty()) {
@@ -320,6 +318,35 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         var s = servers.remove(nodeId);
         s.shutdown();
         s.awaitShutdown();
+        ensureDirectoryIsEmpty(getBrokerLogDir(nodeId));
+    }
+
+    @Override
+    public synchronized void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle) {
+        var kafkaServersToStop = servers.entrySet().stream()
+                .filter(e -> nodeIdPredicate.test(e.getKey()))
+                .filter(e -> !stoppedServers.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        roleOrderedShutdown(kafkaServersToStop, true);
+
+        stoppedServers.addAll(kafkaServersToStop.keySet());
+    }
+
+    @Override
+    public synchronized void startNodes(Predicate<Integer> nodeIdPredicate) {
+        var kafkaServersToStart = servers.entrySet().stream()
+                .filter(e -> nodeIdPredicate.test(e.getKey()))
+                .filter(e -> stoppedServers.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        kafkaServersToStart.forEach((key, value) -> {
+            var configHolder = clusterConfig.generateConfigForSpecificNode(this, key);
+            var replacement = buildKafkaServer(configHolder);
+            tryToStartServerWithRetry(configHolder, replacement);
+            servers.put(key, replacement);
+            stoppedServers.remove(key);
+        });
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -327,16 +354,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     public synchronized void close() throws Exception {
         try {
             try {
-                // with kraft, if we don't shut down the controller last, we sometimes see a hang.
-                // https://issues.apache.org/jira/browse/KAFKA-14287
-                servers.entrySet().stream()
-                        .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
-                        .map(Map.Entry::getValue)
-                        .forEach(Server::shutdown);
-                servers.entrySet().stream()
-                        .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
-                        .map(Map.Entry::getValue)
-                        .forEach(Server::shutdown);
+                roleOrderedShutdown(servers, false);
             }
             finally {
                 if (zooServer != null) {
@@ -356,9 +374,52 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
     }
 
+    /**
+     * Workaround for <a href="https://issues.apache.org/jira/browse/KAFKA-14287">KAFKA-14287</a>.
+     * with kraft, if we don't shut down the controller last, we sometimes see a hang.
+     */
+    private void roleOrderedShutdown(Map<Integer, Server> servers, boolean await) {
+        var justBrokers = servers.entrySet().stream()
+                .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
+                .map(Map.Entry::getValue)
+                .toList();
+        justBrokers.forEach(Server::shutdown);
+        if (await) {
+            justBrokers.forEach(Server::awaitShutdown);
+        }
+
+        var controllers = servers.entrySet().stream()
+                .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
+                .map(Map.Entry::getValue).toList();
+        controllers.forEach(Server::shutdown);
+        if (await) {
+            controllers.forEach(Server::awaitShutdown);
+        }
+    }
+
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private static void ensureDirectoryIsEmpty(Path path) {
+        if (Files.exists(path)) {
+            try (var ps = Files.walk(path);
+                    var s = ps
+                            .sorted(Comparator.reverseOrder())
+                            .map(Path::toFile)) {
+                s.forEach(File::delete);
+            }
+            catch (IOException e) {
+                throw new UncheckedIOException("Error whilst deleting " + path, e);
+            }
+        }
+    }
+
     @Override
     public synchronized int getNumOfBrokers() {
         return servers.size();
+    }
+
+    @Override
+    public synchronized Set<Integer> getStoppedBrokers() {
+        return Set.copyOf(this.stoppedServers);
     }
 
     @Override

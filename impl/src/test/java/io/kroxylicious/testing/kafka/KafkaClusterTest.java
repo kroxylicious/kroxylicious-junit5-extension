@@ -6,36 +6,50 @@
 package io.kroxylicious.testing.kafka;
 
 import java.io.IOException;
+import java.net.ConnectException;
+import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
 import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
+import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -69,13 +83,14 @@ public class KafkaClusterTest {
         }
     }
 
-    @Test
-    public void kafkaClusterZookeeperAddBroker() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void kafkaClusterAddBroker(boolean kraft) throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(false)
+                .kraftMode(kraft)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -91,24 +106,136 @@ public class KafkaClusterTest {
         }
     }
 
-    @Test
-    public void kafkaClusterZookeeperRemoveBroker() throws Exception {
-        int brokersNum = 2;
+    public static Stream<Arguments> stopAndStartBrokers() {
+        return Stream.of(
+                Arguments.of(1, true, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> true),
+                Arguments.of(2, true, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> node == 1),
+                Arguments.of(2, true, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> true),
+                Arguments.of(1, true, TerminationStyle.GRACEFUL, (Predicate<Integer>) node -> true),
+                Arguments.of(1, false, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> true));
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    public void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, Predicate<Integer> brokerPredicate) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(false)
+                .kraftMode(kraft)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
-            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
             verifyRecordRoundTrip(brokersNum, cluster);
 
-            cluster.removeBroker(1);
+            var nodes = describeClusterNodes(cluster);
+            var brokersExpectedDown = nodes.stream().filter(n -> brokerPredicate.test(n.id())).toList();
 
-            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum - 1);
-            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum - 1);
-            verifyRecordRoundTrip(brokersNum - 1, cluster);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+
+            cluster.stopNodes(brokerPredicate, terminationStyle);
+
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
+            assertThat(cluster.getStoppedBrokers()).hasSameSizeAs(brokersExpectedDown);
+            brokersExpectedDown.forEach(this::assertBrokerRefusesConnection);
+
+            cluster.startNodes(brokerPredicate);
+
+            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+
+            // ensures that all brokers of the cluster are back in service.
+            verifyRecordRoundTrip(brokersNum, cluster);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void stopAndStartIdempotency(boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(kraft)
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
+
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            // starting idempotent
+            cluster.startNodes((u) -> true);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+
+            cluster.stopNodes((u) -> true, null);
+            assertThat(cluster.getStoppedBrokers()).hasSize(1);
+
+            // stopping idempotent
+            cluster.stopNodes((u) -> true, null);
+            assertThat(cluster.getStoppedBrokers()).hasSize(1);
+
+            cluster.startNodes((u) -> true);
+            verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+
+            // starting idempotent
+            cluster.startNodes((u) -> true);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void stopAndStartIncrementally(boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(kraft)
+                .brokersNum(2)
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+
+            cluster.stopNodes((n) -> n == 1, null);
+            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
+
+            cluster.stopNodes((u) -> true, null);
+            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(0, 1);
+
+            // restart one node (in the kraft case, this needs to be the controller).
+            cluster.startNodes((n) -> n == 0);
+            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
+
+            cluster.startNodes((u) -> true);
+            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void topicPersistsThroughStopAndStart(boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(kraft)
+                .brokersNum(1)
+                .build())) {
+            cluster.start();
+
+            var topic = "roundTrip" + Uuid.randomUuid();
+            var message = "Hello, world " + Uuid.randomUuid();
+            short min = (short) Math.min(cluster.getNumOfBrokers(), 3);
+
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                createTopic(admin, topic, min);
+
+                produce(cluster, topic, message);
+
+                cluster.stopNodes((u) -> true, null);
+                cluster.startNodes((u) -> true);
+                verifyRecordRoundTrip(min, cluster);
+
+                // now consume the message we sent before the stop.
+                consume(cluster, topic, message);
+
+                deleteTopic(admin, topic);
+            }
         }
     }
 
@@ -138,36 +265,14 @@ public class KafkaClusterTest {
         }
     }
 
-    @Test
-    public void kafkaClusterKraftAddBroker() throws Exception {
-        int brokersNum = 1;
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokersNum(brokersNum)
-                .kraftMode(true)
-                .build())) {
-            cluster.start();
-
-            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
-            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
-            verifyRecordRoundTrip(brokersNum, cluster);
-
-            int nodeId = cluster.addBroker();
-            assertThat(nodeId).isEqualTo(1);
-
-            assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum + 1);
-            assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum + 1);
-            verifyRecordRoundTrip(brokersNum + 1, cluster);
-        }
-    }
-
-    @Test
-    public void kafkaClusterKraftRemoveBroker() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void kafkaClusterRemoveBroker(boolean kraft) throws Exception {
         int brokersNum = 3;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -179,6 +284,25 @@ public class KafkaClusterTest {
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum - 1);
             assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum - 1);
             verifyRecordRoundTrip(brokersNum - 1, cluster);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    public void kafkaClusterRemoveWithStoppedBrokerDisallowed(boolean kraft) throws Exception {
+        int brokersNum = 2;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftMode(kraft)
+                .build())) {
+            cluster.start();
+
+            cluster.stopNodes(n -> n == 1, null);
+
+            // Node zero is the controller
+            assertThrows(IllegalStateException.class, () -> cluster.removeBroker(1),
+                    "Expect attempt to remove a node when the cluster has stopped brokers to be rejected");
         }
     }
 
@@ -391,11 +515,34 @@ public class KafkaClusterTest {
     }
 
     private void createTopic(Admin admin, String topic, short replicationFactor) throws Exception {
-        admin.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
+        Utils.awaitCondition(60, TimeUnit.SECONDS).until(() -> {
+            admin.createTopics(List.of(new NewTopic(topic, 1, replicationFactor))).all().get();
+            return true;
+        });
     }
 
     private void deleteTopic(Admin admin, String topic) throws Exception {
         admin.deleteTopics(List.of(topic)).all().get();
+    }
+
+    private Collection<Node> describeClusterNodes(KafkaCluster cluster) {
+        try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+            return Awaitility.waitAtMost(Duration.ofSeconds(10)).until(() -> admin.describeCluster().nodes().get(2, TimeUnit.SECONDS),
+                    n -> n.size() == cluster.getNumOfBrokers());
+        }
+    }
+
+    private void assertBrokerRefusesConnection(Node n) {
+        try (var ignored = new Socket(n.host(), n.port())) {
+            // If we get this far, the connection has been established, which is unexpected.
+            fail("unexpected successful connection open to broker " + n);
+        }
+        catch (ConnectException e) {
+            // pass - this is the expected "connection refused"
+        }
+        catch (Throwable e) {
+            fail("unexpected exception probing for broker " + n, e);
+        }
     }
 
     @BeforeEach
