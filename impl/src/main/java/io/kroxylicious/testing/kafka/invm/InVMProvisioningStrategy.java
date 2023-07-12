@@ -9,6 +9,8 @@ import java.lang.annotation.Annotation;
 import java.time.Duration;
 import java.util.List;
 
+import org.junit.jupiter.api.TestInfo;
+
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
@@ -35,8 +37,8 @@ public class InVMProvisioningStrategy implements KafkaClusterProvisioningStrateg
     }
 
     @Override
-    public KafkaCluster create(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType) {
-        KafkaClusterConfig config = KafkaClusterConfig.fromConstraints(constraints);
+    public KafkaCluster create(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType, TestInfo testInfo) {
+        KafkaClusterConfig config = KafkaClusterConfig.fromConstraints(constraints, testInfo);
         return new InVMKafkaCluster(config);
     }
 

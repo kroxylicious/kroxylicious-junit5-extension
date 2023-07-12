@@ -9,6 +9,8 @@ import java.lang.annotation.Annotation;
 import java.time.Duration;
 import java.util.List;
 
+import org.junit.jupiter.api.TestInfo;
+
 /**
  * Service interface for provisioning.
  */
@@ -40,11 +42,13 @@ public interface KafkaClusterProvisioningStrategy {
 
     /**
      * Create a {@link KafkaCluster} instance with the given configuration.
-     * @param constraints The constraints.
+     *
+     * @param constraints     The constraints.
      * @param declarationType The subtype.
+     * @param testInfo        Information about the test execution context.
      * @return The created instance.
      */
     KafkaCluster create(List<Annotation> constraints,
-                        Class<? extends KafkaCluster> declarationType);
+                        Class<? extends KafkaCluster> declarationType, TestInfo testInfo);
 
 }

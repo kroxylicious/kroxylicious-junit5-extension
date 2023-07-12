@@ -122,10 +122,12 @@ public class KafkaClusterConfig {
      * Build the cluster constraints from the supplied list of annotations.
      *
      * @param annotations the annotations used to configure the KafkaCluster
+     * @param testInfo information about the test execution context.
      * @return the kafka cluster config
      */
-    public static KafkaClusterConfig fromConstraints(List<Annotation> annotations) {
+    public static KafkaClusterConfig fromConstraints(List<Annotation> annotations, TestInfo testInfo) {
         var builder = builder();
+        builder.testInfo(testInfo);
         builder.brokersNum(1);
         boolean sasl = false;
         boolean tls = false;

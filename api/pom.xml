@@ -24,5 +24,12 @@
     <description>
     Provides the abstract API for a KafkaCluster and meta-annotation for annotations that constrain provided clusters.
     </description>
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
 
 </project>
