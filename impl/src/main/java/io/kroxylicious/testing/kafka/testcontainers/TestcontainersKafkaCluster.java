@@ -16,6 +16,8 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.Temporal;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
@@ -95,6 +97,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
+    private static final DateTimeFormatter CONTAINER_API_DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd_MM_yyyy-HH.mm.ss_O");
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
 
@@ -157,11 +160,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
         this.clusterConfig = clusterConfig;
 
-        this.name = Optional.ofNullable(clusterConfig.getTestInfo())
+        this.name = String.format("%s.%s", Optional.ofNullable(clusterConfig.getTestInfo())
                 .map(TestInfo::getDisplayName)
                 .map(s -> s.replaceFirst("\\(\\)$", ""))
-                .map(s -> String.format("%s.%s", s, OffsetDateTime.now(Clock.systemUTC())))
-                .orElse(null);
+                .orElse("test_instance"), formatDateTime(OffsetDateTime.now(Clock.systemUTC())));
 
         if (this.clusterConfig.isKraftMode()) {
             this.zookeeper = null;
@@ -621,6 +623,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("podman"));
         LOGGER.log(Level.INFO, "Detected container engine as Podman : {0}", hasComponentNamedPodman);
         return hasComponentNamedPodman;
+    }
+
+    @NotNull
+    private static String formatDateTime(Temporal dateTime) {
+        return CONTAINER_API_DATE_TIME_FORMATTER.format(dateTime);
     }
 
     /**
