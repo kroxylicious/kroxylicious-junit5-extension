@@ -107,7 +107,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
-    private final String logDirVolumeName = createNamedVolume();
+    private final String logDirVolumeName;
     private final Network network = Network.newNetwork();
     private final String name;
     private final ZookeeperContainer zookeeper;
@@ -164,6 +164,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .map(TestInfo::getDisplayName)
                 .map(s -> s.replaceFirst("\\(\\)$", ""))
                 .orElse("test_instance"), formatDateTime(OffsetDateTime.now(Clock.systemUTC())));
+
+        logDirVolumeName = this.name + "-logDirVolume";
 
         if (this.clusterConfig.isKraftMode()) {
             this.zookeeper = null;
@@ -284,6 +286,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @SneakyThrows
     public synchronized void start() {
         try {
+            createNamedVolume(logDirVolumeName, getDisplayName());
             if (zookeeper != null) {
                 zookeeper.start();
             }
@@ -579,29 +582,26 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return kc.getDockerClient().inspectContainerCmd(kc.getContainerId());
     }
 
-    @SuppressWarnings({ "try" })
-    private static String createNamedVolume() {
-        var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd();
+    @SuppressWarnings({ "try", "resource" })
+    private static void createNamedVolume(String volumeName, String testName) {
+        var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd().withName(volumeName).withLabels(Map.of("test", testName));
         if (CONTAINER_ENGINE_PODMAN) {
             volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
         }
-        var volumeName = volumeCmd.exec().getName();
+        volumeCmd.exec();
         volumesPendingCleanup.add(volumeName);
         if (!CONTAINER_ENGINE_PODMAN) {
-            // On Docker, use a container to chown the volume.
-            // This is a workaround for https://github.com/moby/moby/issues/45714
-            try (var c = new OneShotContainer()) {
-                c.withName("prepareKafkaVolume")
-                        .addGenericBind(new Bind(volumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
-                        .withCommand("chown", "-R", KAFKA_CONTAINER_UID, KAFKA_CONTAINER_MOUNT_POINT)
-                        .withStartupCheckStrategy(new OneShotStartupCheckStrategy());
-                c.start();
-            }
+            ensurePermissionsForDocker(volumeName);
         }
-        return volumeName;
     }
 
-    @SuppressWarnings({ "try" })
+    private String getDisplayName() {
+        final TestInfo testInfo = this.clusterConfig.getTestInfo();
+        return testInfo != null ? testInfo.getDisplayName() : "__unknown_test__";
+    }
+
+
+    @SuppressWarnings({ "try", "resource" })
     private static void removeNamedVolume(String name) {
         try {
             DockerClientFactory.lazyClient().removeVolumeCmd(name).exec();
@@ -613,6 +613,18 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         catch (Throwable t) {
             LOGGER.log(Level.WARNING, "Failed to remove container volume {0}.", name, t);
             LOGGER.log(Level.WARNING, "Please run `(podman|docker) volume ls` and check for orphaned resources.");
+        }
+    }
+
+    private static void ensurePermissionsForDocker(String volumeName) {
+        // On Docker, use a container to chown the volume.
+        // This is a workaround for https://github.com/moby/moby/issues/45714
+        try (var c = new OneShotContainer()) {
+            c.withName("prepareKafkaVolume")
+                    .addGenericBind(new Bind(volumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
+                    .withCommand("chown", "-R", KAFKA_CONTAINER_UID, KAFKA_CONTAINER_MOUNT_POINT)
+                    .withStartupCheckStrategy(new OneShotStartupCheckStrategy());
+            c.start();
         }
     }
 
