@@ -668,7 +668,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
          * Instantiates a new one-shot container
          */
         public OneShotContainer() {
-            super(DockerImageName.parse("busybox"));
+            super(DockerImageName.parse("registry.access.redhat.com/ubi9/ubi-minimal"));
             this.withStartupCheckStrategy(new OneShotStartupCheckStrategy());
         }
     }
