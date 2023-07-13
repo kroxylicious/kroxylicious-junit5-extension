@@ -165,9 +165,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         this.name = String.format("%s.%s", Optional.ofNullable(clusterConfig.getTestInfo())
                 .map(TestInfo::getDisplayName)
                 .map(s -> s.replaceFirst("\\(\\)$", ""))
-                .orElse("test_instance"), formatDateTime(OffsetDateTime.now(Clock.systemUTC())));
+                .orElse("test_instance"), OffsetDateTime.now(Clock.systemUTC()));
 
-        logDirVolumeName = this.name + "-logDirVolume";
+        logDirVolumeName = generateLogDirName();
 
         if (this.clusterConfig.isKraftMode()) {
             this.zookeeper = null;
@@ -187,6 +187,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
+    }
+
+    /**
+     * The volume name must comply with `[a-zA-Z0-9][a-zA-Z0-9_.-]*`
+     */
+    @NotNull
+    private String generateLogDirName() {
+        return String.format("v-%s-logDir", this.name.replaceAll("[^a-zA-Z0-9_.-]", "_"));
     }
 
     @NotNull
