@@ -51,6 +51,7 @@ import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
 
+import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.NotFoundException;
@@ -587,7 +588,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static void createNamedVolume(String volumeName, String testName) {
         pokeContainerEngine();
 
-        var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd().withName(volumeName).withLabels(Map.of("test", testName));
+        var volumeCmd = getLazyDockerClient().createVolumeCmd().withName(volumeName).withLabels(Map.of("test", testName));
         if (CONTAINER_ENGINE_PODMAN) {
             volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
         }
@@ -600,7 +601,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     /**
      * We have experienced issues where various create commands fail intermittently or at least fail to propagate back to test containers.
-     * Adding this simple "test" message appears to tickle the container engine in just the right way to get things working.
+     * Adding this simple "test" message appears to tickle the container engine in just the right way to get|keep things working.
+     * That is it awakens the sockets and pays any startup penalties.
      */
     @SuppressWarnings("resource")
     private static void pokeContainerEngine() {
@@ -616,16 +618,21 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
     }
 
+    @NotNull
+    private static DockerClient getLazyDockerClient() {
+        pokeContainerEngine();
+        return DockerClientFactory.lazyClient();
+    }
+
     private String getDisplayName() {
         final TestInfo testInfo = this.clusterConfig.getTestInfo();
         return testInfo != null ? testInfo.getDisplayName() : "__unknown_test__";
     }
 
-
     @SuppressWarnings({ "try", "resource" })
     private static void removeNamedVolume(String name) {
         try {
-            DockerClientFactory.lazyClient().removeVolumeCmd(name).exec();
+            getLazyDockerClient().removeVolumeCmd(name).exec();
         }
         catch (NotFoundException ignored) {
             // volume is gone
@@ -650,7 +657,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private static boolean isContainerEnginePodman() {
-        var ver = DockerClientFactory.lazyClient().versionCmd().exec();
+        var ver = getLazyDockerClient().versionCmd().exec();
         var hasComponentNamedPodman = Optional.ofNullable(ver.getComponents()).stream().flatMap(Collection::stream).map(VersionComponent::getName)
                 .filter(Objects::nonNull)
                 .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("podman"));
