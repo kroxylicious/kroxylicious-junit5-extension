@@ -55,6 +55,7 @@ import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Version;
 import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
@@ -584,6 +585,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @SuppressWarnings({ "try", "resource" })
     private static void createNamedVolume(String volumeName, String testName) {
+        pokeContainerEngine();
+
         var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd().withName(volumeName).withLabels(Map.of("test", testName));
         if (CONTAINER_ENGINE_PODMAN) {
             volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
@@ -592,6 +595,24 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         volumesPendingCleanup.add(volumeName);
         if (!CONTAINER_ENGINE_PODMAN) {
             ensurePermissionsForDocker(volumeName);
+        }
+    }
+
+    /**
+     * We have experienced issues where various create commands fail intermittently or at least fail to propagate back to test containers.
+     * Adding this simple "test" message appears to tickle the container engine in just the right way to get things working.
+     */
+    @SuppressWarnings("resource")
+    private static void pokeContainerEngine() {
+        try {
+            var versionCmd = DockerClientFactory.lazyClient().versionCmd();
+            LOGGER.log(Level.DEBUG, "executing: {0}", versionCmd);
+            final Version version = versionCmd.exec();
+            LOGGER.log(Level.DEBUG, "got : {0}", version);
+
+        }
+        catch (RuntimeException re) {
+            LOGGER.log(Level.ERROR, "Dawn gone it, it blowed up: {0}", re);
         }
     }
 
