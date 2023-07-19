@@ -16,13 +16,16 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,16 +42,17 @@ import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
-import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
+import org.testcontainers.dockerclient.DockerClientProviderStrategy;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
 import org.testcontainers.utility.DockerImageName;
 
+import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerCmd;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.NotFoundException;
@@ -146,9 +150,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     /**
      * Instantiates a new Testcontainers kafka cluster.
      *
-     * @param kafkaImage the kafka image
+     * @param kafkaImage     the kafka image
      * @param zookeeperImage the zookeeper image
-     * @param clusterConfig the cluster config
+     * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
         setDefaultKafkaImage(clusterConfig.getKafkaVersion());
@@ -577,32 +581,44 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return kc.getDockerClient().inspectContainerCmd(kc.getContainerId());
     }
 
+    private static DockerClient createDockerClient() {
+        List<DockerClientProviderStrategy> configurationStrategies = new ArrayList<>();
+        ServiceLoader.load(DockerClientProviderStrategy.class).forEach(configurationStrategies::add);
+        DockerClientProviderStrategy firstValidStrategy = DockerClientProviderStrategy.getFirstValidStrategy(configurationStrategies);
+        return firstValidStrategy.getDockerClient();
+    }
+
     @SuppressWarnings({ "try" })
     private static String createNamedVolume() {
-        var volumeCmd = DockerClientFactory.lazyClient().createVolumeCmd();
-        if (CONTAINER_ENGINE_PODMAN) {
-            volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
-        }
-        var volumeName = volumeCmd.exec().getName();
-        volumesPendingCleanup.add(volumeName);
-        if (!CONTAINER_ENGINE_PODMAN) {
-            // On Docker, use a container to chown the volume.
-            // This is a workaround for https://github.com/moby/moby/issues/45714
-            try (var c = new OneShotContainer()) {
-                c.withName("prepareKafkaVolume")
-                        .addGenericBind(new Bind(volumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
-                        .withCommand("chown", "-R", KAFKA_CONTAINER_UID, KAFKA_CONTAINER_MOUNT_POINT)
-                        .withStartupCheckStrategy(new OneShotStartupCheckStrategy());
-                c.start();
+        try (DockerClient dockerClient = createDockerClient()) {
+            var volumeCmd = dockerClient.createVolumeCmd();
+            if (CONTAINER_ENGINE_PODMAN) {
+                volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
             }
+            var volumeName = volumeCmd.exec().getName();
+            volumesPendingCleanup.add(volumeName);
+            if (!CONTAINER_ENGINE_PODMAN) {
+                // On Docker, use a container to chown the volume.
+                // This is a workaround for https://github.com/moby/moby/issues/45714
+                try (var c = new OneShotContainer()) {
+                    c.withName("prepareKafkaVolume")
+                            .addGenericBind(new Bind(volumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
+                            .withCommand("chown", "-R", KAFKA_CONTAINER_UID, KAFKA_CONTAINER_MOUNT_POINT)
+                            .withStartupCheckStrategy(new OneShotStartupCheckStrategy());
+                    c.start();
+                }
+            }
+            return volumeName;
         }
-        return volumeName;
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @SuppressWarnings({ "try" })
     private static void removeNamedVolume(String name) {
-        try {
-            DockerClientFactory.lazyClient().removeVolumeCmd(name).exec();
+        try (DockerClient dockerClient = createDockerClient()) {
+            dockerClient.removeVolumeCmd(name).exec();
         }
         catch (NotFoundException ignored) {
             // volume is gone
@@ -615,12 +631,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private static boolean isContainerEnginePodman() {
-        var ver = DockerClientFactory.lazyClient().versionCmd().exec();
-        var hasComponentNamedPodman = Optional.ofNullable(ver.getComponents()).stream().flatMap(Collection::stream).map(VersionComponent::getName)
-                .filter(Objects::nonNull)
-                .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("podman"));
-        LOGGER.log(Level.INFO, "Detected container engine as Podman : {0}", hasComponentNamedPodman);
-        return hasComponentNamedPodman;
+        try (DockerClient dockerClient = createDockerClient()) {
+            var ver = dockerClient.versionCmd().exec();
+            var hasComponentNamedPodman = Optional.ofNullable(ver.getComponents()).stream().flatMap(Collection::stream).map(VersionComponent::getName)
+                    .filter(Objects::nonNull)
+                    .map(s -> s.toLowerCase(Locale.ROOT)).anyMatch(n -> n.contains("podman"));
+            LOGGER.log(Level.INFO, "Detected container engine as Podman : {0}", hasComponentNamedPodman);
+            return hasComponentNamedPodman;
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -669,6 +690,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
          */
         public OneShotContainer() {
             super(DockerImageName.parse("registry.access.redhat.com/ubi9/ubi-minimal"));
+            this.withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS);
             this.withStartupCheckStrategy(new OneShotStartupCheckStrategy());
         }
     }
@@ -676,7 +698,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     /**
      * The type Logging generic container.
      *
-     * @param <C>  the type parameter
+     * @param <C> the type parameter
      */
     public static class LoggingGenericContainer<C extends GenericContainer<C>>
             extends GenericContainer<C> {
