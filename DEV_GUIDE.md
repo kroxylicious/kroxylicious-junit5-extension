@@ -8,6 +8,8 @@ This document gives a detailed breakdown of the various build processes and opti
 - [`mvn`](https://maven.apache.org/index.html) (version 3.5 and above) - Maven CLI
 - [`docker`](https://docs.docker.com/install/) or [`podman`](https://podman.io/docs/installation) - Docker or Podman
 
+> :warning: **If you are using Podman please see the notes below**
+> 
 ## JDK target
 
 The project targets language Java level 17.
@@ -53,5 +55,48 @@ Run the following command to format the source code and organize the imports as 
 $ mvn process-sources
 ```
 
+## Running Integration Tests on Podman
 
+There is an incompatibility between HTTP connection timeout expectations of 
+[testcontainers-java](https://github.com/testcontainers/testcontainers-java) and the Podman API. This
+can result in sporadic test failures when running the Integration Tests under Podman.  It manifests as
+failed or hanging REST API calls that lead to test failures and test hangs.
+
+It affects Linux and Mac OS X.
+
+To workaround around the issue, turn off the `service_timeout` by following these instructions.
+
+### MacOS X
+
+Start the `podman` machine as normal, then:
+
+```shell
+echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf' |  podman machine ssh --username root --
+```
+
+### Linux
+
+As a privileged user:
+
+```shell
+mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf
+```
+
+### Verify that the fix is effective
+
+Start this command:
+```shell
+socat - UNIX-CONNECT:/var/run/docker.sock
+```
+
+send this input (including the empty line):
+```
+GET /version HTTP/1.1
+Host: www.example.com
+
+```
+
+You'll see an API response.  If the service_timeout change is effective, the connection
+will stay open indefinitely.  If `socat` terminates after about 10seconds, the workaround
+has been applied ineffectively.
 
