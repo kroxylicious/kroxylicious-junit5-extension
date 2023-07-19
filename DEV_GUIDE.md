@@ -2,11 +2,11 @@
 
 This document gives a detailed breakdown of the various build processes and options for building the Kroxylicious Junit5 Extension from source.
 
-## Build Pre-Requisites
+## Build Prerequisites
 
 - [JDK](https://openjdk.org/projects/jdk/17/) (version 17 and above) - Maven CLI
 - [`mvn`](https://maven.apache.org/index.html) (version 3.5 and above) - Maven CLI
-- [`docker`](https://docs.docker.com/install/) or [`podman](https://podman.io/docs/installation) - Docker or Podman
+- [`docker`](https://docs.docker.com/install/) or [`podman`](https://podman.io/docs/installation) - Docker or Podman
 
 ## JDK target
 
@@ -16,7 +16,7 @@ The project targets language Java level 17.
 
 Build the project like this:
 
-```bash
+```shell
 $ mvn clean install
 ```
 
@@ -41,15 +41,15 @@ the `container.logs.dir`  system property. When run through Maven this is defaul
 
 Pass the `-Dquick` option to skip all tests and non-essential plug-ins and create the output artifact as quickly as possible:
 
-```bash
+```shell
 $ mvn clean verify -Dquick
 ```
 
-### Formatting
+### Code Formatting
 
 Run the following command to format the source code and organize the imports as per the project's conventions:
 
-```bash
+```shell
 $ mvn process-sources
 ```
 
