@@ -59,12 +59,16 @@ which doesn't fit our conventions.
 
 ## Running Integration Tests on Podman
 
-It maybe necessary to configure the `DOCKER_HOST` environment variable to allow the tests to correctly use test containers.
+### DOCKER_HOST environment variable
+
+On Linux, it maybe necessary to configure the `DOCKER_HOST` environment variable to allow the tests to correctly use test containers.
 
 ```bash
 DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
 export DOCKER_HOST
 ```
+
+### Podman/Testcontainers incompatibility
 
 There is an incompatibility between HTTP connection timeout expectations of 
 [testcontainers-java](https://github.com/testcontainers/testcontainers-java) and the Podman API. This
@@ -81,7 +85,7 @@ To workaround around the issue, turn off the `service_timeout` by following thes
 Start the `podman` machine as normal, then:
 
 ```shell
-echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf' |  podman machine ssh --username root --
+echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf' && systemctl restart podman.socket |  podman machine ssh --username root --
 ```
 
 ### Linux
@@ -89,24 +93,27 @@ echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_ti
 As a privileged user:
 
 ```shell
-mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf
+mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf && systemctl restart podman.socket
 ```
 
 ### Verify that the fix is effective
 
-Start this command:
+On Linux, start this command:
 ```shell
 socat - UNIX-CONNECT:$(podman info --format '{{.Host.RemoteSocket.Path}}')
 ```
-
-send this input (including the empty line):
+On Mac OSX, Start this command:
+```shell
+time socat - UNIX-CONNECT:/var/run/docker.sock
+```
+the send this input (including the empty line):
 ```
 GET /version HTTP/1.1
 Host: www.example.com
 
 ```
 
-You'll see an API response.  If the service_timeout change is effective, the connection
-will stay open indefinitely.  If `socat` terminates after about 10seconds, the workaround
+You'll see an API response.  If the service_timeout change is effective, the socat
+will continue indefinitely.  If `socat` terminates after about 10 seconds, the workaround
 has been applied ineffectively.
 
