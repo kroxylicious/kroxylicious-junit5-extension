@@ -58,12 +58,14 @@ We suggest doing this before opening a Pull Request as the build actions will fa
 which doesn't fit our conventions.
 
 ## Running Integration Tests on Podman
+
 It maybe necessary to configure the `DOCKER_HOST` environment variable to allow the tests to correctly use test containers.
 
 ```bash
-DOCKER_HOST=unix://$( podman info --format '{{.Host.RemoteSocket.Path}}')
+DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
 export DOCKER_HOST
 ```
+
 There is an incompatibility between HTTP connection timeout expectations of 
 [testcontainers-java](https://github.com/testcontainers/testcontainers-java) and the Podman API. This
 can result in sporadic test failures when running the Integration Tests under Podman.  It manifests as
@@ -94,7 +96,7 @@ mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=
 
 Start this command:
 ```shell
-socat - UNIX-CONNECT:/var/run/docker.sock
+socat - UNIX-CONNECT:$(podman info --format '{{.Host.RemoteSocket.Path}}')
 ```
 
 send this input (including the empty line):
