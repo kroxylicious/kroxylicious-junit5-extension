@@ -49,11 +49,13 @@ $ mvn clean verify -Dquick
 
 ### Code Formatting
 
-Run the following command to format the source code and organize the imports as per the project's conventions:
+Run the following command to format the source code and organize the imports as per the project's conventions.
 
 ```shell
 $ mvn process-sources
 ```
+We suggest doing this before opening a Pull Request as the build actions will fail the build for formatting
+which doesn't fit our conventions.
 
 ## Running Integration Tests on Podman
 
