@@ -78,14 +78,18 @@ failed or hanging REST API calls that lead to test failures and test hangs.
 It affects Linux and Mac OS X.
 On Linux it manifests as Http calls failing with a `Broken Pipe` exception. 
 Similarly on MacOS we see a `localhost:XXX failed to respond`.
-To workaround around the issue, turn off the `service_timeout` by following these instructions.
+
+To workaround around the issue, tune the `service_timeout` so that the timeout is in sympathy with the
+expectations of the underlying HttpClient defaults.
+
+Do so by following these instructions.
 
 ### MacOS X
 
 Start the `podman` machine as normal, then:
 
 ```shell
-echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf' && systemctl restart podman.socket |  podman machine ssh --username root --
+echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=91\n" > /etc/containers/containers.conf.d/service-timeout.conf' && systemctl restart podman.socket |  podman machine ssh --username root --
 ```
 
 ### Linux
@@ -93,7 +97,7 @@ echo 'mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_ti
 As a privileged user:
 
 ```shell
-mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=0\n" > /etc/containers/containers.conf.d/service-timeout.conf && systemctl restart podman.socket
+mkdir -p /etc/containers/containers.conf.d && printf "[engine]\nservice_timeout=91\n" > /etc/containers/containers.conf.d/service-timeout.conf && systemctl restart podman.socket
 ```
 
 ### Verify that the fix is effective
