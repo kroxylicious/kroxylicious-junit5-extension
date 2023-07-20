@@ -63,7 +63,8 @@ can result in sporadic test failures when running the Integration Tests under Po
 failed or hanging REST API calls that lead to test failures and test hangs.
 
 It affects Linux and Mac OS X.
-
+On Linux it manifests as Http calls failing with a `Broken Pipe` exception. 
+Similarly on MacOS we see a `localhost:XXX failed to respond`.
 To workaround around the issue, turn off the `service_timeout` by following these instructions.
 
 ### MacOS X
