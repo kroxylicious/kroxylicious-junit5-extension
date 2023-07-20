@@ -4,21 +4,22 @@ This document gives a detailed breakdown of the various build processes and opti
 
 ## Build Prerequisites
 
-- [JDK](https://openjdk.org/projects/jdk/17/) (version 17 and above) - Maven CLI
+- [JDK](https://openjdk.org/projects/jdk/17/) (version 20 and above) - Maven CLI
 - [`mvn`](https://maven.apache.org/index.html) (version 3.5 and above) - Maven CLI
 - [`docker`](https://docs.docker.com/install/) or [`podman`](https://podman.io/docs/installation) - Docker or Podman
 
 > :warning: **If you are using Podman please see the notes below**
-> 
-## JDK target
 
-The project targets language Java level 17.
+## Build
 
-## Building / Running the Tests
+JDK version 20 or newer, and Apache Maven are required for building this project.
+
+Kroxylicious targets language level 17, except for the `integrationtests` module
+which targets 20 to access some new language features.
 
 Build the project like this:
 
-```shell
+```
 $ mvn clean install
 ```
 
@@ -43,19 +44,97 @@ the `container.logs.dir`  system property. When run through Maven this is defaul
 
 Pass the `-Dquick` option to skip all tests and non-essential plug-ins and create the output artifact as quickly as possible:
 
-```shell
+```
 $ mvn clean verify -Dquick
 ```
 
-### Code Formatting
+Run the following command to format the source code and organize the imports as per the project's conventions:
 
-Run the following command to format the source code and organize the imports as per the project's conventions.
-
-```shell
+```
 $ mvn process-sources
 ```
-We suggest doing this before opening a Pull Request as the build actions will fail the build for formatting
-which doesn't fit our conventions.
+
+Build with the `dist` profile for creating an executable JAR:
+
+```
+$ mvn clean verify -Pdist -Dquick
+```
+
+Run the following to add missing license headers e.g. when adding new source files:
+
+```
+$ mvn org.commonjava.maven.plugins:directory-maven-plugin:highest-basedir@resolve-rootdir license:format
+```
+
+### Formatting
+No one likes to argue about code formatting in pull requests, as project we take the stance that if we can't automate the formatting we are not going to argue about it either. Having said that we don't want a mishmash of conflicting styles! So we attack this from multiple angles.
+
+1. Shared Code formatter settings. Included in the repo are code formatter settings for `Eclipse`, `InjtellJ` and `.editorconfig`.
+2. The Continuous Integration (CI) job building Pull Requests will fail if there is formatting which doesn't pass our agreed conventions
+3. We apply [Checkstyle](https://checkstyle.org/) validation to the project as well. You can find our [agreed ruleset](etc/checkstyle-custom_checks.xml) in the `etc` folder. We bind checkstyle to the `verify` phase of the build so `mvn clean verify` will validate the code is acceptable. 
+4. We also employ [impsort-maven-plugin](https://code.revelc.net/impsort-maven-plugin/) to keep import order consistent which will re-order imports as part of the maven build.
+5. We also have [formatter-maven-plugin](https://code.revelc.net/formatter-maven-plugin/) which will apply the project code style rules, this is driven from the Eclipse code formatter, as part of the maven build cycle.
+
+## Run
+
+### Run natively
+
+Build with the `dist` profile as shown above, then execute this:
+
+```
+$ java -jar kroxylicious/target/kroxylicious-*-SNAPSHOT.jar --config {path-to-kroxylicious-config}
+```
+
+Or, to run with your own class path, run this instead:
+
+```
+$ java -cp {path-to-your-class-path}:kroxylicious/target/kroxylicious-*-SNAPSHOT.jar io.kroxylicious.proxy.Kroxylicious --config {path-to-kroxylicious-config}
+```
+
+To prevent the [following error](https://www.slf4j.org/codes.html#StaticLoggerBinder):
+
+```
+Failed to load class org.slf4j.impl.StaticLoggerBinder
+```
+
+Make sure to follow the [suggestions here](https://www.slf4j.org/codes.html#StaticLoggerBinder) to include one (and only one) of the suggested jars on the classpath.
+
+#### Debugging
+Logging is turned off by default for better performance. In case you want to debug, logging should be turned on in the `example-proxy-config.yml` file:
+```yaml
+  logNetwork: true
+  logFrames: true
+```
+
+### Run on Minikube
+
+Kroxylicious can be containerised and run on Minikube against a [Strimzi](https://strimzi.io) managed Kafka cluster.
+
+**Prerequisites**
+* User must have a [quay.io](https://www.quay.io) account and create a public repository named `kroxylicious`
+* Minikube [installed](https://minikube.sigs.k8s.io/docs/start)
+* kubectl [installed](https://kubernetes.io/docs/tasks/tools)
+* kustomize [installed](https://kubectl.docs.kubernetes.io/installation/kustomize/)
+* OSX users must have `gsed` [installed](https://formulae.brew.sh/formula/gnu-sed)
+* Docker engine [installed](https://docs.docker.com/engine/install) or [podman](https://podman.io/docs/installation) 
+
+Running:
+
+```bash
+minikube delete && QUAY_ORG=$your_quay_username$ ./scripts/run-with-strimzi.sh $kubernetes example directory$
+```
+where `$kubernetes example directory$` is replaced by a path to an example directory e.g. `./kubernetes-examples/portperbroker_plain`.
+
+This `run-with-strimzi.sh` script does the following:
+1. builds and pushes a kroxylicious image to quay.io
+2. starts minikube
+3. installs cert manager and strimzi
+4. installs a 3-node Kafka cluster using Strimzi into minikube
+5. installs kroxylicious into minikube, configured to proxy the cluster
+
+If you want to only build and push an image to quay.io you can run `PUSH_IMAGE=y QUAY_ORG=$your_quay_username$ ./scripts/deploy-image.sh`
+
+To change the container engine to podman set `CONTAINER_ENGINE=podman`
 
 ## Running Integration Tests on Podman
 
