@@ -2,13 +2,27 @@
 
 This document gives a detailed breakdown of the various build processes and options for building the Kroxylicious Junit5 Extension from source.
 
+<!-- TOC -->
+* [Development Guide for Kroxylicious Junit5 Extension](#development-guide-for-kroxylicious-junit5-extension)
+  * [Build Prerequisites](#build-prerequisites)
+  * [JDK target](#jdk-target)
+  * [Building / Running the Tests](#building--running-the-tests)
+    * [Code Formatting](#code-formatting)
+  * [Running Integration Tests on Podman](#running-integration-tests-on-podman)
+    * [DOCKER_HOST environment variable](#dockerhost-environment-variable)
+    * [Podman/Testcontainers incompatibility](#podmantestcontainers-incompatibility)
+    * [MacOS X](#macos-x)
+    * [Linux](#linux)
+    * [Verify that the fix is effective](#verify-that-the-fix-is-effective)
+<!-- TOC -->
+
 ## Build Prerequisites
 
 - [JDK](https://openjdk.org/projects/jdk/17/) (version 17 and above) - Maven CLI
 - [`mvn`](https://maven.apache.org/index.html) (version 3.5 and above) - Maven CLI
 - [`docker`](https://docs.docker.com/install/) or [`podman`](https://podman.io/docs/installation) - Docker or Podman
 
-> :warning: **If you are using Podman please see the notes below**
+> :warning: **If you are using Podman please see [the notes](#running-integration-tests-on-podman) below**
 > 
 ## JDK target
 
@@ -73,7 +87,7 @@ export DOCKER_HOST
 There is an incompatibility between HTTP connection timeout expectations of 
 [testcontainers-java](https://github.com/testcontainers/testcontainers-java) and the Podman API. This
 can result in sporadic test failures when running the Integration Tests under Podman.  It manifests as
-failed or hanging REST API calls that lead to test failures and test hangs.
+failed or hanging REST API calls that leads to test failures and test hangs.
 
 It affects Linux and Mac OS X.
 On Linux it manifests as Http calls failing with a `Broken Pipe` exception. 
@@ -118,6 +132,6 @@ Host: www.example.com
 ```
 
 You'll see an API response.  If the service_timeout change is effective, the socat
-will continue indefinitely.  If `socat` terminates after about 10 seconds, the workaround
+will continue for three minutes.  If `socat` terminates after about 10 seconds, the workaround
 has been applied ineffectively.
 
