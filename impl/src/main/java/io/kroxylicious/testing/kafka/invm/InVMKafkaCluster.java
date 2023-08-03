@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
@@ -90,6 +91,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        trapKafkaSystemExit();
     }
 
     @NotNull
@@ -427,4 +429,13 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         var port = portsAllocator.getPort(listener, nodeId);
         return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
     }
+
+    private static void trapKafkaSystemExit() {
+        Exit.setExitProcedure((statusCode, message) -> {
+            LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Dumping stack to trace whats at fault",
+                    statusCode, message, new IllegalStateException(message));
+            System.out.println("Avoiding shutdown  with code: " + statusCode + " and message: " + message);
+        });
+    }
+
 }
