@@ -20,11 +20,15 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -328,7 +332,15 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 .filter(e -> !stoppedServers.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        roleOrderedShutdown(kafkaServersToStop, true);
+        try {
+            roleOrderedShutdown(kafkaServersToStop).get(20, TimeUnit.SECONDS);
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        catch (ExecutionException | TimeoutException e) {
+            throw new RuntimeException(e);
+        }
 
         stoppedServers.addAll(kafkaServersToStop.keySet());
     }
@@ -352,49 +364,61 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     @SuppressWarnings("ResultOfMethodCallIgnored")
     @Override
     public synchronized void close() throws Exception {
-        try {
-            try {
-                roleOrderedShutdown(servers, false);
-            }
-            finally {
-                if (zooServer != null) {
-                    zooServer.shutdown(true);
-                }
-            }
-        }
-        finally {
-            if (tempDirectory.toFile().exists()) {
-                try (var ps = Files.walk(tempDirectory);
-                        var s = ps
-                                .sorted(Comparator.reverseOrder())
-                                .map(Path::toFile)) {
-                    s.forEach(File::delete);
-                }
-            }
-        }
+        roleOrderedShutdown(servers)
+                .whenComplete((unused, throwable) -> {
+                    if (throwable != null) {
+                        LOGGER.log(System.Logger.Level.ERROR, "error while shutting down kafka", throwable);
+                    }
+                    if (zooServer != null) {
+                        zooServer.shutdown(true);
+                    }
+                })
+                .whenComplete((unused, throwable) -> {
+                    if (throwable != null) {
+                        LOGGER.log(System.Logger.Level.ERROR, "error while shutting down zookeeper", throwable);
+                    }
+                    try {
+                        if (tempDirectory.toFile().exists()) {
+                            try (var ps = Files.walk(tempDirectory);
+                                    var s = ps
+                                            .sorted(Comparator.reverseOrder())
+                                            .map(Path::toFile)) {
+                                s.forEach(File::delete);
+                            }
+                        }
+                    }
+                    catch (IOException e) {
+                        LOGGER.log(System.Logger.Level.ERROR, "error while deleting temp files", throwable);
+                        throw new RuntimeException(e);
+                    }
+                });
     }
 
     /**
      * Workaround for <a href="https://issues.apache.org/jira/browse/KAFKA-14287">KAFKA-14287</a>.
      * with kraft, if we don't shut down the controller last, we sometimes see a hang.
      */
-    private void roleOrderedShutdown(Map<Integer, Server> servers, boolean await) {
+    private CompletableFuture<Void> roleOrderedShutdown(Map<Integer, Server> servers) {
         var justBrokers = servers.entrySet().stream()
                 .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
                 .map(Map.Entry::getValue)
                 .toList();
-        justBrokers.forEach(Server::shutdown);
-        if (await) {
-            justBrokers.forEach(Server::awaitShutdown);
-        }
 
         var controllers = servers.entrySet().stream()
                 .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
                 .map(Map.Entry::getValue).toList();
-        controllers.forEach(Server::shutdown);
-        if (await) {
-            controllers.forEach(Server::awaitShutdown);
-        }
+
+        return shutdownAll(justBrokers).thenCompose(unused -> shutdownAll(controllers));
+    }
+
+    private CompletableFuture<Void> shutdownAll(List<Server> justBrokers) {
+        CompletableFuture[] array = justBrokers.stream().map(this::shutdown).toArray(CompletableFuture[]::new);
+        return CompletableFuture.allOf(array);
+    }
+
+    private CompletableFuture<Void> shutdown(Server server) {
+        server.shutdown();
+        return CompletableFuture.runAsync(server::awaitShutdown);
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
