@@ -60,7 +60,8 @@ import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_V
 public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final PrintStream LOGGING_PRINT_STREAM = LoggingPrintStream.loggingPrintStream(LOGGER, System.Logger.Level.DEBUG);
-    private static final int STARTUP_TIMEOUT = 30;
+    private static final int STARTUP_TIMEOUT_SECONDS = 30;
+    private static final int TEARDOWN_TIMEOUT_SECONDS = 30;
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;
@@ -190,7 +191,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     private void tryToStartServerWithRetry(KafkaClusterConfig.ConfigHolder configHolder, Server server) {
-        Utils.awaitCondition(STARTUP_TIMEOUT, TimeUnit.SECONDS)
+        Utils.awaitCondition(STARTUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .until(() -> {
                     // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                     try {
@@ -333,7 +334,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         try {
-            roleOrderedShutdown(kafkaServersToStop).get(20, TimeUnit.SECONDS);
+            roleOrderedShutdown(kafkaServersToStop).get(TEARDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -391,7 +392,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                         LOGGER.log(System.Logger.Level.ERROR, "error while deleting temp files", throwable);
                         throw new RuntimeException(e);
                     }
-                });
+                }).get(TEARDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     /**
