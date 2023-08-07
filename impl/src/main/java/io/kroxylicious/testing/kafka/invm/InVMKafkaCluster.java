@@ -96,10 +96,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     private static void exitHandler(int statusCode, String message) {
         final IllegalStateException illegalStateException = new IllegalStateException(message);
-        System.out.println("Kafka tried to exit with statusCode: " + statusCode + " and message: " + message);
-        System.out.println("Stack to trace the call");
-        illegalStateException.printStackTrace(System.out);
-        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Dumping stack to trace whats at fault",
+        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Including stacktrace to determine whats at fault",
                 statusCode, message, illegalStateException);
     }
 
