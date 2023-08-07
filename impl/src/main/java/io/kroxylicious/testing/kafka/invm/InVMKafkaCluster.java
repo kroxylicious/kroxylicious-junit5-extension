@@ -30,6 +30,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
@@ -90,6 +91,13 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        trapKafkaSystemExit();
+    }
+
+    private static void exitHandler(int statusCode, String message) {
+        final IllegalStateException illegalStateException = new IllegalStateException(message);
+        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Including stacktrace to determine whats at fault",
+                statusCode, message, illegalStateException);
     }
 
     @NotNull
@@ -328,7 +336,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 .filter(e -> !stoppedServers.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        roleOrderedShutdown(kafkaServersToStop, true);
+        roleOrderedShutdown(kafkaServersToStop);
 
         stoppedServers.addAll(kafkaServersToStop.keySet());
     }
@@ -354,7 +362,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     public synchronized void close() throws Exception {
         try {
             try {
-                roleOrderedShutdown(servers, false);
+                roleOrderedShutdown(servers);
             }
             finally {
                 if (zooServer != null) {
@@ -378,23 +386,20 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      * Workaround for <a href="https://issues.apache.org/jira/browse/KAFKA-14287">KAFKA-14287</a>.
      * with kraft, if we don't shut down the controller last, we sometimes see a hang.
      */
-    private void roleOrderedShutdown(Map<Integer, Server> servers, boolean await) {
-        var justBrokers = servers.entrySet().stream()
-                .filter(e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
-                .map(Map.Entry::getValue)
-                .toList();
-        justBrokers.forEach(Server::shutdown);
-        if (await) {
-            justBrokers.forEach(Server::awaitShutdown);
-        }
+    private void roleOrderedShutdown(Map<Integer, Server> servers) {
+        // Shutdown servers without a controller port first.
+        shutdownServers(servers, e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()));
+        shutdownServers(servers, e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()));
+    }
 
-        var controllers = servers.entrySet().stream()
-                .filter(e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()))
-                .map(Map.Entry::getValue).toList();
-        controllers.forEach(Server::shutdown);
-        if (await) {
-            controllers.forEach(Server::awaitShutdown);
-        }
+    @SuppressWarnings("java:S3864") // Stream.peek is being used with caution.
+    private void shutdownServers(Map<Integer, Server> servers, Predicate<Map.Entry<Integer, Server>> entryPredicate) {
+        var matchingServers = servers.entrySet().stream()
+                .filter(entryPredicate)
+                .map(Map.Entry::getValue)
+                .peek(Server::shutdown)
+                .toList();
+        matchingServers.forEach(Server::awaitShutdown);
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -427,4 +432,10 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         var port = portsAllocator.getPort(listener, nodeId);
         return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
     }
+
+    private static void trapKafkaSystemExit() {
+        Exit.setExitProcedure(InVMKafkaCluster::exitHandler);
+        Exit.setHaltProcedure(InVMKafkaCluster::exitHandler);
+    }
+
 }
