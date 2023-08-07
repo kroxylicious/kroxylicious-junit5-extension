@@ -89,7 +89,7 @@
         <lombok.version>1.18.28</lombok.version>
         <assertj-core.version>3.24.2</assertj-core.version>
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
-        <zookeeper.version>3.8.2</zookeeper.version>
+        <zookeeper.version>3.9.0</zookeeper.version>
         <log4j.version>2.20.0</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
         <annotations.version>24.0.1</annotations.version>
