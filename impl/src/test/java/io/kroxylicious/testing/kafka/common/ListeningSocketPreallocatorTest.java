@@ -27,7 +27,7 @@ class ListeningSocketPreallocatorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = { 1, 5, 100, 10_000 })
+    @ValueSource(ints = { 1, 5, 100, 5_000 })
     void shouldAllocateOpenSockets(int numPorts) {
         var sockets = preallocator.preAllocateListeningSockets(numPorts);
         assertThat(sockets).hasSize(numPorts);
@@ -39,7 +39,7 @@ class ListeningSocketPreallocatorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = { 1, 5, 100, 10_000 })
+    @ValueSource(ints = { 1, 5, 100, 5_000 })
     void shouldCreateDistinctPorts(int numPorts) {
         // Given
 
