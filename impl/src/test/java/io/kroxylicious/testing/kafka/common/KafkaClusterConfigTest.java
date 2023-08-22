@@ -39,11 +39,59 @@ class KafkaClusterConfigTest {
         final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
 
         // Then
-        assertThat(config.getBrokerNum()).isEqualTo(0);
+        assertThat(config.getBrokerNum()).isZero();
         assertThat(config.getAnonPort()).isEqualTo(ANON_BASE_PORT);
         assertThat(config.getExternalPort()).isEqualTo(CLIENT_BASE_PORT);
         assertThat(config.getEndpoint()).isEqualTo("localhost:" + CLIENT_BASE_PORT);
         assertThat(config.getProperties()).containsEntry("node.id", "0");
+    }
+
+    @Test
+    void shouldConfigureMultipleControllersInCombinedMode() {
+        //Given
+        var numBrokers = 3;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(3).brokersNum(numBrokers).build();
+
+        //When
+        for (int nodeId = 0; nodeId < numBrokers; nodeId++) {
+            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker,controller");
+        }
+    }
+
+    @Test
+    void shouldConfigureMultipleControllersInControllerOnlyMode() {
+        //Given
+        var numBrokers = 1;
+        var numControllers = 3;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+
+        //When
+        assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
+
+        for (int nodeId = 1; nodeId < numControllers; nodeId++) {
+            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "controller");
+        }
+    }
+
+    @Test
+    void shouldConfigureSingleControllersInCombinedMode() {
+        //Given
+        var numBrokers = 3;
+        var numControllers = 1;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+
+        //When
+        assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
+
+        for (int nodeId = 1; nodeId < numBrokers; nodeId++) {
+            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker");
+        }
+    }
+
+    private void assertNodeIdHasRole(KafkaClusterConfig kafkaClusterConfig, int nodeId, String expectedRole) {
+        final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, nodeId);
+        assertThat(config.getProperties()).extracting(brokerConfig -> brokerConfig.get("process.roles")).as("nodeId: %s to have process.roles", nodeId).isEqualTo(
+                expectedRole);
     }
 
     static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {

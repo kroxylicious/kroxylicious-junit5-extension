@@ -195,6 +195,7 @@ public class KafkaClusterConfig {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
         for (int brokerNum = 0; brokerNum < brokersNum; brokerNum++) {
+
             final ConfigHolder brokerConfigHolder = generateConfigForSpecificNode(kafkaEndpoints, brokerNum);
             properties.add(brokerConfigHolder);
         }
@@ -211,10 +212,10 @@ public class KafkaClusterConfig {
      */
     @NotNull
     public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
-        Properties server = new Properties();
-        server.putAll(brokerConfigs);
+        Properties nodeConfiguration = new Properties();
+        nodeConfiguration.putAll(brokerConfigs);
 
-        putConfig(server, "broker.id", Integer.toString(nodeId));
+        putConfig(nodeConfiguration, "broker.id", Integer.toString(nodeId));
 
         var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
         var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
@@ -234,38 +235,38 @@ public class KafkaClusterConfig {
 
         configureExternalListener(protocolMap, externalListenerTransport, listeners, clientEndpoint, advertisedListeners);
         configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
-        configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, server);
+        configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
 
         if (isKraftMode()) {
-            configureKraftNode(kafkaEndpoints, nodeId, server, protocolMap, listeners, earlyStart);
+            configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, earlyStart);
         }
         else {
-            configureLegacyNode(kafkaEndpoints, server);
+            configureLegacyNode(kafkaEndpoints, nodeConfiguration);
         }
 
-        putConfig(server, "listener.security.protocol.map",
+        putConfig(nodeConfiguration, "listener.security.protocol.map",
                 protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-        putConfig(server, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-        putConfig(server, "advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-        putConfig(server, "early.start.listeners", earlyStart.stream().map(Object::toString).collect(Collectors.joining(",")));
+        putConfig(nodeConfiguration, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+        putConfig(nodeConfiguration, "advertised.listeners", advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+        putConfig(nodeConfiguration, "early.start.listeners", earlyStart.stream().map(Object::toString).collect(Collectors.joining(",")));
 
-        configureSasl(server);
-        configureTls(clientEndpoint, server);
+        configureSasl(nodeConfiguration);
+        configureTls(clientEndpoint, nodeConfiguration);
 
-        putConfig(server, "offsets.topic.replication.factor", ONE_CONFIG);
+        putConfig(nodeConfiguration, "offsets.topic.replication.factor", ONE_CONFIG);
         // 1 partition for the __consumer_offsets_ topic should be enough
-        putConfig(server, "offsets.topic.num.partitions", ONE_CONFIG);
+        putConfig(nodeConfiguration, "offsets.topic.num.partitions", ONE_CONFIG);
         // 1 partition for the __transaction_state_ topic should be enough
-        putConfig(server, "transaction.state.log.replication.factor", ONE_CONFIG);
-        putConfig(server, "transaction.state.log.min.isr", ONE_CONFIG);
+        putConfig(nodeConfiguration, "transaction.state.log.replication.factor", ONE_CONFIG);
+        putConfig(nodeConfiguration, "transaction.state.log.min.isr", ONE_CONFIG);
         // Disable delay during every re-balance
-        putConfig(server, "group.initial.rebalance.delay.ms", Integer.toString(0));
+        putConfig(nodeConfiguration, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
         // The test harness doesn't rely upon Kafka JMX metrics (and probably won't because JMX isn't supported by
         // the kafka native). Registering/Unregistering the mbeans is time-consuming so we disable it.
-        putConfig(server, "metrics.jmx.exclude", ".*");
+        putConfig(nodeConfiguration, "metrics.jmx.exclude", ".*");
 
-        return new ConfigHolder(server, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
+        return new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
                 clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
     }
 
@@ -353,26 +354,32 @@ public class KafkaClusterConfig {
         putConfig(server, KafkaConfig.ZkSessionTimeoutMsProp(), Long.toString(6000));
     }
 
-    private void configureKraftNode(KafkaEndpoints kafkaEndpoints, int nodeId, Properties server, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
-                           TreeSet<String> earlyStart) {
-        putConfig(server, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
+    private void configureKraftNode(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
+                                    TreeSet<String> earlyStart) {
+        putConfig(nodeConfiguration, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
 
         var quorumVoters = IntStream.range(0, kraftControllers)
                 .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, controllerId).connectAddress()))
                 .collect(Collectors.joining(","));
-        putConfig(server, "controller.quorum.voters", quorumVoters);
-        putConfig(server, "controller.listener.names", CONTROLLER_LISTENER_NAME);
+        putConfig(nodeConfiguration, "controller.quorum.voters", quorumVoters);
+        putConfig(nodeConfiguration, "controller.listener.names", CONTROLLER_LISTENER_NAME);
         protocolMap.put(CONTROLLER_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
 
-        if (nodeId == 0) {
+        if (nodeId < kraftControllers && nodeId < brokersNum) {
             var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
-            putConfig(server, "process.roles", "broker,controller");
+            putConfig(nodeConfiguration, "process.roles", "broker,controller");
+
+            listeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.getBind().toString());
+            earlyStart.add(CONTROLLER_LISTENER_NAME);
+        } else if (nodeId < kraftControllers && nodeId >= brokersNum) {
+            var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
+            putConfig(nodeConfiguration, "process.roles", "controller");
 
             listeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.getBind().toString());
             earlyStart.add(CONTROLLER_LISTENER_NAME);
         }
         else {
-            putConfig(server, "process.roles", "broker");
+            putConfig(nodeConfiguration, "process.roles", "broker");
         }
     }
 
