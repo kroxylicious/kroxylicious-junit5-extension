@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
  */
-public class KafkaClusterTest {
+class KafkaClusterTest {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
     private TestInfo testInfo;
@@ -62,7 +62,7 @@ public class KafkaClusterTest {
     private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
 
     @Test
-    public void kafkaClusterKraftMode() throws Exception {
+    void kafkaClusterKraftMode() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(true)
@@ -73,7 +73,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperMode() throws Exception {
+    void kafkaClusterZookeeperMode() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(false)
@@ -85,7 +85,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void kafkaClusterAddBroker(boolean kraft) throws Exception {
+    void kafkaClusterAddBroker(boolean kraft) throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -117,7 +117,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @MethodSource
-    public void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, Predicate<Integer> brokerPredicate) throws Exception {
+    void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, Predicate<Integer> brokerPredicate) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
@@ -150,7 +150,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void stopAndStartIdempotency(boolean kraft) throws Exception {
+    void stopAndStartIdempotency(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(kraft)
@@ -182,7 +182,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void stopAndStartIncrementally(boolean kraft) throws Exception {
+    void stopAndStartIncrementally(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(kraft)
@@ -210,7 +210,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void topicPersistsThroughStopAndStart(boolean kraft) throws Exception {
+    void topicPersistsThroughStopAndStart(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(kraft)
@@ -240,7 +240,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaTwoNodeClusterKraftMode() throws Exception {
+    void kafkaTwoNodeClusterKraftMode() throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -253,7 +253,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaTwoNodeClusterZookeeperMode() throws Exception {
+    void kafkaTwoNodeClusterZookeeperMode() throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -267,7 +267,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void kafkaClusterRemoveBroker(boolean kraft) throws Exception {
+    void kafkaClusterRemoveBroker(boolean kraft) throws Exception {
         int brokersNum = 3;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -289,7 +289,7 @@ public class KafkaClusterTest {
 
     @ParameterizedTest
     @ValueSource(booleans = { true, false })
-    public void kafkaClusterRemoveWithStoppedBrokerDisallowed(boolean kraft) throws Exception {
+    void kafkaClusterRemoveWithStoppedBrokerDisallowed(boolean kraft) throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -307,7 +307,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftDisallowsControllerRemoval() throws Exception {
+    void kafkaClusterKraftDisallowsControllerRemoval() throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -323,7 +323,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeWithAuth() throws Exception {
+    void kafkaClusterKraftModeWithAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .kraftMode(true)
                 .testInfo(testInfo)
@@ -337,7 +337,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeWithAuth() throws Exception {
+    void kafkaClusterZookeeperModeWithAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(false)
@@ -351,7 +351,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
+    void kafkaClusterKraftModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -368,7 +368,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeSSL_ClientUsesSSLClientAuth() throws Exception {
+    void kafkaClusterKraftModeSSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -383,7 +383,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
+    void kafkaClusterZookeeperModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -400,7 +400,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeSSL_ClientUsesSSLClientAuth() throws Exception {
+    void kafkaClusterZookeeperModeSSL_ClientUsesSSLClientAuth() throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -415,7 +415,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeSSL_ClientNoAuth() throws Exception {
+    void kafkaClusterKraftModeSSL_ClientNoAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
@@ -428,7 +428,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeSSL_ClientNoAuth() throws Exception {
+    void kafkaClusterZookeeperModeSSL_ClientNoAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
@@ -441,7 +441,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterKraftModeSASL_SSL_ClientNoAuth() throws Exception {
+    void kafkaClusterKraftModeSASL_SSL_ClientNoAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
@@ -456,7 +456,7 @@ public class KafkaClusterTest {
     }
 
     @Test
-    public void kafkaClusterZookeeperModeSASL_SSL_ClientNoAuth() throws Exception {
+    void kafkaClusterZookeeperModeSASL_SSL_ClientNoAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
