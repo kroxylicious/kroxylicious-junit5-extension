@@ -102,6 +102,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
+    public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
     private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
     private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
 
@@ -205,7 +206,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 // KAFKA_LOG_DIR overrides a key in the quarkus kafka image application.properties. The quarkus app uses
                 // that to set log.dir. Any value we set for log.dir in server.properties is lost.
                 .withEnv("KAFKA_LOG_DIR", getBrokerLogDirectory(holder.getBrokerNum()))
-                // .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
+                .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                 .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
@@ -263,11 +264,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(nodeId -> this.getEndpointPair(Listener.EXTERNAL, nodeId));
+        return buildBrokerList(nodeId -> this.getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
-    private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+    private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
         return brokers.keySet().stream()
+                .filter(this::isBroker)
                 .map(endpointFunc)
                 .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
                 .collect(Collectors.joining(","));
@@ -297,7 +299,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             }
             Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             awaitExpectedBrokerCountInClusterViaTopic(
-                    clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
+                    clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
@@ -339,7 +341,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         brokers.put(configHolder.getBrokerNum(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
@@ -366,7 +368,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         portsAllocator.deallocate(nodeId);
@@ -558,17 +560,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 return buildExposedEndpoint(listener, nodeId, ANON_PORT);
             }
             case INTERNAL -> {
-                return EndpointPair.builder().bind(new Endpoint("0.0.0.0", INTER_BROKER_PORT))
+                return EndpointPair.builder().bind(new Endpoint(WILDCARD_BIND_ADDRESS, INTER_BROKER_PORT))
                         .connect(new Endpoint(String.format("broker-%d", nodeId), INTER_BROKER_PORT)).build();
             }
             case CONTROLLER -> {
                 EndpointPair result;
                 if (clusterConfig.isKraftMode()) {
-                    result = EndpointPair.builder().bind(new Endpoint("0.0.0.0", CONTROLLER_PORT))
+                    result = EndpointPair.builder().bind(new Endpoint(WILDCARD_BIND_ADDRESS, CONTROLLER_PORT))
                             .connect(new Endpoint(String.format("broker-%d", nodeId), CONTROLLER_PORT)).build();
                 }
                 else {
-                    result = EndpointPair.builder().bind(new Endpoint("0.0.0.0", ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
+                    result = EndpointPair.builder().bind(new Endpoint(WILDCARD_BIND_ADDRESS, ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
                 }
                 return result;
             }
@@ -578,7 +580,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     private EndpointPair buildExposedEndpoint(Listener listener, int nodeId, int bindPort) {
         return EndpointPair.builder()
-                .bind(new Endpoint("0.0.0.0", bindPort))
+                .bind(new Endpoint(WILDCARD_BIND_ADDRESS, bindPort))
                 .connect(new Endpoint("localhost", portsAllocator.getPort(listener, nodeId)))
                 .build();
     }
@@ -596,8 +598,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @SuppressWarnings({ "try" })
     private static String createNamedVolume() {
-        try (DockerClient dockerClient = createDockerClient()) {
-            var volumeCmd = dockerClient.createVolumeCmd();
+        try (DockerClient dockerClient = createDockerClient(); var volumeCmd = dockerClient.createVolumeCmd();) {
             if (CONTAINER_ENGINE_PODMAN) {
                 volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
             }
@@ -659,7 +660,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private boolean isBroker(Integer key) {
         // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
         // But it is at least testing something meaningful about the configuration
-        return portsAllocator.hasRegisteredPort(Listener.ANON, key);
+        return portsAllocator.hasRegisteredPort(Listener.EXTERNAL, key);
     }
 
     /**
