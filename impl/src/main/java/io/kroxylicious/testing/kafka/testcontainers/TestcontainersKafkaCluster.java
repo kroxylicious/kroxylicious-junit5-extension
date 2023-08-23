@@ -16,6 +16,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -94,6 +95,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration RESTART_BACKOFF_DELAY = Duration.ofMillis(2500);
 
+    private static final DateTimeFormatter NAME_DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss");
+
     // If Zookeeper or Kafka run for less than 500ms, there's almost certainly a problem. This makes it be treated
     // as a startup failure.
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
@@ -164,7 +167,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         this.name = Optional.ofNullable(clusterConfig.getTestInfo())
                 .map(TestInfo::getDisplayName)
                 .map(s -> s.replaceFirst("\\(\\)$", ""))
-                .map(s -> String.format("%s.%s", s, OffsetDateTime.now(Clock.systemUTC())))
+                .map(s -> String.format("%s.%s", s, NAME_DATE_TIME_FORMAT.format(OffsetDateTime.now(Clock.systemUTC()))))
                 .orElse(null);
 
         if (this.clusterConfig.isKraftMode()) {
