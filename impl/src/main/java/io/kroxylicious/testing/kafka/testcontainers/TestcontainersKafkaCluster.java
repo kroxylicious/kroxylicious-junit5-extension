@@ -209,8 +209,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
-        kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
-        kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
+
+        if (isBroker(holder.getBrokerNum())) {
+            kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
+            kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
+        }
         kafkaContainer.addGenericBind(new Bind(logDirVolumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)));
 
         if (!clusterConfig.isKraftMode()) {
@@ -642,6 +645,18 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private boolean isController(Integer key) {
+        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
+        // But it is at least testing something meaningful about the configuration
+        return portsAllocator.hasRegisteredPort(Listener.CONTROLLER, key);
+    }
+
+    private boolean isBroker(Integer key) {
+        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
+        // But it is at least testing something meaningful about the configuration
+        return portsAllocator.hasRegisteredPort(Listener.ANON, key);
     }
 
     /**

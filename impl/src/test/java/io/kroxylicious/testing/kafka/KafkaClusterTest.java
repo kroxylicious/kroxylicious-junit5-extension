@@ -31,6 +31,7 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
  */
+@Timeout(value = 1, unit = TimeUnit.MINUTES)
 class KafkaClusterTest {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
@@ -66,6 +68,18 @@ class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(true)
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    void kafkaClusterKraftModeWithMultipleControllers() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(true)
+                .kraftControllers(3)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);

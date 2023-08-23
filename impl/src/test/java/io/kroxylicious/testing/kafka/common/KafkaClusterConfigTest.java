@@ -5,6 +5,8 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
+import java.util.stream.Stream;
+
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,11 +50,11 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldConfigureMultipleControllersInCombinedMode() {
-        //Given
+        // Given
         var numBrokers = 3;
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(3).brokersNum(numBrokers).build();
 
-        //When
+        // When
         for (int nodeId = 0; nodeId < numBrokers; nodeId++) {
             assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker,controller");
         }
@@ -60,12 +62,12 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldConfigureMultipleControllersInControllerOnlyMode() {
-        //Given
+        // Given
         var numBrokers = 1;
         var numControllers = 3;
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
 
-        //When
+        // When
         assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
 
         for (int nodeId = 1; nodeId < numControllers; nodeId++) {
@@ -75,17 +77,45 @@ class KafkaClusterConfigTest {
 
     @Test
     void shouldConfigureSingleControllersInCombinedMode() {
-        //Given
+        // Given
         var numBrokers = 3;
         var numControllers = 1;
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
 
-        //When
+        // When
         assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
 
         for (int nodeId = 1; nodeId < numBrokers; nodeId++) {
             assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker");
         }
+    }
+
+    @Test
+    void shouldGenerateConfigForBrokerNodes() {
+        // Given
+        var numBrokers = 3;
+        var numControllers = 1;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+
+        // When
+        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig);
+
+        // Then
+        assertThat(brokerConfigs).hasSize(3);
+    }
+
+    @Test
+    void shouldGenerateConfigForControllerNodes() {
+        // Given
+        var numBrokers = 1;
+        var numControllers = 3;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+
+        // When
+        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig);
+
+        // Then
+        assertThat(brokerConfigs).hasSize(3);
     }
 
     private void assertNodeIdHasRole(KafkaClusterConfig kafkaClusterConfig, int nodeId, String expectedRole) {
