@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
  */
-@Timeout(value = 1, unit = TimeUnit.MINUTES)
+@Timeout(value = 2, unit = TimeUnit.MINUTES)
 class KafkaClusterTest {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());

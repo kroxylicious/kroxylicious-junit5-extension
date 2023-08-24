@@ -53,6 +53,8 @@ public class KafkaClusterConfig {
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterConfig.class.getName());
     private static final String ONE_CONFIG = Integer.toString(1);
     public static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
+    public static final String BROKER_ROLE = "broker";
+    public static final String CONTROLLER_ROLE = "controller";
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -224,7 +226,7 @@ public class KafkaClusterConfig {
         var earlyStart = new TreeSet<String>();
 
         final ConfigHolder configHolder;
-        if (role.contains("broker")) {
+        if (role.contains(BROKER_ROLE)) {
             var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
             var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
             var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
@@ -281,12 +283,12 @@ public class KafkaClusterConfig {
 
     @NotNull
     private String determineRole(int nodeId) {
-        var role = "broker";
+        var role = BROKER_ROLE;
         if (nodeId < kraftControllers && nodeId < brokersNum) {
             role = "broker,controller";
         }
         else if (nodeId < kraftControllers && nodeId >= brokersNum) {
-            role = "controller";
+            role = CONTROLLER_ROLE;
         }
         return role;
     }
@@ -389,7 +391,7 @@ public class KafkaClusterConfig {
         protocolMap.put(CONTROLLER_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
 
         putConfig(nodeConfiguration, "process.roles", role);
-        if (role.contains("controller")) {
+        if (role.contains(CONTROLLER_ROLE)) {
             var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
             final String bindAddress = controllerEndpoint.getBind().toString();
             listeners.put(CONTROLLER_LISTENER_NAME, bindAddress);
@@ -548,7 +550,6 @@ public class KafkaClusterConfig {
     /**
      * The type Config holder.
      */
-    @Builder
     @Getter
     public static class ConfigHolder {
         private final Properties properties;
@@ -557,6 +558,7 @@ public class KafkaClusterConfig {
         private final String endpoint;
         private final int brokerNum;
         private final String kafkaKraftClusterId;
+        private final String roles;
 
         /**
          * Instantiates a new Config holder.
@@ -568,6 +570,7 @@ public class KafkaClusterConfig {
          * @param brokerNum the broker num
          * @param kafkaKraftClusterId the kafka kraft cluster id
          */
+        @Builder
         public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, String endpoint, int brokerNum, String kafkaKraftClusterId) {
             this.properties = properties;
             this.externalPort = externalPort;
@@ -575,6 +578,15 @@ public class KafkaClusterConfig {
             this.endpoint = endpoint;
             this.brokerNum = brokerNum;
             this.kafkaKraftClusterId = kafkaKraftClusterId;
+            this.roles = properties.getProperty("process.roles", BROKER_ROLE);
+        }
+
+        public boolean isBroker() {
+            return this.roles.contains(BROKER_ROLE);
+        }
+
+        public boolean isController() {
+            return this.roles.contains(CONTROLLER_ROLE);
         }
     }
 

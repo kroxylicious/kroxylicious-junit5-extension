@@ -121,7 +121,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * Map of kafka <code>node.id</code> to {@link KafkaContainer}.
      * Protected by lock of {@link TestcontainersKafkaCluster itself.}
      */
-    private final Map<Integer, KafkaContainer> brokers = new TreeMap<>();
+    private final Map<Integer, KafkaContainer> nodes = new TreeMap<>();
 
     /**
      * Set of kafka <code>node.id</code> that are currently stopped.
@@ -188,7 +188,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
         }
 
-        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> brokers.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
+        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
     }
 
     @NotNull
@@ -214,7 +214,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
 
-        if (isBroker(holder.getBrokerNum())) {
+        if (holder.isBroker()) {
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
             kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
         }
@@ -268,7 +268,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
-        return brokers.keySet().stream()
+        return nodes.keySet().stream()
                 .filter(this::isBroker)
                 .map(endpointFunc)
                 .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
@@ -286,7 +286,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     private synchronized Stream<GenericContainer<?>> allContainers() {
         return Stream.concat(
-                this.brokers.values().stream(),
+                this.nodes.values().stream(),
                 Stream.ofNullable(this.zookeeper));
     }
 
@@ -297,7 +297,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             if (zookeeper != null) {
                 zookeeper.start();
             }
-            Startables.deepStart(brokers.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            Startables.deepStart(nodes.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             awaitExpectedBrokerCountInClusterViaTopic(
                     clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
@@ -315,14 +315,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @Override
     public synchronized int addBroker() {
         // find next free kafka node.id
-        var first = IntStream.rangeClosed(0, getNumOfBrokers()).filter(cand -> !brokers.containsKey(cand)).findFirst();
+        var first = IntStream.rangeClosed(0, getNumOfBrokers()).filter(cand -> !nodes.containsKey(cand)).findFirst();
         if (first.isEmpty()) {
-            throw new IllegalStateException("Could not determine new nodeId, existing set " + brokers.keySet());
+            throw new IllegalStateException("Could not determine new nodeId, existing set " + nodes.keySet());
         }
         var newNodeId = first.getAsInt();
 
         LOGGER.log(System.Logger.Level.DEBUG,
-                "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, brokers.keySet());
+                "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, nodes.keySet());
 
         // preallocate ports for the new broker
         try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
@@ -338,7 +338,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             kafkaContainer.stop();
             throw new RuntimeException(e);
         }
-        brokers.put(configHolder.getBrokerNum(), kafkaContainer);
+        nodes.put(configHolder.getBrokerNum(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
@@ -349,20 +349,20 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized void removeBroker(int nodeId) throws UnsupportedOperationException, IllegalArgumentException, IllegalStateException {
-        if (!brokers.containsKey(nodeId)) {
+        if (!nodes.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && nodeId < clusterConfig.getKraftControllers()) {
+        if (clusterConfig.isKraftMode() && isController(nodeId)) {
             throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
         }
-        if (brokers.size() < 2) {
-            throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(brokers.size()));
+        if (nodes.size() < 2) {
+            throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(nodes.size()));
         }
         if (!stoppedBrokers.isEmpty()) {
             throw new IllegalStateException("Cannot remove nodes from a cluster with stopped nodes.");
         }
 
-        var target = brokers.keySet().stream().filter(n -> n != nodeId).findFirst();
+        var target = nodes.keySet().stream().filter(n -> n != nodeId).findFirst();
         if (target.isEmpty()) {
             throw new IllegalStateException("Could not identify a node to be the re-assignment target");
         }
@@ -373,7 +373,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
         portsAllocator.deallocate(nodeId);
 
-        gracefulStop(brokers.remove(nodeId));
+        gracefulStop(nodes.remove(nodeId));
 
         try (var cleanBrokerLogDir = new OneShotContainer()) {
             cleanBrokerLogDir.withName("cleanBrokerLogDir")
@@ -406,7 +406,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle) {
-        var kafkaContainersToStop = brokers.entrySet().stream()
+        var kafkaContainersToStop = nodes.entrySet().stream()
                 .filter(e -> nodeIdPredicate.test(e.getKey()))
                 .filter(e -> !stoppedBrokers.contains(e.getKey()))
                 .toList();
@@ -463,7 +463,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized void startNodes(Predicate<Integer> nodeIdPredicate) {
-        var kafkaContainersToStart = brokers.entrySet().stream()
+        var kafkaContainersToStart = nodes.entrySet().stream()
                 .filter(e -> nodeIdPredicate.test(e.getKey()))
                 .filter(e -> stoppedBrokers.contains(e.getKey()))
                 .toList();
@@ -512,7 +512,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized int getNumOfBrokers() {
-        return brokers.size();
+        return nodes.size();
     }
 
     @Override
@@ -744,8 +744,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 }
                 target = target.resolve(String.format("%s.%s.%s", getContainerName().replaceFirst(File.separator, ""), getContainerId(), "log"));
                 target.getParent().toFile().mkdirs();
-                try {
-                    var writer = new FileWriter(target.toFile());
+                try (var writer = new FileWriter(target.toFile())){
+                    LOGGER.log(Level.INFO, "writing logs for {0} to {1}", getContainerName(), target);
                     super.followOutput(outputFrame -> {
                         try {
                             if (outputFrame.equals(OutputFrame.END)) {
@@ -753,6 +753,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                             }
                             else {
                                 writer.write(outputFrame.getUtf8String());
+                                writer.flush();
                             }
                         }
                         catch (IOException e) {

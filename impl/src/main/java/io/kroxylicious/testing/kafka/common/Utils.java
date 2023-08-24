@@ -210,9 +210,9 @@ public class Utils {
                 .all()
                 .toCompletionStage()
                 .thenRun(() -> log.debug("Create future for topic {} completed.", CONSISTENCY_TEST))
-                .exceptionallyComposeAsync((throwable) -> {
+                .exceptionallyComposeAsync(throwable -> {
                     log.warn("Failed to create topic: {} due to {}", CONSISTENCY_TEST, throwable.getMessage());
-                    if (isRetriable(throwable)) {
+                    if (isRetryable(throwable)) {
                         // Retry the creation of the topic. The delayed executor used in this stage's handling avoids
                         // a tight spinning loop.
                         return createTopic(expectedBrokerCount, admin);
@@ -223,7 +223,7 @@ public class Utils {
                 }, CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS));
     }
 
-    private static boolean isRetriable(Throwable potentiallyWrapped) {
+    private static boolean isRetryable(Throwable potentiallyWrapped) {
         // If the throwable originates from within a CompletionStage's handler, it will be wrapped within a
         // CompletionException.
         var throwable = potentiallyWrapped instanceof CompletionException && potentiallyWrapped.getCause() != null ? potentiallyWrapped.getCause() : potentiallyWrapped;
