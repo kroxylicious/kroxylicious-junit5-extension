@@ -187,6 +187,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
         try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
             portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
+            portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.getKraftControllers());
         }
 
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));

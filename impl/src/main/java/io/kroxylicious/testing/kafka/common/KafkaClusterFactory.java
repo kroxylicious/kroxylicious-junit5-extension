@@ -61,14 +61,8 @@ public class KafkaClusterFactory {
             throw new NullPointerException();
         }
 
-        var clusterMode = KafkaClusterExecutionMode.convertClusterExecutionMode(System.getenv().get(TEST_CLUSTER_EXECUTION_MODE),
-                clusterConfig.getExecMode() == null ? KafkaClusterExecutionMode.IN_VM : clusterConfig.getExecMode());
+        var clusterMode = getExecutionMode(clusterConfig);
         var kraftMode = convertClusterKraftMode(System.getenv().get(TEST_CLUSTER_KRAFT_MODE), true);
-        if (KafkaClusterExecutionMode.CONTAINER == clusterMode && kraftMode && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
-            throw new IllegalStateException(
-                    "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes so we need to fail fast. This cluster has "
-                            + clusterConfig.getBrokersNum() + " brokers and " + clusterConfig.getKraftControllers() + " controllers");
-        }
         var builder = clusterConfig.toBuilder();
 
         if (clusterConfig.getExecMode() == null) {
@@ -77,6 +71,12 @@ public class KafkaClusterFactory {
 
         if (clusterConfig.getKraftMode() == null) {
             builder.kraftMode(kraftMode);
+        }
+
+        if (KafkaClusterExecutionMode.CONTAINER == clusterMode && kraftMode && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
+            throw new IllegalStateException(
+                    "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes so we need to fail fast. This cluster has "
+                            + clusterConfig.getBrokersNum() + " brokers and " + clusterConfig.getKraftControllers() + " controllers");
         }
 
         var kafkaVersion = System.getenv().getOrDefault(KAFKA_VERSION, "latest");
@@ -96,6 +96,11 @@ public class KafkaClusterFactory {
 
             return new TestcontainersKafkaCluster(kafkaImage, zookeeperImage, actual);
         }
+    }
+
+    private static KafkaClusterExecutionMode getExecutionMode(KafkaClusterConfig clusterConfig) {
+        return KafkaClusterExecutionMode.convertClusterExecutionMode(System.getenv().get(TEST_CLUSTER_EXECUTION_MODE),
+                clusterConfig.getExecMode() == null ? KafkaClusterExecutionMode.IN_VM : clusterConfig.getExecMode());
     }
 
     private static boolean convertClusterKraftMode(String mode, boolean defaultMode) {

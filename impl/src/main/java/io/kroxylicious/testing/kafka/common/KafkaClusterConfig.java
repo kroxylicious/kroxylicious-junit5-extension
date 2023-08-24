@@ -32,6 +32,7 @@ import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.TestInfo;
 
 import kafka.server.KafkaConfig;
@@ -243,12 +244,12 @@ public class KafkaClusterConfig {
             configureTls(clientEndpoint, nodeConfiguration);
             putConfig(nodeConfiguration, "advertised.listeners",
                     advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-
             configHolder = new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
-                    clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
+                    determineControllerPort(kafkaEndpoints, nodeId, role), clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
         }
         else {
-            configHolder = new ConfigHolder(nodeConfiguration, null, null, null, nodeId, kafkaKraftClusterId);
+            configHolder = new ConfigHolder(nodeConfiguration, null, null, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId).getConnect().getPort(), null,
+                    nodeId, kafkaKraftClusterId);
         }
 
         if (isKraftMode()) {
@@ -279,6 +280,15 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "metrics.jmx.exclude", ".*");
 
         return configHolder;
+    }
+
+    @Nullable
+    private static Integer determineControllerPort(KafkaEndpoints kafkaEndpoints, int nodeId, String role) {
+        Integer controllerPort = null;
+        if (role.contains(CONTROLLER_ROLE)) {
+            controllerPort = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId).getConnect().getPort();
+        }
+        return controllerPort;
     }
 
     @NotNull
@@ -554,6 +564,7 @@ public class KafkaClusterConfig {
     public static class ConfigHolder {
         private final Properties properties;
         private final Integer externalPort;
+        private final Integer controllerPort;
         private final Integer anonPort;
         private final String endpoint;
         private final int brokerNum;
@@ -563,18 +574,21 @@ public class KafkaClusterConfig {
         /**
          * Instantiates a new Config holder.
          *
-         * @param properties the properties
-         * @param externalPort the external port
-         * @param anonPort the anon port
-         * @param endpoint the endpoint
-         * @param brokerNum the broker num
+         * @param properties          the properties
+         * @param externalPort        the external port
+         * @param anonPort            the anon port
+         * @param controllerPort      the controller port
+         * @param endpoint            the endpoint
+         * @param brokerNum           the broker num
          * @param kafkaKraftClusterId the kafka kraft cluster id
          */
         @Builder
-        public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, String endpoint, int brokerNum, String kafkaKraftClusterId) {
+        public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, Integer controllerPort, String endpoint, int brokerNum,
+                            String kafkaKraftClusterId) {
             this.properties = properties;
             this.externalPort = externalPort;
             this.anonPort = anonPort;
+            this.controllerPort = controllerPort;
             this.endpoint = endpoint;
             this.brokerNum = brokerNum;
             this.kafkaKraftClusterId = kafkaKraftClusterId;
