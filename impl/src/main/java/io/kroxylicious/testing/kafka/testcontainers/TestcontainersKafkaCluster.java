@@ -159,6 +159,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
+        validateClusterConfig(clusterConfig);
         setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
@@ -189,6 +190,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
+    }
+
+    private static void validateClusterConfig(KafkaClusterConfig clusterConfig) {
+        if (Boolean.TRUE.equals(clusterConfig.getKraftMode()) && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
+            throw new IllegalStateException(
+                    "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes so we need to fail fast. This cluster has "
+                            + clusterConfig.getBrokersNum() + " brokers and " + clusterConfig.getKraftControllers() + " controllers");
+        }
     }
 
     @NotNull
@@ -744,7 +753,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 }
                 target = target.resolve(String.format("%s.%s.%s", getContainerName().replaceFirst(File.separator, ""), getContainerId(), "log"));
                 target.getParent().toFile().mkdirs();
-                try (var writer = new FileWriter(target.toFile())){
+                try (var writer = new FileWriter(target.toFile())) {
                     LOGGER.log(Level.INFO, "writing logs for {0} to {1}", getContainerName(), target);
                     super.followOutput(outputFrame -> {
                         try {
