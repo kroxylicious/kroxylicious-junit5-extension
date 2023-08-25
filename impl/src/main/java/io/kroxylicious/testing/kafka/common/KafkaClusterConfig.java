@@ -32,7 +32,6 @@ import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.TestInfo;
 
 import kafka.server.KafkaConfig;
@@ -228,28 +227,10 @@ public class KafkaClusterConfig {
 
         final ConfigHolder configHolder;
         if (role.contains(BROKER_ROLE)) {
-            var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
-            var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
-            var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
-
-            // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
-            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
-            // - INTERNAL: used for inter-broker communications (always no auth)
-            // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
-
-            var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
-            configureExternalListener(protocolMap, externalListenerTransport, listeners, clientEndpoint, advertisedListeners);
-            configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
-            configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
-            configureTls(clientEndpoint, nodeConfiguration);
-            putConfig(nodeConfiguration, "advertised.listeners",
-                    advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-            configHolder = new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
-                    determineControllerPort(kafkaEndpoints, nodeId, role), clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
+            configHolder = configureBroker(kafkaEndpoints, nodeId, protocolMap, listeners, advertisedListeners, earlyStart, nodeConfiguration);
         }
         else {
-            configHolder = new ConfigHolder(nodeConfiguration, null, null, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId).getConnect().getPort(), null,
-                    nodeId, kafkaKraftClusterId);
+            configHolder = configureController(kafkaEndpoints, nodeId, nodeConfiguration);
         }
 
         if (isKraftMode()) {
@@ -282,13 +263,35 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    @Nullable
-    private static Integer determineControllerPort(KafkaEndpoints kafkaEndpoints, int nodeId, String role) {
-        Integer controllerPort = null;
-        if (role.contains(CONTROLLER_ROLE)) {
-            controllerPort = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId).getConnect().getPort();
-        }
-        return controllerPort;
+    @NotNull
+    private ConfigHolder configureController(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration) {
+        return new ConfigHolder(nodeConfiguration, null, null, null,
+                nodeId, kafkaKraftClusterId);
+    }
+
+    @NotNull
+    private ConfigHolder configureBroker(KafkaEndpoints kafkaEndpoints, int nodeId, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
+                                         TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties nodeConfiguration) {
+        final ConfigHolder configHolder;
+        var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
+        var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
+        var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
+
+        // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
+        // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
+        // - INTERNAL: used for inter-broker communications (always no auth)
+        // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
+
+        var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
+        configureExternalListener(protocolMap, externalListenerTransport, listeners, clientEndpoint, advertisedListeners);
+        configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
+        configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
+        configureTls(clientEndpoint, nodeConfiguration);
+        putConfig(nodeConfiguration, "advertised.listeners",
+                advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+        configHolder = new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
+                clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
+        return configHolder;
     }
 
     @NotNull
@@ -564,7 +567,6 @@ public class KafkaClusterConfig {
     public static class ConfigHolder {
         private final Properties properties;
         private final Integer externalPort;
-        private final Integer controllerPort;
         private final Integer anonPort;
         private final String endpoint;
         private final int brokerNum;
@@ -577,18 +579,15 @@ public class KafkaClusterConfig {
          * @param properties          the properties
          * @param externalPort        the external port
          * @param anonPort            the anon port
-         * @param controllerPort      the controller port
          * @param endpoint            the endpoint
          * @param brokerNum           the broker num
          * @param kafkaKraftClusterId the kafka kraft cluster id
          */
         @Builder
-        public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, Integer controllerPort, String endpoint, int brokerNum,
-                            String kafkaKraftClusterId) {
+        public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, String endpoint, int brokerNum, String kafkaKraftClusterId) {
             this.properties = properties;
             this.externalPort = externalPort;
             this.anonPort = anonPort;
-            this.controllerPort = controllerPort;
             this.endpoint = endpoint;
             this.brokerNum = brokerNum;
             this.kafkaKraftClusterId = kafkaKraftClusterId;
