@@ -302,13 +302,19 @@ public class KafkaClusterConfig {
     private String determineRole(int nodeId) {
         var roles = new ArrayList<String>();
 
-        if (nodeId < brokersNum) {
+        if (nodeId < brokersNum || isAdditionalNode(nodeId)) {
             roles.add(BROKER_ROLE);
         }
         if (nodeId < kraftControllers) {
             roles.add(CONTROLLER_ROLE);
         }
         return String.join(",", roles);
+    }
+
+    // additional nodes can only be added after the initial topology is generated.
+    // Hence, it is safe to assume that a node is additional if it has a higherId than the initial topology would allow for.
+    private boolean isAdditionalNode(int nodeId) {
+        return nodeId >= Math.max(brokersNum, kraftControllers);
     }
 
     private void configureTls(KafkaEndpoints.EndpointPair clientEndpoint, Properties server) {
