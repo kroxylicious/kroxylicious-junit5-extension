@@ -52,9 +52,13 @@ public class KafkaClusterConfig {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterConfig.class.getName());
     private static final String ONE_CONFIG = Integer.toString(1);
-    public static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
     public static final String BROKER_ROLE = "broker";
     public static final String CONTROLLER_ROLE = "controller";
+
+    public static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
+    public static final String EXTERNAL_LISTENER_NAME = "EXTERNAL";
+    public static final String INTERNAL_LISTENER_NAME = "INTERNAL";
+    public static final String ANON_LISTENER_NAME = "ANON";
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -357,31 +361,31 @@ public class KafkaClusterConfig {
 
             // TODO support other than PLAIN
             String plainModuleConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required %s;", saslPairs);
-            putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", "EXTERNAL".toLowerCase()), plainModuleConfig);
+            putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase()), plainModuleConfig);
         }
     }
 
     private static void configureInternalListener(TreeMap<String, String> protocolMap, TreeMap<String, String> listeners, KafkaEndpoints.EndpointPair interBrokerEndpoint,
                                                   TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties server) {
-        protocolMap.put("INTERNAL", SecurityProtocol.PLAINTEXT.name());
-        listeners.put("INTERNAL", interBrokerEndpoint.listenAddress());
-        advertisedListeners.put("INTERNAL", interBrokerEndpoint.advertisedAddress());
-        earlyStart.add("INTERNAL");
-        putConfig(server, "inter.broker.listener.name", "INTERNAL");
+        protocolMap.put(INTERNAL_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
+        listeners.put(INTERNAL_LISTENER_NAME, interBrokerEndpoint.listenAddress());
+        advertisedListeners.put(INTERNAL_LISTENER_NAME, interBrokerEndpoint.advertisedAddress());
+        earlyStart.add(INTERNAL_LISTENER_NAME);
+        putConfig(server, "inter.broker.listener.name", INTERNAL_LISTENER_NAME);
     }
 
     private static void configureAnonListener(TreeMap<String, String> protocolMap, TreeMap<String, String> listeners, KafkaEndpoints.EndpointPair anonEndpoint,
                                               TreeMap<String, String> advertisedListeners) {
-        protocolMap.put("ANON", SecurityProtocol.PLAINTEXT.name());
-        listeners.put("ANON", anonEndpoint.listenAddress());
-        advertisedListeners.put("ANON", anonEndpoint.advertisedAddress());
+        protocolMap.put(ANON_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
+        listeners.put(ANON_LISTENER_NAME, anonEndpoint.listenAddress());
+        advertisedListeners.put(ANON_LISTENER_NAME, anonEndpoint.advertisedAddress());
     }
 
     private static void configureExternalListener(TreeMap<String, String> protocolMap, String externalListenerTransport, TreeMap<String, String> listeners,
                                                   KafkaEndpoints.EndpointPair clientEndpoint, TreeMap<String, String> advertisedListeners) {
-        protocolMap.put("EXTERNAL", externalListenerTransport);
-        listeners.put("EXTERNAL", clientEndpoint.listenAddress());
-        advertisedListeners.put("EXTERNAL", clientEndpoint.advertisedAddress());
+        protocolMap.put(EXTERNAL_LISTENER_NAME, externalListenerTransport);
+        listeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.listenAddress());
+        advertisedListeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.advertisedAddress());
     }
 
     private static void configureLegacyNode(KafkaEndpoints kafkaEndpoints, Properties server) {
