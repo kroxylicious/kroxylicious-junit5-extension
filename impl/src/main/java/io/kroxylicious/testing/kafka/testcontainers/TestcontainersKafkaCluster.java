@@ -755,7 +755,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 target = target.resolve(String.format("%s.%s.%s", getContainerName().replaceFirst(File.separator, ""), getContainerId(), "log"));
                 target.getParent().toFile().mkdirs();
                 try (var writer = new FileWriter(target.toFile())) {
-                    LOGGER.log(Level.INFO, "writing logs for {0} to {1}", getContainerName(), target);
+                    LOGGER.log(Level.DEBUG, "writing logs for {0} to {1}", getContainerName(), target);
                     super.followOutput(outputFrame -> {
                         try {
                             if (outputFrame.equals(OutputFrame.END)) {
