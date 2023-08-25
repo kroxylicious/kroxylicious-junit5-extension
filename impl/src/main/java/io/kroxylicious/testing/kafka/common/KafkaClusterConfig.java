@@ -296,14 +296,15 @@ public class KafkaClusterConfig {
 
     @NotNull
     private String determineRole(int nodeId) {
-        var role = BROKER_ROLE;
-        if (nodeId < kraftControllers && nodeId < brokersNum) {
-            role = "broker,controller";
+        var roles = new ArrayList<String>();
+
+        if (nodeId < brokersNum) {
+            roles.add(BROKER_ROLE);
         }
-        else if (nodeId < kraftControllers && nodeId >= brokersNum) {
-            role = CONTROLLER_ROLE;
+        if (nodeId < kraftControllers) {
+            roles.add(CONTROLLER_ROLE);
         }
-        return role;
+        return String.join(",", roles);
     }
 
     private void configureTls(KafkaEndpoints.EndpointPair clientEndpoint, Properties server) {
