@@ -216,7 +216,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 // KAFKA_LOG_DIR overrides a key in the quarkus kafka image application.properties. The quarkus app uses
                 // that to set log.dir. Any value we set for log.dir in server.properties is lost.
                 .withEnv("KAFKA_LOG_DIR", getBrokerLogDirectory(holder.getBrokerNum()))
-                .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
+//                .withEnv("QUARKUS_LOG_LEVEL", "DEBUG") // Enables org.apache.kafka logging too
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                 .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
