@@ -74,6 +74,17 @@ When multiple constraints are provided they will _all_ be satisfied.
 
 The cluster will be provisioned using the fastest available mechanism, because your development inner loop is a precious thing.
 
+## Provisioning topology
+
+In kraft cluster (the default) the extension will generate nodes using the `broker, controller` roles until it reaches the desired number of brokers or controllers (which ever is lowest) at which point it will continue deploying the remaining role.
+
+| numBrokers | numControllers | roles                                                               |
+|------------|----------------|---------------------------------------------------------------------|
+| 1          | 1              | `"broker,controller"`                                               |
+| 3          | 1              | `"broker,controller"`, `"broker"`, `"broker"`                       |
+| 1          | 3              | `"broker,controller"`, `"controller"`, `"controller"`               |
+| 3          | 3              | `"broker,controller"`, `"broker,controller"`, `"broker,controller"` |
+
 ## Provisioning mechanisms
 
 The following provisioning mechanisms are currently supported:
@@ -231,6 +242,3 @@ See the [developer guide](DEV_GUIDE.md).
 ## Releasing this project
 
 See the [releasing guide](RELEASING.md).
-
-
-
