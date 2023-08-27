@@ -1,10 +1,11 @@
-package io.kroxylicious.testing.kafka.testcontainers;
-
 /*
  * Copyright Kroxylicious Authors.
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
+
+package io.kroxylicious.testing.kafka.testcontainers;
+
 import org.junit.jupiter.api.Test;
 
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
