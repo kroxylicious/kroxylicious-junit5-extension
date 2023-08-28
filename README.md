@@ -76,7 +76,7 @@ The cluster will be provisioned using the fastest available mechanism, because y
 
 ## Provisioning topology
 
-In kraft cluster (the default) the extension will generate nodes using the `broker, controller` roles until it reaches the desired number of brokers or controllers (which ever is lowest) at which point it will continue deploying the remaining role.
+In a kraft cluster (the default) the extension will generate nodes using the `broker, controller` roles until it reaches the desired number of brokers or controllers (which ever is lowest) at which point it will continue deploying the remaining role.
 
 | numBrokers | numControllers | roles                                                               |
 |------------|----------------|---------------------------------------------------------------------|
