@@ -23,7 +23,7 @@
 
     <name>Kroxylicious Testing JUnit5 extension</name>
     <description>
-    Provides a JUNit5 extension for providing KafkaCluster implementations to tests and running tests over multiple cluster configurations.
+    Provides a JUnit5 extension for providing KafkaCluster implementations to tests and running tests over multiple cluster configurations.
     </description>
 
     <dependencies>

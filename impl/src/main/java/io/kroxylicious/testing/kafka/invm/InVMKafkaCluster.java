@@ -185,10 +185,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             final Server server = this.buildKafkaServer(configHolder);
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
-
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
     }
@@ -198,6 +197,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 .until(() -> {
                     // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                     try {
+                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.getBrokerNum(),
+                                configHolder.getProperties().get("process.roles"));
                         server.startup();
                         return true;
                     }
@@ -248,11 +249,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildServerList(nodeId -> getEndpointPair(Listener.EXTERNAL, nodeId));
+        return buildBrokerList(nodeId -> getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
-    private synchronized String buildServerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+    private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
         return servers.keySet().stream()
+                .filter(this::isBroker)
                 .map(endpointFunc)
                 .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
                 .collect(Collectors.joining(","));
@@ -291,7 +293,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         servers.put(newNodeId, server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getAnonConnectConfigForCluster(buildServerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
         return configHolder.getBrokerNum();
@@ -302,7 +304,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (!servers.containsKey(nodeId)) {
             throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && portsAllocator.hasRegisteredPort(Listener.CONTROLLER, nodeId)) {
+        if (clusterConfig.isKraftMode() && isController(nodeId)) {
             throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
         }
         if (servers.size() < 2) {
@@ -318,7 +320,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getAnonConnectConfigForCluster(buildServerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         portsAllocator.deallocate(nodeId);
@@ -388,8 +390,20 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      */
     private void roleOrderedShutdown(Map<Integer, Server> servers) {
         // Shutdown servers without a controller port first.
-        shutdownServers(servers, e -> !portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()));
-        shutdownServers(servers, e -> portsAllocator.hasRegisteredPort(Listener.CONTROLLER, e.getKey()));
+        shutdownServers(servers, e -> !isController(e.getKey()));
+        shutdownServers(servers, e -> isController(e.getKey()));
+    }
+
+    private boolean isController(Integer key) {
+        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
+        // But it is at least testing something meaningful about the configuration
+        return portsAllocator.hasRegisteredPort(Listener.CONTROLLER, key);
+    }
+
+    private boolean isBroker(Integer key) {
+        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
+        // But it is at least testing something meaningful about the configuration
+        return portsAllocator.hasRegisteredPort(Listener.ANON, key);
     }
 
     @SuppressWarnings("java:S3864") // Stream.peek is being used with caution.
