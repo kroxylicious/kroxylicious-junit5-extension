@@ -74,9 +74,10 @@ When multiple constraints are provided they will _all_ be satisfied.
 
 The cluster will be provisioned using the fastest available mechanism, because your development inner loop is a precious thing.
 
-## Provisioning topology
+## Node topology
 
-In a kraft cluster (the default) the extension will generate nodes using the `broker, controller` roles until it reaches the desired number of brokers or controllers (which ever is lowest) at which point it will continue deploying the remaining role.
+When generating a cluster using KRaft (the default), you declare how many brokers and controllers you want and the extension will provision the minimum number of nodes to satisfy those conditions. It will create as many nodes as it can that are both KRaft controllers and brokers using [process.roles](https://kafka.apache.org/documentation/#brokerconfigs_process.roles) (process.roles = "broker,controller"). For example:
+
 
 | numBrokers | numControllers | roles                                                               |
 |------------|----------------|---------------------------------------------------------------------|
