@@ -27,10 +27,12 @@ public @interface KRaftCluster {
      * The extension will ensure there are enough nodes started with the <code>controller</code> role.
      * The extension will combine this with the <code>numBrokers</code> to generate a cluster topology.
      * <table>
+     *  <caption>Breakdown of the interaction between numControllers and numBrokers</caption>
      *  <tr><th>numBrokers</th><th>numControllers</th><th>roles</th></tr>
      *  <tr><td>1</td><td>1</td><td><code>"broker,controller"</code></td></tr>
      *  <tr><td>3</td><td>1</td><td><code>"broker,controller"</code>, <code>"broker"</code>, <code>"broker"</code></td></tr>
      *  <tr><td>1</td><td>3</td><td><code>"broker,controller"</code>, <code>"controller"</code>, <code>"controller"</code></td></tr>
+     *  <tr><td>3</td><td>3</td><td><code>"broker,controller"</code>, <code>"broker,controller"</code>, <code>"broker,controller"</code></td></tr>
      * </table>
      * @return The number of KRaft controllers
      */
