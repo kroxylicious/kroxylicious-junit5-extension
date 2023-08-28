@@ -34,7 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -413,7 +413,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     @Override
-    public synchronized void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle) {
+    public synchronized void stopNodes(IntPredicate nodeIdPredicate, TerminationStyle terminationStyle) {
         var kafkaContainersToStop = nodes.entrySet().stream()
                 .filter(e -> nodeIdPredicate.test(e.getKey()))
                 .filter(e -> !stoppedBrokers.contains(e.getKey()))
@@ -470,7 +470,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     @Override
-    public synchronized void startNodes(Predicate<Integer> nodeIdPredicate) {
+    public synchronized void startNodes(IntPredicate nodeIdPredicate) {
         var kafkaContainersToStart = nodes.entrySet().stream()
                 .filter(e -> nodeIdPredicate.test(e.getKey()))
                 .filter(e -> stoppedBrokers.contains(e.getKey()))

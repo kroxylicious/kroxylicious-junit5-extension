@@ -26,6 +26,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -332,7 +333,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @Override
-    public synchronized void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle) {
+    public synchronized void stopNodes(IntPredicate nodeIdPredicate, TerminationStyle terminationStyle) {
         var kafkaServersToStop = servers.entrySet().stream()
                 .filter(e -> nodeIdPredicate.test(e.getKey()))
                 .filter(e -> !stoppedServers.contains(e.getKey()))
@@ -344,7 +345,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @Override
-    public synchronized void startNodes(Predicate<Integer> nodeIdPredicate) {
+    public synchronized void startNodes(IntPredicate nodeIdPredicate) {
         var kafkaServersToStart = servers.entrySet().stream()
                 .filter(e -> nodeIdPredicate.test(e.getKey()))
                 .filter(e -> stoppedServers.contains(e.getKey()))

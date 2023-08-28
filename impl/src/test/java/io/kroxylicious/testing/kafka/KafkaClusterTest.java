@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
+import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -133,16 +133,16 @@ class KafkaClusterTest {
 
     public static Stream<Arguments> stopAndStartBrokers() {
         return Stream.of(
-                Arguments.of(1, true, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> true),
-                Arguments.of(2, true, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> node == 1),
-                Arguments.of(2, true, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> true),
-                Arguments.of(1, true, TerminationStyle.GRACEFUL, (Predicate<Integer>) node -> true),
-                Arguments.of(1, false, TerminationStyle.ABRUPT, (Predicate<Integer>) node -> true));
+                Arguments.of(1, true, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
+                Arguments.of(2, true, TerminationStyle.ABRUPT, (IntPredicate) node -> node == 1),
+                Arguments.of(2, true, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
+                Arguments.of(1, true, TerminationStyle.GRACEFUL, (IntPredicate) node -> true),
+                Arguments.of(1, false, TerminationStyle.ABRUPT, (IntPredicate) node -> true));
     }
 
     @ParameterizedTest
     @MethodSource
-    void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, Predicate<Integer> brokerPredicate) throws Exception {
+    void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, IntPredicate brokerPredicate) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)

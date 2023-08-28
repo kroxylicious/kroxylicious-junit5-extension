@@ -8,7 +8,7 @@ package io.kroxylicious.testing.kafka.api;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.function.IntPredicate;
 
 /**
  * A KafkaCluster, from which is it possible to create/connect clients.
@@ -67,17 +67,17 @@ public interface KafkaCluster extends AutoCloseable {
      * @param nodeIdPredicate  predicate that returns true if the node identified by the given nodeId should be restarted
      * @param terminationStyle the style of termination used to shut down the broker(s).
      */
-    void stopNodes(Predicate<Integer> nodeIdPredicate, TerminationStyle terminationStyle);
+    void stopNodes(IntPredicate nodeIdPredicate, TerminationStyle terminationStyle);
 
     /**
      * Starts node(s) identified by the supplied predicate.  Use this method to restart node(s)
-     * previously stopped by {@link #stopNodes(Predicate, TerminationStyle)}.
+     * previously stopped by {@link #stopNodes(IntPredicate, TerminationStyle)}.
      * <br/>
      * Starting a node that is already started has no effect.
      *
      * @param nodeIdPredicate  predicate that returns true if the node identified by the given nodeId should be restarted
      */
-    void startNodes(Predicate<Integer> nodeIdPredicate);
+    void startNodes(IntPredicate nodeIdPredicate);
 
     /**
      * stops the cluster.
