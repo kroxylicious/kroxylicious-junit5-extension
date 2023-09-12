@@ -86,8 +86,8 @@ public interface KafkaCluster extends AutoCloseable {
     void close() throws Exception;
 
     /**
-     * Gets the number of brokers in the cluster, including any that are stopped.
-     * @return the size of the cluster.
+     * Gets the number of brokers in the cluster, including any that are stopped, excluding any pure controller nodes.
+     * @return the number of brokers in the cluster.
      */
     int getNumOfBrokers();
 

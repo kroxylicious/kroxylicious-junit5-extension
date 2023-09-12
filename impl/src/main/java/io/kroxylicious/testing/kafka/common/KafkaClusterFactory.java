@@ -62,18 +62,20 @@ public class KafkaClusterFactory {
         }
 
         var clusterMode = getExecutionMode(clusterConfig);
-        var kraftMode = convertClusterKraftMode(System.getenv().get(TEST_CLUSTER_KRAFT_MODE), true);
+        var kraftMode = convertClusterKraftMode(System.getenv().get(TEST_CLUSTER_KRAFT_MODE), MetadataMode.KRAFT_COMBINED);
         var builder = clusterConfig.toBuilder();
 
         if (clusterConfig.getExecMode() == null) {
             builder.execMode(clusterMode);
         }
 
-        if (clusterConfig.getKraftMode() == null) {
-            builder.kraftMode(kraftMode);
+        if (clusterConfig.getMetadataMode() == null) {
+            builder.metadataMode(kraftMode);
         }
 
-        if (KafkaClusterExecutionMode.CONTAINER == clusterMode && kraftMode && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
+        if (KafkaClusterExecutionMode.CONTAINER == clusterMode
+                && kraftMode != MetadataMode.ZOOKEEPER
+                && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
             throw new IllegalStateException(
                     "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes in " + KafkaClusterExecutionMode.CONTAINER
                             + " mode so we need to fail fast. This cluster has "
@@ -104,10 +106,10 @@ public class KafkaClusterFactory {
                 clusterConfig.getExecMode() == null ? KafkaClusterExecutionMode.IN_VM : clusterConfig.getExecMode());
     }
 
-    private static boolean convertClusterKraftMode(String mode, boolean defaultMode) {
+    private static MetadataMode convertClusterKraftMode(String mode, MetadataMode defaultMode) {
         if (mode == null) {
             return defaultMode;
         }
-        return Boolean.parseBoolean(mode);
+        return Boolean.parseBoolean(mode) ? MetadataMode.KRAFT_COMBINED : MetadataMode.ZOOKEEPER;
     }
 }

@@ -41,7 +41,7 @@ class KafkaClusterConfigTest {
         final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
 
         // Then
-        assertThat(config.getBrokerNum()).isZero();
+        assertThat(config.getNodeId()).isZero();
         assertThat(config.getAnonPort()).isEqualTo(ANON_BASE_PORT);
         assertThat(config.getExternalPort()).isEqualTo(CLIENT_BASE_PORT);
         assertThat(config.getEndpoint()).isEqualTo("localhost:" + CLIENT_BASE_PORT);
@@ -52,7 +52,11 @@ class KafkaClusterConfigTest {
     void shouldConfigureMultipleControllersInCombinedMode() {
         // Given
         var numBrokers = 3;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(3).brokersNum(numBrokers).build();
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
+                .kraftControllers(3)
+                .brokersNum(numBrokers)
+                .build();
 
         // When
         for (int nodeId = 0; nodeId < numBrokers; nodeId++) {
@@ -61,11 +65,15 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    void shouldConfigureMultipleControllersInControllerOnlyMode() {
+    void shouldConfigureMultipleControllersInCombinedModeWhenExcessControllers() {
         // Given
         var numBrokers = 1;
         var numControllers = 3;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
 
         // When
         assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
@@ -76,11 +84,15 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    void shouldConfigureSingleControllersInCombinedMode() {
+    void shouldConfigureSingleControllerInCombinedMode() {
         // Given
         var numBrokers = 3;
         var numControllers = 1;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
 
         // When
         assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
@@ -91,31 +103,135 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    void shouldGenerateConfigForBrokerNodes() {
+    void shouldGenerateConfigForBrokerNodesInCombinedMode() {
         // Given
         var numBrokers = 3;
         var numControllers = 1;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
 
         // When
-        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig);
+        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getNodeConfigs(() -> endpointConfig);
 
         // Then
         assertThat(brokerConfigs).hasSize(3);
     }
 
     @Test
-    void shouldGenerateConfigForControllerNodes() {
+    void shouldGenerateConfigForControllerNodesInCombinedMode() {
         // Given
         var numBrokers = 1;
         var numControllers = 3;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
 
         // When
-        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig);
+        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getNodeConfigs(() -> endpointConfig);
 
         // Then
         assertThat(brokerConfigs).hasSize(3);
+    }
+
+    ////
+
+    @Test
+    void shouldConfigureMultipleControllersInSeparateMode() {
+        // Given
+        var numBrokers = 3;
+        var numControllers = 3;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_SEPARATE)
+                .kraftControllers(3)
+                .brokersNum(numBrokers)
+                .build();
+
+        // When
+        for (int nodeId = 0; nodeId < numControllers; nodeId++) {
+            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "controller");
+        }
+        for (int nodeId = numControllers; nodeId < numControllers + numBrokers; nodeId++) {
+            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker");
+        }
+    }
+
+    @Test
+    void shouldConfigureMultipleControllersInSeparateModeWhenExcessControllers() {
+        // Given
+        var numBrokers = 1;
+        var numControllers = 3;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_SEPARATE)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
+
+        // When
+        assertNodeIdHasRole(kafkaClusterConfig, 0, "controller");
+        assertNodeIdHasRole(kafkaClusterConfig, 1, "controller");
+        assertNodeIdHasRole(kafkaClusterConfig, 2, "controller");
+
+        assertNodeIdHasRole(kafkaClusterConfig, 3, "broker");
+    }
+
+    @Test
+    void shouldConfigureSingleControllerInSeparateMode() {
+        // Given
+        var numBrokers = 3;
+        var numControllers = 1;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_SEPARATE)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
+
+        // When
+        assertNodeIdHasRole(kafkaClusterConfig, 0, "controller");
+
+        for (int nodeId = 1; nodeId < numBrokers; nodeId++) {
+            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker");
+        }
+    }
+
+    @Test
+    void shouldGenerateConfigForBrokerNodesInSeparateMode() {
+        // Given
+        var numBrokers = 3;
+        var numControllers = 1;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_SEPARATE)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
+
+        // When
+        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getNodeConfigs(() -> endpointConfig);
+
+        // Then
+        assertThat(brokerConfigs).hasSize(4);
+    }
+
+    @Test
+    void shouldGenerateConfigForControllerNodesInSeparateMode() {
+        // Given
+        var numBrokers = 1;
+        var numControllers = 3;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder
+                .metadataMode(MetadataMode.KRAFT_SEPARATE)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .build();
+
+        // When
+        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getNodeConfigs(() -> endpointConfig);
+
+        // Then
+        assertThat(brokerConfigs).hasSize(4);
     }
 
     private void assertNodeIdHasRole(KafkaClusterConfig kafkaClusterConfig, int nodeId, String expectedRole) {

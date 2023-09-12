@@ -35,8 +35,8 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -47,6 +47,7 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
+import io.kroxylicious.testing.kafka.common.MetadataMode;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static io.kroxylicious.testing.kafka.common.KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE;
@@ -70,7 +71,7 @@ class KafkaClusterTest {
     void kafkaClusterKraftMode() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(true)
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -82,7 +83,7 @@ class KafkaClusterTest {
     void kafkaClusterKraftModeWithMultipleControllers() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(true)
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
                 .kraftControllers(3)
                 .build())) {
             cluster.start();
@@ -101,7 +102,7 @@ class KafkaClusterTest {
     void kafkaClusterZookeeperMode() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -109,13 +110,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterAddBroker(boolean kraft) throws Exception {
+    @EnumSource(value = MetadataMode.class)
+    void kafkaClusterAddBroker(MetadataMode metadataMode) throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -124,7 +125,7 @@ class KafkaClusterTest {
             verifyRecordRoundTrip(brokersNum, cluster);
 
             int nodeId = cluster.addBroker();
-            assertThat(nodeId).isEqualTo(1);
+            assertThat(nodeId).isEqualTo(metadataMode == MetadataMode.KRAFT_SEPARATE ? 2 : 1);
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum + 1);
             assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum + 1);
             verifyRecordRoundTrip(brokersNum + 1, cluster);
@@ -133,37 +134,45 @@ class KafkaClusterTest {
 
     public static Stream<Arguments> stopAndStartBrokers() {
         return Stream.of(
-                Arguments.of(1, true, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
-                Arguments.of(2, true, TerminationStyle.ABRUPT, (IntPredicate) node -> node == 1),
-                Arguments.of(2, true, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
-                Arguments.of(1, true, TerminationStyle.GRACEFUL, (IntPredicate) node -> true),
-                Arguments.of(1, false, TerminationStyle.ABRUPT, (IntPredicate) node -> true));
+                Arguments.of(1, MetadataMode.KRAFT_COMBINED, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
+                Arguments.of(2, MetadataMode.KRAFT_COMBINED, TerminationStyle.ABRUPT, (IntPredicate) node -> node == 1),
+                Arguments.of(2, MetadataMode.KRAFT_COMBINED, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
+                Arguments.of(1, MetadataMode.KRAFT_COMBINED, TerminationStyle.GRACEFUL, (IntPredicate) node -> true),
+                Arguments.of(1, MetadataMode.KRAFT_SEPARATE, TerminationStyle.ABRUPT, (IntPredicate) node -> node >= 1),
+                Arguments.of(2, MetadataMode.KRAFT_SEPARATE, TerminationStyle.ABRUPT, (IntPredicate) node -> node == 1),
+                Arguments.of(2, MetadataMode.KRAFT_SEPARATE, TerminationStyle.ABRUPT, (IntPredicate) node -> node >= 1),
+                Arguments.of(1, MetadataMode.KRAFT_SEPARATE, TerminationStyle.GRACEFUL, (IntPredicate) node -> node >= 1),
+                Arguments.of(1, MetadataMode.ZOOKEEPER, TerminationStyle.ABRUPT, (IntPredicate) node -> true));
     }
 
     @ParameterizedTest
     @MethodSource
-    void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, IntPredicate brokerPredicate) throws Exception {
+    void stopAndStartBrokers(int brokersNum,
+                             MetadataMode metadataMode,
+                             TerminationStyle terminationStyle,
+                             IntPredicate stopBrokerPredicate)
+            throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             verifyRecordRoundTrip(brokersNum, cluster);
 
             var nodes = describeClusterNodes(cluster);
-            var brokersExpectedDown = nodes.stream().filter(n -> brokerPredicate.test(n.id())).toList();
+            var brokersExpectedDown = nodes.stream().filter(n -> stopBrokerPredicate.test(n.id())).toList();
 
             assertThat(cluster.getStoppedBrokers()).hasSize(0);
 
-            cluster.stopNodes(brokerPredicate, terminationStyle);
+            cluster.stopNodes(stopBrokerPredicate, terminationStyle);
 
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             assertThat(cluster.getStoppedBrokers()).hasSameSizeAs(brokersExpectedDown);
             brokersExpectedDown.forEach(this::assertBrokerRefusesConnection);
 
-            cluster.startNodes(brokerPredicate);
+            cluster.startNodes(stopBrokerPredicate);
 
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             assertThat(cluster.getStoppedBrokers()).hasSize(0);
@@ -174,11 +183,11 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void stopAndStartIdempotency(boolean kraft) throws Exception {
+    @EnumSource(value = MetadataMode.class)
+    void stopAndStartIdempotency(MetadataMode metadataMode) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
@@ -189,11 +198,21 @@ class KafkaClusterTest {
             assertThat(cluster.getStoppedBrokers()).hasSize(0);
 
             cluster.stopNodes((u) -> true, null);
-            assertThat(cluster.getStoppedBrokers()).hasSize(1);
+            if (metadataMode == MetadataMode.KRAFT_SEPARATE) {
+                assertThat(cluster.getStoppedBrokers()).hasSize(2);
+            }
+            else {
+                assertThat(cluster.getStoppedBrokers()).hasSize(1);
+            }
 
             // stopping idempotent
             cluster.stopNodes((u) -> true, null);
-            assertThat(cluster.getStoppedBrokers()).hasSize(1);
+            if (metadataMode == MetadataMode.KRAFT_SEPARATE) {
+                assertThat(cluster.getStoppedBrokers()).hasSize(2);
+            }
+            else {
+                assertThat(cluster.getStoppedBrokers()).hasSize(1);
+            }
 
             cluster.startNodes((u) -> true);
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
@@ -206,11 +225,11 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void stopAndStartIncrementally(boolean kraft) throws Exception {
+    @EnumSource(value = MetadataMode.class)
+    void stopAndStartIncrementally(MetadataMode metadataMode) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .brokersNum(2)
                 .build())) {
             cluster.start();
@@ -221,11 +240,21 @@ class KafkaClusterTest {
             assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
 
             cluster.stopNodes((u) -> true, null);
-            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(0, 1);
+            if (metadataMode == MetadataMode.KRAFT_SEPARATE) {
+                assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(0, 1, 2);
+            }
+            else {
+                assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(0, 1);
+            }
 
             // restart one node (in the kraft case, this needs to be the controller).
             cluster.startNodes((n) -> n == 0);
-            assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
+            if (metadataMode == MetadataMode.KRAFT_SEPARATE) {
+                assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1, 2);
+            }
+            else {
+                assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
+            }
 
             cluster.startNodes((u) -> true);
             assertThat(cluster.getStoppedBrokers()).hasSize(0);
@@ -234,11 +263,11 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void topicPersistsThroughStopAndStart(boolean kraft) throws Exception {
+    @EnumSource(value = MetadataMode.class)
+    void topicPersistsThroughStopAndStart(MetadataMode metadataMode) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .brokersNum(1)
                 .build())) {
             cluster.start();
@@ -265,12 +294,12 @@ class KafkaClusterTest {
     }
 
     @Test
-    void kafkaTwoNodeClusterKraftMode() throws Exception {
+    void kafkaTwoNodeClusterKraftCombinedMode() throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(true)
+                .metadataMode(MetadataMode.KRAFT_COMBINED)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -283,7 +312,7 @@ class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -291,13 +320,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterRemoveBroker(boolean kraft) throws Exception {
+    @EnumSource(value = MetadataMode.class)
+    void kafkaClusterRemoveBroker(MetadataMode metadataMode) throws Exception {
         int brokersNum = 3;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -313,13 +342,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterRemoveWithStoppedBrokerDisallowed(boolean kraft) throws Exception {
+    @EnumSource(value = MetadataMode.class)
+    void kafkaClusterRemoveWithStoppedBrokerDisallowed(MetadataMode metadataMode) throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .metadataMode(metadataMode)
                 .build())) {
             cluster.start();
 
@@ -331,13 +360,16 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftDisallowsControllerRemoval() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = {
+            "KRAFT_COMBINED", "KRAFT_SEPARATE"
+    })
+    void kafkaClusterKraftCombinedDisallowsControllerRemoval(MetadataMode metadataMode) throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .build())) {
             cluster.start();
 
@@ -347,10 +379,13 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeWithAuth() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = {
+            "KRAFT_COMBINED", "KRAFT_SEPARATE"
+    })
+    void kafkaClusterKraftModeWithAuth(MetadataMode metadataMode) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .testInfo(testInfo)
                 .securityProtocol("SASL_PLAINTEXT")
                 .saslMechanism("PLAIN")
@@ -365,7 +400,7 @@ class KafkaClusterTest {
     void kafkaClusterZookeeperModeWithAuth() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .securityProtocol("SASL_PLAINTEXT")
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
@@ -375,14 +410,17 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = {
+            "KRAFT_COMBINED", "KRAFT_SEPARATE"
+    })
+    void kafkaClusterKraftModeSASL_SSL_ClientUsesSSLClientAuth(MetadataMode metadataMode) throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
@@ -392,14 +430,17 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSSL_ClientUsesSSLClientAuth() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = {
+            "KRAFT_COMBINED", "KRAFT_SEPARATE"
+    })
+    void kafkaClusterKraftModeSSL_ClientUsesSSLClientAuth(MetadataMode metadataMode) throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -414,7 +455,7 @@ class KafkaClusterTest {
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
@@ -431,7 +472,7 @@ class KafkaClusterTest {
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -439,12 +480,15 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSSL_ClientNoAuth() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = {
+            "KRAFT_COMBINED", "KRAFT_SEPARATE"
+    })
+    void kafkaClusterKraftModeSSL_ClientNoAuth(MetadataMode metadataMode) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -457,7 +501,7 @@ class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -465,12 +509,15 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSASL_SSL_ClientNoAuth() throws Exception {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = {
+            "KRAFT_COMBINED", "KRAFT_SEPARATE"
+    })
+    void kafkaClusterKraftModeSASL_SSL_ClientNoAuth(MetadataMode metadataMode) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "guest")
@@ -485,7 +532,7 @@ class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(false)
+                .metadataMode(MetadataMode.ZOOKEEPER)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "guest")

@@ -5,7 +5,8 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,13 +15,14 @@ import static org.junit.jupiter.api.Assertions.fail;
 class KafkaClusterFactoryTest {
 
     @SuppressWarnings("resource")
-    @Test
-    void shouldThrowInContainerModeWithControllerOnlyNodes() {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = { "KRAFT_COMBINED", "KRAFT_SEPARATE" })
+    void shouldThrowInContainerModeWithControllerOnlyNodes(MetadataMode metadataMode) {
         // Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes, so we need to fail fast
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
                 .execMode(KafkaClusterExecutionMode.CONTAINER)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .brokersNum(1)
                 .kraftControllers(2)
                 .build();
@@ -29,12 +31,13 @@ class KafkaClusterFactoryTest {
         assertThrows(IllegalStateException.class, () -> KafkaClusterFactory.create(kafkaClusterConfig));
     }
 
-    @Test
-    void shouldCreateInstanceInVMModeWithControllerOnlyNodes() {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = { "KRAFT_COMBINED", "KRAFT_SEPARATE" })
+    void shouldCreateInstanceInVMModeWithControllerOnlyNodes(MetadataMode metadataMode) {
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
                 .execMode(KafkaClusterExecutionMode.IN_VM)
-                .kraftMode(true)
+                .metadataMode(metadataMode)
                 .brokersNum(1)
                 .kraftControllers(2)
                 .build();
@@ -48,11 +51,12 @@ class KafkaClusterFactoryTest {
         }
     }
 
-    @Test
-    void shouldCreateInstanceInContainerModeWithoutControllerOnlyNodes() {
+    @ParameterizedTest
+    @EnumSource(value = MetadataMode.class, names = { "KRAFT_COMBINED", "KRAFT_SEPARATE" })
+    void shouldCreateInstanceInContainerModeWithoutControllerOnlyNodes(MetadataMode metadataMode) {
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
-                .execMode(KafkaClusterExecutionMode.IN_VM).kraftMode(true)
+                .execMode(KafkaClusterExecutionMode.IN_VM).metadataMode(metadataMode)
                 .brokersNum(3).kraftControllers(2).build();
 
         // When

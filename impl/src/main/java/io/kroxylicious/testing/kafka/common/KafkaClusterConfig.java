@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,10 +70,7 @@ public class KafkaClusterConfig {
      */
     private final KafkaClusterExecutionMode execMode;
 
-    /**
-     * if true, the cluster will be brought up in Kraft-mode
-     */
-    private final Boolean kraftMode;
+    private final MetadataMode metadataMode;
 
     /**
      * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
@@ -87,7 +85,7 @@ public class KafkaClusterConfig {
     private final String saslMechanism;
     private final String securityProtocol;
     @Builder.Default
-    private Integer brokersNum = 1;
+    private final Integer brokersNum = 1;
 
     @Builder.Default
     private Integer kraftControllers = 1;
@@ -136,6 +134,7 @@ public class KafkaClusterConfig {
         var builder = builder();
         builder.testInfo(testInfo);
         builder.brokersNum(1);
+        builder.metadataMode(MetadataMode.KRAFT_COMBINED);
         boolean sasl = false;
         boolean tls = false;
         for (Annotation annotation : annotations) {
@@ -143,11 +142,11 @@ public class KafkaClusterConfig {
                 builder.brokersNum(brokerCluster.numBrokers());
             }
             if (annotation instanceof KRaftCluster kRaftCluster) {
-                builder.kraftMode(true);
+                builder.metadataMode(kRaftCluster.combinedMode() ? MetadataMode.KRAFT_COMBINED : MetadataMode.KRAFT_SEPARATE);
                 builder.kraftControllers(kRaftCluster.numControllers());
             }
             if (annotation instanceof ZooKeeperCluster) {
-                builder.kraftMode(false);
+                builder.metadataMode(MetadataMode.ZOOKEEPER);
             }
             if (annotation instanceof Tls) {
                 tls = true;
@@ -197,13 +196,12 @@ public class KafkaClusterConfig {
      * @param endPointConfigSupplier the end point config supplier
      * @return the broker configs
      */
-    public Stream<ConfigHolder> getBrokerConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier) {
+    public Stream<ConfigHolder> getNodeConfigs(Supplier<KafkaEndpoints> endPointConfigSupplier) {
         List<ConfigHolder> properties = new ArrayList<>();
         KafkaEndpoints kafkaEndpoints = endPointConfigSupplier.get();
-        final int nodeCount = Math.max(brokersNum, kraftControllers);
-        for (int brokerNum = 0; brokerNum < nodeCount; brokerNum++) {
-            final ConfigHolder brokerConfigHolder = generateConfigForSpecificNode(kafkaEndpoints, brokerNum);
-            properties.add(brokerConfigHolder);
+        for (int nodeId = 0; nodeId < numNodes(); nodeId++) {
+            final ConfigHolder nodeConfigHolder = generateConfigForSpecificNode(kafkaEndpoints, nodeId);
+            properties.add(nodeConfigHolder);
         }
 
         return properties.stream();
@@ -218,7 +216,8 @@ public class KafkaClusterConfig {
      */
     @NotNull
     public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
-        final var role = determineRole(nodeId);
+        // checkNodeId(nodeId);
+        final var roles = nodeId >= numNodes() ? EnumSet.of(NodeRole.BROKER) : processRoles(nodeId);
         Properties nodeConfiguration = new Properties();
         nodeConfiguration.putAll(brokerConfigs);
 
@@ -230,18 +229,45 @@ public class KafkaClusterConfig {
         var earlyStart = new TreeSet<String>();
 
         final ConfigHolder configHolder;
-        if (role.contains(BROKER_ROLE)) {
-            configHolder = configureBroker(kafkaEndpoints, nodeId, protocolMap, listeners, advertisedListeners, earlyStart, nodeConfiguration);
+        if (NodeRole.hasBrokerRole(roles)) {
+            var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
+            var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
+            var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
+
+            // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
+            // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
+            // - INTERNAL: used for inter-broker communications (always no auth)
+            // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
+
+            var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
+            configureExternalListener(protocolMap, externalListenerTransport, listeners, clientEndpoint, advertisedListeners);
+            configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
+            configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
+            configureTls(clientEndpoint, nodeConfiguration);
+            putConfig(nodeConfiguration, "advertised.listeners",
+                    advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+            configHolder = new ConfigHolder(kafkaKraftClusterId, nodeId, roles, nodeConfiguration, clientEndpoint.getConnect().getPort(),
+                    anonEndpoint.getConnect().getPort(),
+                    clientEndpoint.connectAddress());
         }
         else {
-            configHolder = configureController(kafkaEndpoints, nodeId, nodeConfiguration);
+            configHolder = new ConfigHolder(kafkaKraftClusterId,
+                    nodeId,
+                    roles,
+                    nodeConfiguration,
+                    null,
+                    null,
+                    null);
         }
 
-        if (isKraftMode()) {
-            configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, earlyStart, role);
+        if (this.metadataMode == MetadataMode.KRAFT_SEPARATE) {
+            configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, earlyStart, roles);
         }
-        else {
-            configureLegacyNode(kafkaEndpoints, nodeConfiguration);
+        else if (this.metadataMode == null || this.metadataMode == MetadataMode.KRAFT_COMBINED) {
+            configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, earlyStart, roles);
+        }
+        else if (this.metadataMode == MetadataMode.ZOOKEEPER) {
+            configureLegacyBroker(nodeId, kafkaEndpoints, nodeConfiguration);
         }
 
         putConfig(nodeConfiguration, "listener.security.protocol.map",
@@ -267,54 +293,74 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    @NotNull
-    private ConfigHolder configureController(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration) {
-        return new ConfigHolder(nodeConfiguration, null, null, null,
-                nodeId, kafkaKraftClusterId);
-    }
-
-    @NotNull
-    private ConfigHolder configureBroker(KafkaEndpoints kafkaEndpoints, int nodeId, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
-                                         TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties nodeConfiguration) {
-        final ConfigHolder configHolder;
-        var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
-        var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
-        var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
-
-        // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
-        // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
-        // - INTERNAL: used for inter-broker communications (always no auth)
-        // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
-
-        var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
-        configureExternalListener(protocolMap, externalListenerTransport, listeners, clientEndpoint, advertisedListeners);
-        configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
-        configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
-        configureTls(clientEndpoint, nodeConfiguration);
-        putConfig(nodeConfiguration, "advertised.listeners",
-                advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-        configHolder = new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
-                clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
-        return configHolder;
-    }
-
-    @NotNull
-    private String determineRole(int nodeId) {
-        var roles = new ArrayList<String>();
-
-        if (nodeId < brokersNum || isAdditionalNode(nodeId)) {
-            roles.add(BROKER_ROLE);
+    private void checkNodeId(int nodeId) {
+        if (nodeId < 0 || nodeId >= numNodes()) {
+            throw new IllegalArgumentException("Bad node id " + nodeId + "; expected between 0 and " + numNodes() + " inclusive");
         }
-        if (nodeId < kraftControllers) {
-            roles.add(CONTROLLER_ROLE);
-        }
-        return String.join(",", roles);
     }
 
-    // additional nodes can only be added after the initial topology is generated.
-    // Hence, it is safe to assume that a node is additional if it has a higherId than the initial topology would allow for.
-    private boolean isAdditionalNode(int nodeId) {
-        return nodeId >= Math.max(brokersNum, kraftControllers);
+    /**
+     * @return The total number of Kafka nodes (excludes any ZooKeeper nodes).
+     */
+    public int numNodes() {
+        if (metadataMode == null) {
+            return brokersNum;
+        }
+        return metadataMode.numNodes(kraftControllers, brokersNum);
+    }
+
+    @NotNull
+    private EnumSet<NodeRole> processRoles(int nodeId) {
+        // checkNodeId(nodeId);
+
+        if (metadataMode == null) {
+            return EnumSet.of(NodeRole.BROKER);
+        }
+        switch (metadataMode) {
+            case KRAFT_COMBINED -> {
+                if (nodeId > brokersNum - 1) {
+                    return EnumSet.of(NodeRole.CONTROLLER);
+                }
+                else if (nodeId > kraftControllers - 1) {
+                    return EnumSet.of(NodeRole.BROKER);
+                }
+                else {
+                    return EnumSet.of(NodeRole.CONTROLLER, NodeRole.BROKER);
+                }
+            }
+            case KRAFT_SEPARATE -> {
+                if (nodeId < kraftControllers) {
+                    return EnumSet.of(NodeRole.CONTROLLER);
+                }
+                else {
+                    return EnumSet.of(NodeRole.BROKER);
+                }
+            }
+            case ZOOKEEPER -> {
+                return EnumSet.of(NodeRole.BROKER);
+            }
+            default -> throw new RuntimeException();
+        }
+    }
+
+    public boolean isPureController(int nodeId) {
+        return NodeRole.isPureController(processRoles(nodeId));
+    }
+
+    public boolean isCombinedNode(int nodeId) {
+        return NodeRole.isCombinedNode(processRoles(nodeId));
+    }
+
+    public boolean isPureBroker(int nodeId) {
+        return NodeRole.isPureBroker(processRoles(nodeId));
+    }
+
+    public boolean hasBrokerRole(int nodeId) {
+        return NodeRole.hasBrokerRole(processRoles(nodeId));
+    }
+
+    public boolean hasControllerRole(int nodeId) {
+        return NodeRole.hasControllerRole(processRoles(nodeId));
     }
 
     private void configureTls(KafkaEndpoints.EndpointPair clientEndpoint, Properties server) {
@@ -394,17 +440,20 @@ public class KafkaClusterConfig {
         advertisedListeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.advertisedAddress());
     }
 
-    private static void configureLegacyNode(KafkaEndpoints kafkaEndpoints, Properties server) {
+    private static void configureLegacyBroker(int brokerId, KafkaEndpoints kafkaEndpoints, Properties server) {
         putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
         putConfig(server, "zookeeper.sasl.enabled", "false");
         putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
         putConfig(server, KafkaConfig.ZkSessionTimeoutMsProp(), Long.toString(6000));
     }
 
-    private void configureKraftNode(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration, TreeMap<String, String> protocolMap,
+    private void configureKraftNode(KafkaEndpoints kafkaEndpoints,
+                                    int nodeId,
+                                    Properties nodeConfiguration,
+                                    TreeMap<String, String> protocolMap,
                                     TreeMap<String, String> listeners,
                                     TreeSet<String> earlyStart,
-                                    String role) {
+                                    EnumSet<NodeRole> roles) {
         putConfig(nodeConfiguration, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
 
         var quorumVoters = IntStream.range(0, kraftControllers)
@@ -414,8 +463,8 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "controller.listener.names", CONTROLLER_LISTENER_NAME);
         protocolMap.put(CONTROLLER_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
 
-        putConfig(nodeConfiguration, "process.roles", role);
-        if (role.contains(CONTROLLER_ROLE)) {
+        putConfig(nodeConfiguration, "process.roles", NodeRole.forConfig(roles));
+        if (NodeRole.hasControllerRole(roles)) {
             var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
             final String bindAddress = controllerEndpoint.getBind().toString();
             listeners.put(CONTROLLER_LISTENER_NAME, bindAddress);
@@ -559,7 +608,7 @@ public class KafkaClusterConfig {
      * @return true if kraft mode is used, false otherwise
      */
     public boolean isKraftMode() {
-        return this.getKraftMode() == null || this.getKraftMode();
+        return this.metadataMode == null || this.metadataMode != MetadataMode.ZOOKEEPER;
     }
 
     /**
@@ -580,37 +629,39 @@ public class KafkaClusterConfig {
         private final Integer externalPort;
         private final Integer anonPort;
         private final String endpoint;
-        private final int brokerNum;
+        private final int nodeId;
         private final String kafkaKraftClusterId;
-        private final String roles;
+        private final Set<NodeRole> roles;
 
         /**
          * Instantiates a new Config holder.
          *
+         * @param kafkaKraftClusterId the kafka kraft cluster id
+         * @param nodeId              the node id
          * @param properties          the properties
          * @param externalPort        the external port
          * @param anonPort            the anon port
          * @param endpoint            the endpoint
-         * @param brokerNum           the broker num
-         * @param kafkaKraftClusterId the kafka kraft cluster id
          */
         @Builder
-        public ConfigHolder(Properties properties, Integer externalPort, Integer anonPort, String endpoint, int brokerNum, String kafkaKraftClusterId) {
+        public ConfigHolder(String kafkaKraftClusterId,
+                            int nodeId,
+                            Set<NodeRole> roles,
+                            Properties properties,
+                            Integer externalPort,
+                            Integer anonPort,
+                            String endpoint) {
             this.properties = properties;
             this.externalPort = externalPort;
             this.anonPort = anonPort;
             this.endpoint = endpoint;
-            this.brokerNum = brokerNum;
+            this.nodeId = nodeId;
             this.kafkaKraftClusterId = kafkaKraftClusterId;
-            this.roles = properties.getProperty("process.roles", BROKER_ROLE);
+            this.roles = roles;
         }
 
-        public boolean isBroker() {
-            return this.roles.contains(BROKER_ROLE);
-        }
-
-        public boolean isController() {
-            return this.roles.contains(CONTROLLER_ROLE);
+        public Set<NodeRole> roles() {
+            return roles;
         }
     }
 

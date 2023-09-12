@@ -17,25 +17,42 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 /**
  * Annotation constraining a {@link KafkaClusterProvisioningStrategy} to use
  * a {@link KafkaCluster} that is KRaft-based.
+ *
+ * <table>
+ *  <caption>Breakdown of the interaction between numControllers and numBrokers</caption>
+ *  <tr><th>numBrokers</th><th>numControllers</th><th>combinedMode</th><th>roles</th></tr>
+ *  <tr><td>1</td><td>1</td><td>true</td><td>1×<code>"broker,controller"</code></td></tr>
+ *  <tr><td>1</td><td>1</td><td>false</td><td>1×<code>"broker"</code>, 1×<code>"controller"</code></td></tr>
+ *
+ *  <tr><td>3</td><td>1</td><td>true</td><td>1×<code>"broker,controller"</code>, 2×<code>"broker"</code></td></tr>
+ *  <tr><td>3</td><td>1</td><td>false</td><td>3×<code>"broker"</code>, 1×<code>"controller"</code>, </td></tr>
+ *
+ *  <tr><td>1</td><td>3</td><td>true</td><td>1×<code>"broker,controller"</code>, 2×<code>"controller"</code></td></tr>
+ *  <tr><td>1</td><td>3</td><td>false</td><td>1×<code>"broker"</code>, 3×<code>"controller"</code></td></tr>
+ *
+ *  <tr><td>3</td><td>3</td><td>true</td><td>3×<code>"broker,controller"</code></td></tr>
+ *  <tr><td>3</td><td>3</td><td>true</td><td>3×<code>"broker"</code>, 3×<code>"controller"</code></td></tr>
+ * </table>
  */
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
 @KafkaClusterConstraint
 public @interface KRaftCluster {
     /**
-     * The number of kraft controllers
-     * The extension will ensure there are enough nodes started with the <code>controller</code> role.
-     * The extension will combine this with the <code>numBrokers</code> to generate a cluster topology.
-     * <table>
-     *  <caption>Breakdown of the interaction between numControllers and numBrokers</caption>
-     *  <tr><th>numBrokers</th><th>numControllers</th><th>roles</th></tr>
-     *  <tr><td>1</td><td>1</td><td><code>"broker,controller"</code></td></tr>
-     *  <tr><td>3</td><td>1</td><td><code>"broker,controller"</code>, <code>"broker"</code>, <code>"broker"</code></td></tr>
-     *  <tr><td>1</td><td>3</td><td><code>"broker,controller"</code>, <code>"controller"</code>, <code>"controller"</code></td></tr>
-     *  <tr><td>3</td><td>3</td><td><code>"broker,controller"</code>, <code>"broker,controller"</code>, <code>"broker,controller"</code></td></tr>
-     * </table>
+     * The number of kraft controllers.
+     * The extension will ensure there are this many nodes started with the <code>controller</code> role.
+     * combining this with the <code>numBrokers</code> and <code>combinedMode</code> to generate a cluster topology.
+     *
+     * See the class JavaDoc for example topologies.
      * @return The number of KRaft controllers
      */
     public int numControllers() default 1;
+
+    /**
+     * Whether to use combined mode, where controllers can share a JVM with brokers.
+     * See the class JavaDoc for example topologies.
+     * @return true to use combined mode.
+     */
+    public boolean combinedMode() default true;
 
 }

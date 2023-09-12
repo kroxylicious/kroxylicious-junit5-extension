@@ -67,6 +67,8 @@ import lombok.SneakyThrows;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.MetadataMode;
+import io.kroxylicious.testing.kafka.common.NodeRole;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
@@ -185,15 +187,32 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
-            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
-            portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.getKraftControllers());
+            // portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
+            // portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.getKraftControllers());
+
+            // if (!clusterConfig.isKraftMode()) {
+            // portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0);
+            // }
+            for (int nodeId = 0; nodeId < clusterConfig.numNodes(); nodeId++) {
+                Set<Listener> listeners = new HashSet<>();
+                if (clusterConfig.hasControllerRole(nodeId)) {
+                    listeners.add(Listener.CONTROLLER);
+                }
+                if (clusterConfig.hasBrokerRole(nodeId)) {
+                    listeners.add(Listener.EXTERNAL);
+                    listeners.add(Listener.ANON);
+                    listeners.add(Listener.INTERNAL);
+                }
+                portAllocationSession.allocate(listeners, nodeId);
+            }
         }
 
-        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
+        clusterConfig.getNodeConfigs(() -> this).forEach(holder -> nodes.put(holder.getNodeId(), buildKafkaContainer(holder)));
     }
 
     private static void validateClusterConfig(KafkaClusterConfig clusterConfig) {
-        if (Boolean.TRUE.equals(clusterConfig.getKraftMode()) && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
+        if (clusterConfig.getMetadataMode() != MetadataMode.ZOOKEEPER
+                && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
             throw new IllegalStateException(
                     "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes so we need to fail fast. This cluster has "
                             + clusterConfig.getBrokersNum() + " brokers and " + clusterConfig.getKraftControllers() + " controllers");
@@ -202,7 +221,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @NotNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
-        String netAlias = "broker-" + holder.getBrokerNum();
+        String netAlias = "broker-" + holder.getNodeId();
         KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
                 .withName(name)
                 .withNetwork(network)
@@ -214,7 +233,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         kafkaContainer
                 // KAFKA_LOG_DIR overrides a key in the quarkus kafka image application.properties. The quarkus app uses
                 // that to set log.dir. Any value we set for log.dir in server.properties is lost.
-                .withEnv("KAFKA_LOG_DIR", getBrokerLogDirectory(holder.getBrokerNum()))
+                .withEnv("KAFKA_LOG_DIR", getBrokerLogDirectory(holder.getNodeId()))
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
                 .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
@@ -222,7 +241,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
 
-        if (holder.isBroker()) {
+        if (NodeRole.hasBrokerRole(holder.roles())) {
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
             kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
         }
@@ -346,13 +365,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             kafkaContainer.stop();
             throw new RuntimeException(e);
         }
-        nodes.put(configHolder.getBrokerNum(), kafkaContainer);
+        nodes.put(configHolder.getNodeId(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
-        return configHolder.getBrokerNum();
+        return configHolder.getNodeId();
     }
 
     @Override
@@ -453,7 +472,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         if (zookeeper != null) {
             // In the zookeeper case, we may as well wait for the zookeeper session timeout. This serves to prevent a
             // subsequent call to startBroker spinning excessively.
-            var config = clusterConfig.getBrokerConfigs(() -> this).findFirst();
+            var config = clusterConfig.getNodeConfigs(() -> this).findFirst();
             var zkSessionTimeout = config.map(KafkaClusterConfig.ConfigHolder::getProperties).map(p -> p.getProperty(KafkaConfig.ZkSessionTimeoutMsProp(), "0"))
                     .map(Long::parseLong);
             zkSessionTimeout.filter(timeout -> timeout > 0).ifPresent(
