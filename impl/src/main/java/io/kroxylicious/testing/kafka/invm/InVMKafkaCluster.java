@@ -330,7 +330,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             throw new IllegalStateException("Cannot remove nodes from a cluster with stopped nodes.");
         }
 
-        var target = servers.keySet().stream().filter(n -> n != nodeId).findFirst();
+        var target = servers.keySet().stream().filter(n -> n != nodeId && clusterConfig.hasBrokerRole(n)).findFirst();
         if (target.isEmpty()) {
             throw new IllegalStateException("Could not identify a node to be the re-assignment target");
         }
