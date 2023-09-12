@@ -187,12 +187,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
-            // portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON), 0, clusterConfig.getBrokersNum());
-            // portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.getKraftControllers());
-
-            // if (!clusterConfig.isKraftMode()) {
-            // portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0);
-            // }
             for (int nodeId = 0; nodeId < clusterConfig.numNodes(); nodeId++) {
                 Set<Listener> listeners = new HashSet<>();
                 if (clusterConfig.hasControllerRole(nodeId)) {

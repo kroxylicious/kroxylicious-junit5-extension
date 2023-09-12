@@ -216,7 +216,6 @@ public class KafkaClusterConfig {
      */
     @NotNull
     public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
-        // checkNodeId(nodeId);
         final var roles = nodeId >= numNodes() ? EnumSet.of(NodeRole.BROKER) : processRoles(nodeId);
         Properties nodeConfiguration = new Properties();
         nodeConfiguration.putAll(brokerConfigs);
@@ -267,7 +266,7 @@ public class KafkaClusterConfig {
             configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, earlyStart, roles);
         }
         else if (this.metadataMode == MetadataMode.ZOOKEEPER) {
-            configureLegacyBroker(nodeId, kafkaEndpoints, nodeConfiguration);
+            configureLegacyBroker(kafkaEndpoints, nodeConfiguration);
         }
 
         putConfig(nodeConfiguration, "listener.security.protocol.map",
@@ -293,12 +292,6 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    private void checkNodeId(int nodeId) {
-        if (nodeId < 0 || nodeId >= numNodes()) {
-            throw new IllegalArgumentException("Bad node id " + nodeId + "; expected between 0 and " + numNodes() + " inclusive");
-        }
-    }
-
     /**
      * @return The total number of Kafka nodes (excludes any ZooKeeper nodes).
      */
@@ -311,8 +304,6 @@ public class KafkaClusterConfig {
 
     @NotNull
     private EnumSet<NodeRole> processRoles(int nodeId) {
-        // checkNodeId(nodeId);
-
         if (metadataMode == null) {
             return EnumSet.of(NodeRole.BROKER);
         }
@@ -440,7 +431,7 @@ public class KafkaClusterConfig {
         advertisedListeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.advertisedAddress());
     }
 
-    private static void configureLegacyBroker(int brokerId, KafkaEndpoints kafkaEndpoints, Properties server) {
+    private static void configureLegacyBroker(KafkaEndpoints kafkaEndpoints, Properties server) {
         putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
         putConfig(server, "zookeeper.sasl.enabled", "false");
         putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
