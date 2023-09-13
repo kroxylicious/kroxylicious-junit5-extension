@@ -186,7 +186,7 @@ public class KafkaClusterExtension implements
 
         var lists = Arrays.stream(freeConstraintsSource).map(methodSource -> {
             return invokeDimensionMethodSource(context, methodSource);
-        }).collect(Collectors.toList());
+        }).toList();
         List<? extends List<Annotation>> cartesianProduct = lists.size() > 0 ? cartesianProduct((List) lists) : List.of();
 
         ConstraintsMethodSource annotation = parameter.getAnnotation(ConstraintsMethodSource.class);
@@ -223,7 +223,7 @@ public class KafkaClusterExtension implements
     }
 
     @NotNull
-    private static List<List<Annotation>> invokeConstraintsMethodSource(ExtensionContext context,
+    private static List<? extends List<Annotation>> invokeConstraintsMethodSource(ExtensionContext context,
                                                                         ConstraintsMethodSource methodSource) {
         Method testTemplateMethod = context.getRequiredTestMethod();
         Class<?> requiredTestClass = context.getRequiredTestClass();
@@ -242,20 +242,20 @@ public class KafkaClusterExtension implements
             // check return type is Stream<? extends Annotation>
             if (Stream.class.isAssignableFrom(returnType)) {
                 Type genericReturnType = sourceMethod.getGenericReturnType();
-                if (genericReturnType instanceof ParameterizedType) {
-                    if (Stream.class.equals(((ParameterizedType) genericReturnType).getRawType())
-                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
-                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                if (genericReturnType instanceof ParameterizedType pt) {
+                    if (Stream.class.equals(pt.getRawType())
+                            && pt.getActualTypeArguments()[0] instanceof Class<?> clsTypeArg
+                            && !clsTypeArg.isAnnotation()) {
                         throw returnTypeError(testTemplateMethod, methodSource.value(), ConstraintsMethodSource.class, requiredTestClass);
                     }
                 }
             }
             else if (Collection.class.isAssignableFrom(returnType)) {
                 Type genericReturnType = sourceMethod.getGenericReturnType();
-                if (genericReturnType instanceof ParameterizedType) {
-                    if (Collection.class.equals(((ParameterizedType) genericReturnType).getRawType())
-                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
-                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                if (genericReturnType instanceof ParameterizedType pt) {
+                    if (Collection.class.equals(pt.getRawType())
+                            && pt.getActualTypeArguments()[0] instanceof Class<?> clsTypeArg
+                            && !clsTypeArg.isAnnotation()) {
                         throw returnTypeError(testTemplateMethod, methodSource.value(), ConstraintsMethodSource.class, requiredTestClass);
                     }
                 }
@@ -284,7 +284,7 @@ public class KafkaClusterExtension implements
                 methodSource.value(), ConstraintsMethodSource.class,
                 testTemplateMethod, requiredTestClass, source).stream()
                 .map(list -> filterAnnotations(list, KafkaClusterConstraint.class))
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @NotNull
@@ -307,20 +307,20 @@ public class KafkaClusterExtension implements
             // check return type is Stream<? extends Annotation>
             if (Stream.class.isAssignableFrom(returnType)) {
                 Type genericReturnType = sourceMethod.getGenericReturnType();
-                if (genericReturnType instanceof ParameterizedType) {
-                    if (Stream.class.equals(((ParameterizedType) genericReturnType).getRawType())
-                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
-                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                if (genericReturnType instanceof ParameterizedType pt) {
+                    if (Stream.class.equals(pt.getRawType())
+                            && pt.getActualTypeArguments()[0] instanceof Class<?> clsTypeArg
+                            && !clsTypeArg.isAnnotation()) {
                         throw returnTypeError(testTemplateMethod, methodSource.value(), DimensionMethodSource.class, requiredTestClass);
                     }
                 }
             }
             else if (Collection.class.isAssignableFrom(returnType)) {
                 Type genericReturnType = sourceMethod.getGenericReturnType();
-                if (genericReturnType instanceof ParameterizedType) {
-                    if (Collection.class.equals(((ParameterizedType) genericReturnType).getRawType())
-                            && ((ParameterizedType) genericReturnType).getActualTypeArguments()[0] instanceof Class
-                            && !((Class) ((ParameterizedType) genericReturnType).getActualTypeArguments()[0]).isAnnotation()) {
+                if (genericReturnType instanceof ParameterizedType pt) {
+                    if (Collection.class.equals(pt.getRawType())
+                            && pt.getActualTypeArguments()[0] instanceof Class<?> clsTypeArg
+                            && !clsTypeArg.isAnnotation()) {
                         throw returnTypeError(testTemplateMethod, methodSource.value(), DimensionMethodSource.class, requiredTestClass);
                     }
                 }
@@ -362,7 +362,7 @@ public class KafkaClusterExtension implements
                                             Method testTemplateMethod, Class<?> requiredTestClass, Object source) {
         List<T> list;
         if (source instanceof Stream) {
-            list = ((Stream<T>) source).collect(Collectors.<T> toList());
+            list = ((Stream<T>) source).toList();
         }
         else if (source instanceof List) {
             list = (List<T>) source;
@@ -593,12 +593,11 @@ public class KafkaClusterExtension implements
     @Nullable
     private static Serializer<?> getSerializerFromGenericType(Type type, int typeArgumentIndex) {
         Serializer<?> keySerializer = null;
-        if (type instanceof ParameterizedType
-                && ((ParameterizedType) type).getRawType() instanceof Class<?>
-                && Producer.class.isAssignableFrom((Class<?>) ((ParameterizedType) type).getRawType())) {
+        if (type instanceof ParameterizedType pt
+                && pt.getRawType() instanceof Class<?> cls
+                && Producer.class.isAssignableFrom(cls)) {
             // Field declared like Producer<X, Y>, KafkaProducer<X, Y>
-            ParameterizedType genericType = (ParameterizedType) type;
-            Type key = genericType.getActualTypeArguments()[typeArgumentIndex];
+            Type key = pt.getActualTypeArguments()[typeArgumentIndex];
             keySerializer = getSerializerFromType(key);
         }
         return keySerializer;
@@ -638,8 +637,8 @@ public class KafkaClusterExtension implements
                 serializer = new VoidSerializer();
             }
         }
-        else if (keyOrValueType instanceof ParameterizedType) {
-            if (List.class == ((ParameterizedType) keyOrValueType).getRawType()) {
+        else if (keyOrValueType instanceof ParameterizedType pt) {
+            if (List.class == pt.getRawType()) {
                 return new ListSerializer<>(getSerializerFromType(keyOrValueType));
             }
         }
@@ -649,12 +648,11 @@ public class KafkaClusterExtension implements
     @Nullable
     private static Deserializer<?> getDeserializerFromGenericType(Type type, int typeArgumentIndex) {
         Deserializer<?> deserializer = null;
-        if (type instanceof ParameterizedType
-                && ((ParameterizedType) type).getRawType() instanceof Class<?>
-                && Consumer.class.isAssignableFrom((Class<?>) ((ParameterizedType) type).getRawType())) {
+        if (type instanceof ParameterizedType pt
+                && pt.getRawType() instanceof Class<?> cls
+                && Consumer.class.isAssignableFrom(cls)) {
             // Field declared like Producer<X, Y>, KafkaProducer<X, Y>
-            ParameterizedType genericType = (ParameterizedType) type;
-            Type key = genericType.getActualTypeArguments()[typeArgumentIndex];
+            Type key = pt.getActualTypeArguments()[typeArgumentIndex];
             deserializer = getDeserializerFromType(key);
         }
         return deserializer;
@@ -694,11 +692,11 @@ public class KafkaClusterExtension implements
                 deserializer = new VoidDeserializer();
             }
         }
-        else if (keyOrValueType instanceof ParameterizedType) {
-            if (List.class == ((ParameterizedType) keyOrValueType).getRawType()) {
-                var ta = ((ParameterizedType) keyOrValueType).getActualTypeArguments()[0];
-                if (ta instanceof Class) {
-                    return new ListDeserializer<>((Class) ta, getDeserializerFromType(keyOrValueType));
+        else if (keyOrValueType instanceof ParameterizedType pt) {
+            if (List.class == pt.getRawType()) {
+                var ta = pt.getActualTypeArguments()[0];
+                if (ta instanceof Class cls) {
+                    return new ListDeserializer<>(cls, getDeserializerFromType(keyOrValueType));
                 }
             }
         }
@@ -1035,7 +1033,9 @@ public class KafkaClusterExtension implements
                 })
                 .min(Comparator.comparing(x -> x.estimatedProvisioningTimeMs(constraints, declarationType)))
                 .orElseThrow(() -> {
-                    var strategies = ServiceLoader.load(KafkaClusterProvisioningStrategy.class).stream().map(ServiceLoader.Provider::type).collect(Collectors.toList());
+                    var strategies = ServiceLoader.load(KafkaClusterProvisioningStrategy.class).stream()
+                            .map(ServiceLoader.Provider::type)
+                            .toList();
                     return new ExtensionConfigurationException("No provisioning strategy for a declaration of type " + declarationType.getName()
                             + " and supporting all of " + constraints +
                             " was found (tried: " + classNames(strategies) + ")");
@@ -1044,7 +1044,7 @@ public class KafkaClusterExtension implements
 
     @NotNull
     private static List<String> classNames(Collection<? extends Class<?>> constraints) {
-        return constraints.stream().map(Class::getName).sorted().collect(Collectors.toList());
+        return constraints.stream().map(Class::getName).sorted().toList();
     }
 
     private void assertSupportedType(String target, Class<?> type) {

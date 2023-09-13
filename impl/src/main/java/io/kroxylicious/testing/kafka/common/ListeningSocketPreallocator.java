@@ -73,7 +73,7 @@ public class ListeningSocketPreallocator implements AutoCloseable {
                 }).filter(Objects::nonNull)
                 .peek(all::add) // We use peek for its side effects (collecting each socket allocated)
                 .limit(num)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
