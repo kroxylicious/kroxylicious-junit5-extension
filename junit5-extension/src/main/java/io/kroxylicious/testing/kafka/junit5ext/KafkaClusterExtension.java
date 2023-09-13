@@ -224,7 +224,7 @@ public class KafkaClusterExtension implements
 
     @NotNull
     private static List<? extends List<Annotation>> invokeConstraintsMethodSource(ExtensionContext context,
-                                                                        ConstraintsMethodSource methodSource) {
+                                                                                  ConstraintsMethodSource methodSource) {
         Method testTemplateMethod = context.getRequiredTestMethod();
         Class<?> requiredTestClass = context.getRequiredTestClass();
         Object source;
