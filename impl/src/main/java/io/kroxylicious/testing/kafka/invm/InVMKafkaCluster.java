@@ -219,7 +219,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                         return true;
                     }
                     catch (Throwable t) {
-                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: {}", t.toString());
+                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: {0}", t.toString());
                         LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
                                 this.getEndpointPair(Listener.ANON, configHolder.getNodeId()).getBind(),
                                 this.getEndpointPair(Listener.EXTERNAL, configHolder.getNodeId()).getBind(),
