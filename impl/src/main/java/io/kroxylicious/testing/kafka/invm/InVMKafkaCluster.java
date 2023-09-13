@@ -270,7 +270,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
         return servers.keySet().stream()
-                .filter(nodeId -> clusterConfig.hasBrokerRole(nodeId))
+                .filter(this::isBroker)
                 .map(endpointFunc)
                 .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
                 .collect(Collectors.joining(","));
@@ -406,8 +406,18 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      */
     private void roleOrderedShutdown(Map<Integer, Server> servers) {
         // Shutdown servers without a controller port first.
-        shutdownServers(servers, e -> clusterConfig.isPureBroker(e.getKey()));
-        shutdownServers(servers, e -> clusterConfig.hasControllerRole(e.getKey()));
+        shutdownServers(servers, e -> !isController(e.getKey()));
+        shutdownServers(servers, e -> isController(e.getKey()));
+    }
+
+    private boolean isController(Integer key) {
+        return key < clusterConfig.numNodes() // dynamically added nodes are always pure brokers
+                && clusterConfig.hasControllerRole(key);
+    }
+
+    private boolean isBroker(Integer key) {
+        return key >= clusterConfig.numNodes() // dynamically added nodes are always pure brokers
+                || clusterConfig.hasBrokerRole(key);
     }
 
     @SuppressWarnings("java:S3864") // Stream.peek is being used with caution.
