@@ -97,7 +97,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     private static void exitHandler(int statusCode, String message) {
         final IllegalStateException illegalStateException = new IllegalStateException(message);
-        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Including stacktrace to determine whats at fault",
+        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Including stacktrace to determine what's at fault",
                 statusCode, message, illegalStateException);
     }
 
@@ -161,15 +161,15 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
         properties.putAll(c.getProperties());
-        var logsDir = getBrokerLogDir(c.getNodeId());
+        var logsDir = getNodeLogDir(c.getNodeId());
         properties.setProperty(KafkaConfig.LogDirProp(), logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
     }
 
     @NotNull
-    private Path getBrokerLogDir(int brokerNum) {
-        return this.tempDirectory.resolve(String.format("broker-%d", brokerNum));
+    private Path getNodeLogDir(int nodeId) {
+        return this.tempDirectory.resolve(String.format("node-%d", nodeId));
     }
 
     @Override
@@ -270,7 +270,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
         return servers.keySet().stream()
-                .filter(this::isBroker)
+                .filter(nodeId -> clusterConfig.hasBrokerRole(nodeId))
                 .map(endpointFunc)
                 .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
                 .collect(Collectors.joining(","));
@@ -344,7 +344,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         var s = servers.remove(nodeId);
         s.shutdown();
         s.awaitShutdown();
-        ensureDirectoryIsEmpty(getBrokerLogDir(nodeId));
+        ensureDirectoryIsEmpty(getNodeLogDir(nodeId));
     }
 
     @Override
@@ -406,20 +406,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      */
     private void roleOrderedShutdown(Map<Integer, Server> servers) {
         // Shutdown servers without a controller port first.
-        shutdownServers(servers, e -> !isController(e.getKey()));
-        shutdownServers(servers, e -> isController(e.getKey()));
-    }
-
-    private boolean isController(Integer key) {
-        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
-        // But it is at least testing something meaningful about the configuration
-        return portsAllocator.hasRegisteredPort(Listener.CONTROLLER, key);
-    }
-
-    private boolean isBroker(Integer key) {
-        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
-        // But it is at least testing something meaningful about the configuration
-        return portsAllocator.hasRegisteredPort(Listener.ANON, key);
+        shutdownServers(servers, e -> clusterConfig.isPureBroker(e.getKey()));
+        shutdownServers(servers, e -> clusterConfig.hasControllerRole(e.getKey()));
     }
 
     @SuppressWarnings("java:S3864") // Stream.peek is being used with caution.
