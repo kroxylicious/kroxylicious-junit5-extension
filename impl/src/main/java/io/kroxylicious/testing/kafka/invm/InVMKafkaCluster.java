@@ -219,8 +219,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                         return true;
                     }
                     catch (Throwable t) {
-                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: {0}", t.toString());
-                        LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
+                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server with node.id={0} due to: {1}", configHolder.nodeId(), t.toString());
+                        LOGGER.log(System.Logger.Level.WARNING, "nodeId: {0}, anon: {1}, client: {2}, controller: {3}, interBroker: {4}, ",
+                                configHolder.nodeId(),
                                 this.getEndpointPair(Listener.ANON, configHolder.getNodeId()).getBind(),
                                 this.getEndpointPair(Listener.EXTERNAL, configHolder.getNodeId()).getBind(),
                                 this.getEndpointPair(Listener.CONTROLLER, configHolder.getNodeId()).getBind(),

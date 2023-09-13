@@ -341,9 +341,11 @@ class KafkaClusterTest {
                 .brokersNum(brokersNum)
                 .metadataMode(metadataMode)
                 .build())) {
+            System.out.println("### Cluster built");
             assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
                     "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
+            System.out.println("### Cluster started");
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
             verifyRecordRoundTrip(brokersNum, cluster);

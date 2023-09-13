@@ -654,6 +654,10 @@ public class KafkaClusterConfig {
         public Set<NodeRole> roles() {
             return roles;
         }
+
+        public int nodeId() {
+            return nodeId;
+        }
     }
 
     /**
