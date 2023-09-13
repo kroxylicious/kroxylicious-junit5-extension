@@ -13,7 +13,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.stream.Collectors;
 
 /**
  * Allocates one or more groups listening sockets from the ephemeral port range.
@@ -73,7 +72,7 @@ public class ListeningSocketPreallocator implements AutoCloseable {
                 }).filter(Objects::nonNull)
                 .peek(all::add) // We use peek for its side effects (collecting each socket allocated)
                 .limit(num)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     @Override
