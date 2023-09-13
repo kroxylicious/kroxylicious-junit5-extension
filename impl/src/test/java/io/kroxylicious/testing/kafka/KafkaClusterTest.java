@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -55,6 +56,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -118,6 +120,8 @@ class KafkaClusterTest {
                 .brokersNum(brokersNum)
                 .metadataMode(metadataMode)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
@@ -152,11 +156,14 @@ class KafkaClusterTest {
                              TerminationStyle terminationStyle,
                              IntPredicate stopBrokerPredicate)
             throws Exception {
+
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
                 .metadataMode(metadataMode)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -189,6 +196,8 @@ class KafkaClusterTest {
                 .testInfo(testInfo)
                 .metadataMode(metadataMode)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
 
@@ -232,6 +241,8 @@ class KafkaClusterTest {
                 .metadataMode(metadataMode)
                 .brokersNum(2)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
             assertThat(cluster.getStoppedBrokers()).hasSize(0);
@@ -270,6 +281,8 @@ class KafkaClusterTest {
                 .metadataMode(metadataMode)
                 .brokersNum(1)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
 
             var topic = "roundTrip" + Uuid.randomUuid();
@@ -328,6 +341,8 @@ class KafkaClusterTest {
                 .brokersNum(brokersNum)
                 .metadataMode(metadataMode)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
             assertThat(cluster.getBootstrapServers().split(",")).hasSize(brokersNum);
@@ -350,6 +365,8 @@ class KafkaClusterTest {
                 .brokersNum(brokersNum)
                 .metadataMode(metadataMode)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
 
             cluster.stopNodes(n -> n == 1, null);
@@ -371,6 +388,8 @@ class KafkaClusterTest {
                 .brokersNum(brokersNum)
                 .metadataMode(metadataMode)
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
 
             // Node zero is the controller
@@ -391,6 +410,8 @@ class KafkaClusterTest {
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -425,6 +446,8 @@ class KafkaClusterTest {
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -443,6 +466,8 @@ class KafkaClusterTest {
                 .metadataMode(metadataMode)
                 .securityProtocol("SSL")
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -491,6 +516,8 @@ class KafkaClusterTest {
                 .metadataMode(metadataMode)
                 .securityProtocol("SSL")
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -522,6 +549,8 @@ class KafkaClusterTest {
                 .saslMechanism("PLAIN")
                 .user("guest", "guest")
                 .build())) {
+            assumeTrue(metadataMode != MetadataMode.KRAFT_SEPARATE || cluster instanceof InVMKafkaCluster,
+                    "Not supported with native image: https://github.com/ozangunalp/kafka-native/issues/88");
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
