@@ -4,6 +4,10 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 1.0.0
 
+## 0.6.0
+
+* [#180](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/180): Update kafka version range in testVersions to include 3.5.1
+
 ## 0.5.0
 
 * [#146](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/146): Expose TestInfo (and thus DisplayName) when clusters are injected via  annotations.
