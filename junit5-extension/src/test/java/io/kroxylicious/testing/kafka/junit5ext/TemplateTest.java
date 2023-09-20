@@ -159,6 +159,7 @@ public class TemplateTest {
     private static Stream<Version> versions() {
         return Stream.of(
                 version("latest"),
+                version("3.5.1"),
                 version("3.4.0"),
                 version("3.2.3"),
                 version("3.1.2"));
@@ -180,6 +181,7 @@ public class TemplateTest {
             assertEquals(Set.of("latest-kafka-3.1.2",
                     "latest-kafka-3.2.3",
                     "latest-kafka-3.4.0",
+                    "latest-kafka-3.5.1",
                     "latest"), observedVersions);
         }
     }
