@@ -227,7 +227,10 @@ public class Utils {
         // If the throwable originates from within a CompletionStage's handler, it will be wrapped within a
         // CompletionException.
         var throwable = potentiallyWrapped instanceof CompletionException && potentiallyWrapped.getCause() != null ? potentiallyWrapped.getCause() : potentiallyWrapped;
-        return throwable instanceof RetriableException || throwable instanceof InvalidReplicationFactorException
+        boolean retriable = throwable instanceof RetriableException
+                && (throwable.getMessage() == null
+                        || !throwable.getMessage().contains("The AdminClient is not accepting new calls") /* workaround for KAFKA-15507 */ );
+        return retriable || throwable instanceof InvalidReplicationFactorException
                 || (throwable instanceof TopicExistsException && throwable.getMessage().contains("is marked for deletion"));
     }
 
