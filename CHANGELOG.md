@@ -6,6 +6,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.6.0
 
+* [#182](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/182): Prevent possibility of loop when performing consistency test (workaround KAFKA-15507)
 * [#180](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/180): Update kafka version range in testVersions to include 3.5.1
 
 ## 0.5.0
