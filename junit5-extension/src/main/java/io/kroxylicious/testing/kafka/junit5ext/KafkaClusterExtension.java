@@ -5,28 +5,10 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.UUID;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
+import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
+import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -75,10 +57,27 @@ import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
 
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
-import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
-import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -756,7 +755,7 @@ public class KafkaClusterExtension implements
         }
         else {
             clusterName = findLastUsedClusterId(store, uuidsFrom(STARTING_PREFIX));
-            if (!clusterName.equals(STARTING_PREFIX)) {
+            if (clusterName == null || !clusterName.equals(STARTING_PREFIX)) {
                 throw new AmbiguousKafkaClusterException(
                         "KafkaCluster to associate with " + description + " is ambiguous, " +
                                 "use @Name on the intended cluster and this element to disambiguate");
