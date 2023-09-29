@@ -84,7 +84,9 @@ public class ConstraintUtils {
      * @return the kraft cluster
      */
     public static KRaftCluster kraftCluster(int numControllers) {
-        return mkAnnotation(KRaftCluster.class, Map.of("numControllers", numControllers));
+        return mkAnnotation(KRaftCluster.class, Map.of(
+                "numControllers", numControllers,
+                "combinedMode", true));
     }
 
     /**

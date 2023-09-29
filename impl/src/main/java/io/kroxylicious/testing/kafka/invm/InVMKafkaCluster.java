@@ -97,7 +97,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     private static void exitHandler(int statusCode, String message) {
         final IllegalStateException illegalStateException = new IllegalStateException(message);
-        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Including stacktrace to determine whats at fault",
+        LOGGER.log(System.Logger.Level.WARNING, "Kafka tried to exit with statusCode: {0} and message: {1}. Including stacktrace to determine what's at fault",
                 statusCode, message, illegalStateException);
     }
 
@@ -161,31 +161,46 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
         properties.putAll(c.getProperties());
-        var logsDir = getBrokerLogDir(c.getBrokerNum());
+        var logsDir = getNodeLogDir(c.getNodeId());
         properties.setProperty(KafkaConfig.LogDirProp(), logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
     }
 
     @NotNull
-    private Path getBrokerLogDir(int brokerNum) {
-        return this.tempDirectory.resolve(String.format("broker-%d", brokerNum));
+    private Path getNodeLogDir(int nodeId) {
+        return this.tempDirectory.resolve(String.format("node-%d", nodeId));
     }
 
     @Override
     public synchronized void start() {
-        // kraft mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
-        // zk mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
+        // zookeeper mode: per-cluster: 1 zk port; per-broker: 1 external port + 1 inter-broker port + 1 anon port
+        // kraft combined mode: per-broker: 1 external port + 1 inter-broker port + 1 controller port + 1 anon port
+        // kraft separate mode: per-controller: 1 controller port
+        // kraft separate mode: per-broker: 1 external port + 1 inter-broker port + 1 anon port
         try (PortAllocator.PortAllocationSession portAllocationSession = portsAllocator.allocationSession()) {
-            portAllocationSession.allocate(Set.of(Listener.EXTERNAL, Listener.ANON, Listener.INTERNAL), 0, clusterConfig.getBrokersNum());
-            portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.isKraftMode() ? clusterConfig.getKraftControllers() : 1);
+            if (!clusterConfig.isKraftMode()) {
+                portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0);
+            }
+            for (int nodeId = 0; nodeId < clusterConfig.numNodes(); nodeId++) {
+                Set<Listener> listeners = new HashSet<>();
+                if (clusterConfig.hasControllerRole(nodeId)) {
+                    listeners.add(Listener.CONTROLLER);
+                }
+                if (clusterConfig.hasBrokerRole(nodeId)) {
+                    listeners.add(Listener.EXTERNAL);
+                    listeners.add(Listener.ANON);
+                    listeners.add(Listener.INTERNAL);
+                }
+                portAllocationSession.allocate(listeners, nodeId);
+            }
         }
 
-        buildAndStartZookeeper();
-        clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
+        maybeBuildAndStartZookeeper();
+        clusterConfig.getNodeConfigs(() -> this).parallel().forEach(configHolder -> {
             final Server server = this.buildKafkaServer(configHolder);
             tryToStartServerWithRetry(configHolder, server);
-            servers.put(configHolder.getBrokerNum(), server);
+            servers.put(configHolder.getNodeId(), server);
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
@@ -198,18 +213,19 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 .until(() -> {
                     // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                     try {
-                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.getBrokerNum(),
+                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.getNodeId(),
                                 configHolder.getProperties().get("process.roles"));
                         server.startup();
                         return true;
                     }
                     catch (Throwable t) {
-                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
-                        LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
-                                this.getEndpointPair(Listener.ANON, configHolder.getBrokerNum()).getBind(),
-                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind(),
-                                this.getEndpointPair(Listener.CONTROLLER, configHolder.getBrokerNum()).getBind(),
-                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind());
+                        LOGGER.log(System.Logger.Level.WARNING, "failed to start server with node.id={0} due to: {1}", configHolder.nodeId(), t.toString());
+                        LOGGER.log(System.Logger.Level.WARNING, "nodeId: {0}, anon: {1}, client: {2}, controller: {3}, interBroker: {4}, ",
+                                configHolder.nodeId(),
+                                this.getEndpointPair(Listener.ANON, configHolder.getNodeId()).getBind(),
+                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getNodeId()).getBind(),
+                                this.getEndpointPair(Listener.CONTROLLER, configHolder.getNodeId()).getBind(),
+                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getNodeId()).getBind());
 
                         server.shutdown();
                         server.awaitShutdown();
@@ -218,7 +234,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 });
     }
 
-    private void buildAndStartZookeeper() {
+    private void maybeBuildAndStartZookeeper() {
         if (!clusterConfig.isKraftMode()) {
             try {
                 final int zookeeperPort = portsAllocator.getPort(Listener.CONTROLLER, 0);
@@ -274,7 +290,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     @Override
     public synchronized int addBroker() {
         // find next free kafka node.id
-        var first = IntStream.rangeClosed(0, getNumOfBrokers()).filter(cand -> !servers.containsKey(cand)).findFirst();
+        var first = IntStream.rangeClosed(0, numNodes()).filter(cand -> !servers.containsKey(cand)).findFirst();
         if (first.isEmpty()) {
             throw new IllegalStateException("Could not determine new nodeId, existing set " + servers.keySet());
         }
@@ -297,16 +313,16 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
-        return configHolder.getBrokerNum();
+        return configHolder.getNodeId();
     }
 
     @Override
     public synchronized void removeBroker(int nodeId) throws IllegalArgumentException, UnsupportedOperationException {
         if (!servers.containsKey(nodeId)) {
-            throw new IllegalArgumentException("Broker node " + nodeId + " is not a member of the cluster.");
+            throw new IllegalArgumentException("Node " + nodeId + " is not a member of the cluster.");
         }
-        if (clusterConfig.isKraftMode() && isController(nodeId)) {
-            throw new UnsupportedOperationException("Cannot remove controller node " + nodeId + " from a kraft cluster.");
+        if (!clusterConfig.isPureBroker(nodeId)) {
+            throw new UnsupportedOperationException("Node " + nodeId + " is not a pure broker.");
         }
         if (servers.size() < 2) {
             throw new IllegalArgumentException("Cannot remove a node from a cluster with only %d nodes".formatted(servers.size()));
@@ -315,7 +331,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             throw new IllegalStateException("Cannot remove nodes from a cluster with stopped nodes.");
         }
 
-        var target = servers.keySet().stream().filter(n -> n != nodeId).findFirst();
+        var target = servers.keySet().stream().filter(n -> n != nodeId && clusterConfig.hasBrokerRole(n)).findFirst();
         if (target.isEmpty()) {
             throw new IllegalStateException("Could not identify a node to be the re-assignment target");
         }
@@ -329,7 +345,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         var s = servers.remove(nodeId);
         s.shutdown();
         s.awaitShutdown();
-        ensureDirectoryIsEmpty(getBrokerLogDir(nodeId));
+        ensureDirectoryIsEmpty(getNodeLogDir(nodeId));
     }
 
     @Override
@@ -396,15 +412,13 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     private boolean isController(Integer key) {
-        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
-        // But it is at least testing something meaningful about the configuration
-        return portsAllocator.hasRegisteredPort(Listener.CONTROLLER, key);
+        return key < clusterConfig.numNodes() // dynamically added nodes are always pure brokers
+                && clusterConfig.hasControllerRole(key);
     }
 
     private boolean isBroker(Integer key) {
-        // TODO this is nasty. We shouldn't need to go via the portAllocator to figure out what a node is
-        // But it is at least testing something meaningful about the configuration
-        return portsAllocator.hasRegisteredPort(Listener.ANON, key);
+        return key >= clusterConfig.numNodes() // dynamically added nodes are always pure brokers
+                || clusterConfig.hasBrokerRole(key);
     }
 
     @SuppressWarnings("java:S3864") // Stream.peek is being used with caution.
@@ -434,6 +448,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized int getNumOfBrokers() {
+        return (int) servers.keySet().stream().filter(nodeId -> nodeId >= clusterConfig.numNodes() // added nodes are always brokers
+                || clusterConfig.hasBrokerRole(nodeId))
+                .count(); // initial nodes have broker role depending on the metadata mode
+    }
+
+    public synchronized int numNodes() {
         return servers.size();
     }
 
