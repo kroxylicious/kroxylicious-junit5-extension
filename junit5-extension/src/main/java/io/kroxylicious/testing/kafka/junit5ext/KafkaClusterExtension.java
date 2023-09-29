@@ -391,7 +391,7 @@ public class KafkaClusterExtension implements
     /**
      * The type Closeable.
      *
-     * @param <T>   the type parameter
+     * @param <T> the type parameter
      */
     static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
 
@@ -404,8 +404,8 @@ public class KafkaClusterExtension implements
          * Instantiates a new Closeable.
          *
          * @param sourceElement the source element
-         * @param clusterName the cluster name
-         * @param resource the resource
+         * @param clusterName   the cluster name
+         * @param resource      the resource
          */
         public Closeable(AnnotatedElement sourceElement, String clusterName, T resource) {
             this.sourceElement = sourceElement;
@@ -434,25 +434,6 @@ public class KafkaClusterExtension implements
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
         return !parameterContext.getDeclaringExecutable().isAnnotationPresent(TestTemplate.class)
                 && supportsParameter(parameterContext.getParameter());
-    }
-
-    private static boolean supportsParameter(Parameter parameter) {
-        Class<?> type = parameter.getType();
-        if (KafkaCluster.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else if (Admin.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else if (Producer.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else if (Consumer.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else {
-            return false;
-        }
     }
 
     @Override
@@ -529,6 +510,39 @@ public class KafkaClusterExtension implements
         context.getRequiredTestInstances().getAllInstances().forEach(instance -> injectInstanceFields(context, instance));
     }
 
+    private static boolean supportsParameter(Parameter parameter) {
+        Class<?> type = parameter.getType();
+        return KafkaCluster.class.isAssignableFrom(type) || (isKafkaClient(type) && isCandidate(parameter));
+    }
+
+    private static boolean isCandidate(AnnotatedElement parameter) {
+        return noAnnotations(parameter) || isAnnotatedByExtensionAnnotation(parameter);
+    }
+
+    private static boolean isKafkaClient(Class<?> type) {
+        return Admin.class.isAssignableFrom(type) || Producer.class.isAssignableFrom(type) || Consumer.class.isAssignableFrom(type);
+    }
+
+    private static boolean noAnnotations(AnnotatedElement parameter) {
+        return parameter.getAnnotations().length == 0;
+    }
+
+    private static boolean isAnnotatedByExtensionAnnotation(AnnotatedElement parameter) {
+        final Annotation[] annotations = parameter.getAnnotations();
+        for (Annotation annotation : annotations) {
+            if (KafkaClusterConstraint.class.isAssignableFrom(annotation.annotationType())) {
+                return true;
+            }
+            if (Name.class.isAssignableFrom(annotation.annotationType())) {
+                return true;
+            }
+            if (KafkaCluster.class.isAssignableFrom(annotation.annotationType())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void injectInstanceFields(ExtensionContext context, Object instance) {
         injectFields(context, instance, instance.getClass(), ReflectionUtils::isNotStatic);
     }
@@ -556,7 +570,7 @@ public class KafkaClusterExtension implements
                 });
 
         findFields(testClass,
-                field -> predicate.test(field) && Admin.class.isAssignableFrom(field.getType()),
+                field -> predicate.test(field) && Admin.class.isAssignableFrom(field.getType()) && isCandidate(field),
                 HierarchyTraversalMode.BOTTOM_UP)
                 .forEach(field -> {
                     try {
@@ -572,7 +586,7 @@ public class KafkaClusterExtension implements
                 });
 
         findFields(testClass,
-                field -> predicate.test(field) && Producer.class.isAssignableFrom(field.getType()),
+                field -> predicate.test(field) && Producer.class.isAssignableFrom(field.getType()) && isCandidate(field),
                 HierarchyTraversalMode.BOTTOM_UP)
                 .forEach(field -> {
                     try {
@@ -580,6 +594,22 @@ public class KafkaClusterExtension implements
                                 "field " + field.getName(),
                                 field,
                                 (Class) field.getType().asSubclass(Producer.class),
+                                field.getGenericType(),
+                                context));
+                    }
+                    catch (Throwable t) {
+                        ExceptionUtils.throwAsUncheckedException(t);
+                    }
+                });
+        findFields(testClass,
+                field -> predicate.test(field) && Consumer.class.isAssignableFrom(field.getType()) && isCandidate(field),
+                HierarchyTraversalMode.BOTTOM_UP)
+                .forEach(field -> {
+                    try {
+                        makeAccessible(field).set(testInstance, getConsumer(
+                                "field " + field.getName(),
+                                field,
+                                (Class) field.getType().asSubclass(Consumer.class),
                                 field.getGenericType(),
                                 context));
                     }
@@ -960,7 +990,7 @@ public class KafkaClusterExtension implements
     }
 
     /**
-     * @param sourceElement The source element
+     * @param sourceElement      The source element
      * @param metaAnnotationType The meta-annotation
      * @return A mutable list of annotations from the source element that are meta-annotated with
      * the given {@code metaAnnotationType}.
@@ -1002,7 +1032,7 @@ public class KafkaClusterExtension implements
     /**
      * Find best provisioning strategy kafka cluster provisioning strategy.
      *
-     * @param constraints the constraints
+     * @param constraints     the constraints
      * @param declarationType the declaration type
      * @return the kafka cluster provisioning strategy
      */
@@ -1051,5 +1081,14 @@ public class KafkaClusterExtension implements
             throw new ExtensionConfigurationException("Can only resolve declarations of type "
                     + KafkaCluster.class + " but " + target + " has type " + type.getName());
         }
+    }
+
+    @FunctionalInterface
+    private interface ClientFactory<T, X extends T> {
+        X getClient(String description,
+                    AnnotatedElement sourceElement,
+                    Class<X> type,
+                    Type genericType,
+                    ExtensionContext extensionContext);
     }
 }
