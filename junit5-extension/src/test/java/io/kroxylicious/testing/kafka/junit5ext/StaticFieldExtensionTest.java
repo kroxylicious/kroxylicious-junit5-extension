@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 @ExtendWith(KafkaClusterExtension.class)
-public class StaticFieldExtensionTest extends AbstractExtensionTest {
+class StaticFieldExtensionTest extends AbstractExtensionTest {
 
     @Order(1)
     @BrokerCluster(numBrokers = 1)
@@ -39,7 +39,7 @@ public class StaticFieldExtensionTest extends AbstractExtensionTest {
     static AdminClient staticAdminClient;
 
     @Test
-    public void testKafkaClusterStaticField()
+    void testKafkaClusterStaticField()
             throws ExecutionException, InterruptedException {
         var dc = describeCluster(staticCluster.getKafkaClientConfiguration());
         assertEquals(1, dc.nodes().get().size());
@@ -48,47 +48,47 @@ public class StaticFieldExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    public void adminStaticField() throws ExecutionException, InterruptedException {
+    void adminStaticField() throws ExecutionException, InterruptedException {
         assertSameCluster(staticCluster, staticAdmin);
     }
 
     @Test
-    public void adminClientStaticField() throws ExecutionException, InterruptedException {
+    void adminClientStaticField() throws ExecutionException, InterruptedException {
         assertSameCluster(staticCluster, staticAdminClient);
     }
 
     @Test
-    public void adminParameter(Admin admin) throws ExecutionException, InterruptedException {
+    void adminParameter(Admin admin) throws ExecutionException, InterruptedException {
         assertSameCluster(staticCluster, admin);
     }
 
     @Test
-    public void adminClientParameter(AdminClient admin) throws ExecutionException, InterruptedException {
+    void adminClientParameter(AdminClient admin) throws ExecutionException, InterruptedException {
         assertSameCluster(staticCluster, admin);
     }
 
     @Test
-    public void kafkaAdminClientParameter(KafkaAdminClient admin) throws ExecutionException, InterruptedException {
+    void kafkaAdminClientParameter(KafkaAdminClient admin) throws ExecutionException, InterruptedException {
         assertSameCluster(staticCluster, admin);
     }
 
     @Test
-    public void producerParameter(Producer<String, String> producer) throws ExecutionException, InterruptedException {
+    void producerParameter(Producer<String, String> producer) throws ExecutionException, InterruptedException {
         doProducer(producer, "hello", "world");
     }
 
     @Test
-    public void kafkaProducerParameter(KafkaProducer<String, String> producer) throws ExecutionException, InterruptedException {
+    void kafkaProducerParameter(KafkaProducer<String, String> producer) throws ExecutionException, InterruptedException {
         doProducer(producer, "hello", "world");
     }
 
     @Test
-    public void consumerParameter(Consumer<String, String> consumer) {
+    void consumerParameter(Consumer<String, String> consumer) {
         doConsumer(consumer);
     }
 
     @Test
-    public void kafkaConsumerParameter(KafkaConsumer<String, String> consumer) {
+    void kafkaConsumerParameter(KafkaConsumer<String, String> consumer) {
         doConsumer(consumer);
     }
 

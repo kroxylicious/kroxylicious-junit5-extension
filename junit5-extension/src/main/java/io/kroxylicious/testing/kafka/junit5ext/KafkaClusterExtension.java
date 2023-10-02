@@ -5,10 +5,28 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
-import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
-import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -57,27 +75,10 @@ import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.UUID;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
+import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
+import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -515,8 +516,8 @@ public class KafkaClusterExtension implements
         return KafkaCluster.class.isAssignableFrom(type) || (isKafkaClient(type) && isCandidate(parameter));
     }
 
-    private static boolean isCandidate(AnnotatedElement parameter) {
-        return noAnnotations(parameter) || isAnnotatedByExtensionAnnotation(parameter);
+    private static boolean isCandidate(AnnotatedElement annotatedElement) {
+        return noAnnotations(annotatedElement) || hasOnlySupportedAnnotations(annotatedElement);
     }
 
     private static boolean isKafkaClient(Class<?> type) {
@@ -527,20 +528,20 @@ public class KafkaClusterExtension implements
         return parameter.getAnnotations().length == 0;
     }
 
-    private static boolean isAnnotatedByExtensionAnnotation(AnnotatedElement parameter) {
-        final Annotation[] annotations = parameter.getAnnotations();
-        for (Annotation annotation : annotations) {
-            if (KafkaClusterConstraint.class.isAssignableFrom(annotation.annotationType())) {
-                return true;
-            }
-            if (Name.class.isAssignableFrom(annotation.annotationType())) {
-                return true;
-            }
-            if (KafkaCluster.class.isAssignableFrom(annotation.annotationType())) {
-                return true;
+    /**
+     * We want to avoid conflicts with annotations such as mockito's @Mock. However, maintaining a list of
+     * conflicting annotations would be mad. So it seems simpler to maintain a set of known safe annotations with which
+     * we can inject still inject.
+     */
+    private static boolean hasOnlySupportedAnnotations(AnnotatedElement parameter) {
+        boolean supported = true;
+        for (Annotation annotation : parameter.getAnnotations()) {
+            final String canonicalName = annotation.annotationType().getCanonicalName();
+            if (!canonicalName.startsWith("io.kroxylicious") && !canonicalName.startsWith("org.junit")) {
+                supported = false;
             }
         }
-        return false;
+        return supported;
     }
 
     private void injectInstanceFields(ExtensionContext context, Object instance) {
@@ -1083,12 +1084,4 @@ public class KafkaClusterExtension implements
         }
     }
 
-    @FunctionalInterface
-    private interface ClientFactory<T, X extends T> {
-        X getClient(String description,
-                    AnnotatedElement sourceElement,
-                    Class<X> type,
-                    Type genericType,
-                    ExtensionContext extensionContext);
-    }
 }
