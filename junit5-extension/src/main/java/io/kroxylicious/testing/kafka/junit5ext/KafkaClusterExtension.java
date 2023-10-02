@@ -538,7 +538,9 @@ public class KafkaClusterExtension implements
         boolean supported = true;
         for (Annotation annotation : parameter.getAnnotations()) {
             final String canonicalName = annotation.annotationType().getCanonicalName();
-            if (!canonicalName.startsWith("io.kroxylicious") && !canonicalName.startsWith("org.junit")) {
+            if (!canonicalName.startsWith("io.kroxylicious")
+                    && !canonicalName.startsWith("org.junit")
+                    && !canonicalName.startsWith("java.lang")) {
                 supported = false;
                 break;
             }
@@ -590,9 +592,18 @@ public class KafkaClusterExtension implements
                 .filter(entry -> clientType.isAssignableFrom(entry.getKey()))
                 .map(Map.Entry::getValue)
                 .flatMap(List::stream)
+                .filter(field -> {
+                    try {
+                        return makeAccessible(field).get(testInstance) == null;
+                    }
+                    catch (IllegalAccessException e) {
+                        ExceptionUtils.throwAsUncheckedException(e);
+                    }
+                    return false;
+                })
                 .forEach(field -> {
                     try {
-                        makeAccessible(field).set(testInstance,
+                        field.set(testInstance,
                                 clientFactory.getClient(
                                         "field " + field.getName(),
                                         field,
