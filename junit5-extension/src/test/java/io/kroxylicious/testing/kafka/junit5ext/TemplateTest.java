@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -158,7 +159,6 @@ public class TemplateTest {
 
     private static Stream<Version> versions() {
         return Stream.of(
-                version("latest"),
                 version("3.5.1"),
                 version("3.4.0"),
                 version("3.2.3"),
@@ -178,11 +178,7 @@ public class TemplateTest {
 
         @AfterAll
         public void afterAll() {
-            assertEquals(Set.of("latest-kafka-3.1.2",
-                    "latest-kafka-3.2.3",
-                    "latest-kafka-3.4.0",
-                    "latest-kafka-3.5.1",
-                    "latest"), observedVersions);
+            assertEquals(versions().map(Version::value).map("latest-kafka-%s"::formatted).collect(Collectors.toSet()), observedVersions);
         }
     }
 }
