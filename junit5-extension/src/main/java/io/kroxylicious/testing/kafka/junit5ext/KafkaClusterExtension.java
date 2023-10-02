@@ -540,6 +540,7 @@ public class KafkaClusterExtension implements
             final String canonicalName = annotation.annotationType().getCanonicalName();
             if (!canonicalName.startsWith("io.kroxylicious") && !canonicalName.startsWith("org.junit")) {
                 supported = false;
+                break;
             }
         }
         return supported;
