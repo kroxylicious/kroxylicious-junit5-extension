@@ -105,6 +105,23 @@ In case you use podman for testcontainers, some tips must be taken into account:
 
 ---
 
+## Field injection and Parameter Resolution
+
+The extension supports injecting clusters and clients:
+- into fields of the test class 
+- as parameters to `@BeforeAll`
+- as parameters to `@BeforeEach`
+- as parameters to test methods
+
+To avoid collisions with other extensions, such as Mockito, we will only inject into fields which:
+- have no annotations  
+OR are annotated with annotations from the following packages
+- `io.kroxylicious`
+- `org.junit`
+- `java.lang`
+
+The extension will not try to overwrite fields which have already been initialised. 
+
 ## Template tests
 
 You can also use test templates to execute the same test over a number of different cluster configurations. Here's an example:
