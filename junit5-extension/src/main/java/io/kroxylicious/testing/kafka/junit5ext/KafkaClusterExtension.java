@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.UUID;
@@ -570,52 +571,36 @@ public class KafkaClusterExtension implements
                     }
                 });
 
-        findFields(testClass,
-                field -> predicate.test(field) && Admin.class.isAssignableFrom(field.getType()) && isCandidate(field),
+        final Map<Class<?>, List<Field>> fieldsByType = findFields(testClass,
+                field -> predicate.test(field) && isCandidate(field),
                 HierarchyTraversalMode.BOTTOM_UP)
-                .forEach(field -> {
-                    try {
-                        makeAccessible(field).set(testInstance, getAdmin(
-                                "field " + field.getName(),
-                                field,
-                                field.getType().asSubclass(Admin.class),
-                                context));
-                    }
-                    catch (Throwable t) {
-                        ExceptionUtils.throwAsUncheckedException(t);
-                    }
-                });
+                .stream()
+                .collect(Collectors.groupingBy(Field::getType));
 
-        findFields(testClass,
-                field -> predicate.test(field) && Producer.class.isAssignableFrom(field.getType()) && isCandidate(field),
-                HierarchyTraversalMode.BOTTOM_UP)
+        injectClient(Admin.class, KafkaClusterExtension::getAdmin, context, testInstance, fieldsByType);
+        injectClient(Producer.class, KafkaClusterExtension::getProducer, context, testInstance, fieldsByType);
+        injectClient(Consumer.class, KafkaClusterExtension::getConsumer, context, testInstance, fieldsByType);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T, X extends T> void injectClient(Class<T> clientType, ClientFactory<T, X> clientFactory, ExtensionContext context, Object testInstance,
+                                                      Map<Class<?>, List<Field>> fieldsByType) {
+        fieldsByType.entrySet().stream()
+                .filter(entry -> clientType.isAssignableFrom(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .flatMap(List::stream)
                 .forEach(field -> {
                     try {
-                        makeAccessible(field).set(testInstance, getProducer(
-                                "field " + field.getName(),
-                                field,
-                                (Class) field.getType().asSubclass(Producer.class),
-                                field.getGenericType(),
-                                context));
+                        makeAccessible(field).set(testInstance,
+                                clientFactory.getClient(
+                                        "field " + field.getName(),
+                                        field,
+                                        (Class) field.getType().asSubclass(clientType),
+                                        field.getGenericType(),
+                                        context));
                     }
-                    catch (Throwable t) {
-                        ExceptionUtils.throwAsUncheckedException(t);
-                    }
-                });
-        findFields(testClass,
-                field -> predicate.test(field) && Consumer.class.isAssignableFrom(field.getType()) && isCandidate(field),
-                HierarchyTraversalMode.BOTTOM_UP)
-                .forEach(field -> {
-                    try {
-                        makeAccessible(field).set(testInstance, getConsumer(
-                                "field " + field.getName(),
-                                field,
-                                (Class) field.getType().asSubclass(Consumer.class),
-                                field.getGenericType(),
-                                context));
-                    }
-                    catch (Throwable t) {
-                        ExceptionUtils.throwAsUncheckedException(t);
+                    catch (Exception e) {
+                        ExceptionUtils.throwAsUncheckedException(e);
                     }
                 });
     }
@@ -880,6 +865,14 @@ public class KafkaClusterExtension implements
                                   AnnotatedElement sourceElement,
                                   Class<? extends Admin> type,
                                   ExtensionContext extensionContext) {
+        return getAdmin(description, sourceElement, type, Void.class, extensionContext);
+    }
+
+    private static Admin getAdmin(String description,
+                                  AnnotatedElement sourceElement,
+                                  Class<? extends Admin> type,
+                                  Type genericType,
+                                  ExtensionContext extensionContext) {
 
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
@@ -1084,4 +1077,12 @@ public class KafkaClusterExtension implements
         }
     }
 
+    @FunctionalInterface
+    private interface ClientFactory<T, X extends T> {
+        X getClient(String description,
+                    AnnotatedElement sourceElement,
+                    Class<X> type,
+                    Type genericType,
+                    ExtensionContext extensionContext);
+    }
 }
