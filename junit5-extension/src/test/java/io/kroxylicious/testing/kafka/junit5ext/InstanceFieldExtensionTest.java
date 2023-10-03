@@ -91,7 +91,7 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
 
     @Test
     void fieldWithUnrecognizedAnnotationsNotInjected() {
-        assertNull(fieldWithUnrecognizedAnnotation);
+        assertThat(fieldWithUnrecognizedAnnotation).isNull();
     }
 
     @Test
