@@ -159,7 +159,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        validateClusterConfig(clusterConfig);
         setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
@@ -192,32 +191,26 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
     }
 
-    private static void validateClusterConfig(KafkaClusterConfig clusterConfig) {
-        if (Boolean.TRUE.equals(clusterConfig.getKraftMode()) && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
-            throw new IllegalStateException(
-                    "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes so we need to fail fast. This cluster has "
-                            + clusterConfig.getBrokersNum() + " brokers and " + clusterConfig.getKraftControllers() + " controllers");
-        }
-    }
-
     @NotNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
         String netAlias = "broker-" + holder.getBrokerNum();
+        Properties properties = new Properties();
+        properties.putAll(holder.getProperties());
+        properties.put("log.dir", getBrokerLogDirectory(holder.getBrokerNum()));
         KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
                 .withName(name)
                 .withNetwork(network)
                 .withNetworkAliases(netAlias);
 
-        copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
-        copyHostKeyStoreToContainer(kafkaContainer, holder.getProperties(), SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
+        copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
+        copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
         kafkaContainer
-                // KAFKA_LOG_DIR overrides a key in the quarkus kafka image application.properties. The quarkus app uses
-                // that to set log.dir. Any value we set for log.dir in server.properties is lost.
-                .withEnv("KAFKA_LOG_DIR", getBrokerLogDirectory(holder.getBrokerNum()))
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
                 .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
-                .withCopyToContainer(Transferable.of(propertiesToBytes(holder.getProperties()), 0644), "/cnf/server.properties")
+                // disables automatic configuration of listeners/roles by kafka-native
+                .withEnv("SERVER_AUTO_CONFIGURE", "false")
+                .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/cnf/server.properties")
                 .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);

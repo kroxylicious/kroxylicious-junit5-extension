@@ -32,7 +32,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -44,12 +43,10 @@ import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
 import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
-import static io.kroxylicious.testing.kafka.common.KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -78,7 +75,6 @@ class KafkaClusterTest {
     }
 
     @Test
-    @EnabledIf(value = "canTestAdditionalControllers", disabledReason = "Test can only pass in IN_VM execution mode")
     void kafkaClusterKraftModeWithMultipleControllers() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -88,13 +84,6 @@ class KafkaClusterTest {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
-    }
-
-    @SuppressWarnings("unused") // it is used via reflection by junit
-    public static boolean canTestAdditionalControllers() {
-        final KafkaClusterExecutionMode kafkaClusterExecutionMode = KafkaClusterExecutionMode.convertClusterExecutionMode(
-                System.getenv().get(TEST_CLUSTER_EXECUTION_MODE), KafkaClusterExecutionMode.IN_VM);
-        return KafkaClusterExecutionMode.CONTAINER != kafkaClusterExecutionMode;
     }
 
     @Test
