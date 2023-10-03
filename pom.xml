@@ -495,6 +495,11 @@
                                 <goals>
                                     <goal>jar</goal>
                                 </goals>
+                                <configuration>
+                                    <links>
+                                        <link>https://junit.org/junit5/docs/${junit.version}/api/</link>
+                                    </links>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

@@ -109,7 +109,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  *         producer.send(new ProducerRecord<>("hello", "world")).get();
  *     }
  * }
- * }**</pre>
+ * }</pre>
  *
  * <p>Notes:</p>
  * <ol>
@@ -121,6 +121,22 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  * <li>Your test methods can declare {@code Producer}, {@code Consumer} and {@code Admin}-typed parameters.
  * They will be configured to bootstrap against the {@code cluster}.</li>
  * </ol>
+ *
+ * <p>The extension supports injecting clusters and clients:</p>
+ * <ul>
+ *     <li>into fields of the test class</li>
+ *     <li>as parameters to {@code  @BeforeAll}</li>
+ *     <li>as parameters to {@code @BeforeEach}</li>
+ *     <li>as parameters to test methods</li>
+ * </ul>
+ * To avoid collisions with other extensions, such as Mockito, we will only inject into fields which:
+ *  <ul>
+ *      <li> have no annotations</li>
+ *      <li style="list-style: none">OR are annotated with annotations from the following packages</li>
+ *      <li>{@code java.lang}</li>
+ *      <li>{@code org.junit}</li>
+ *      <li>{@code io.kroxylicious}</li>
+ * </ul>
  */
 public class KafkaClusterExtension implements
         ParameterResolver, BeforeEachCallback,
