@@ -5,10 +5,29 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
-import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
-import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.ServiceLoader;
+import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -57,27 +76,10 @@ import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.ServiceLoader;
-import java.util.UUID;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
+import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
+import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -87,7 +89,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  * A JUnit 5 extension that allows declarative injection of a {@link KafkaCluster} into a test
  * via static or instance field(s) and/or parameters.
  *
- * <p>A simple example looks like:</p>
+ * <h2>A simple example looks like:</h2>
  * <pre>{@code
  * import io.kroxylicious.junit5.KafkaClusterExtension;
  * import org.apache.kafka.clients.producer.Producer;
@@ -107,9 +109,9 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  *         producer.send(new ProducerRecord<>("hello", "world")).get();
  *     }
  * }
- * }**</pre>
+ * }</pre>
  *
- * <p>Notes:</p>
+ * <h3>Notes:</h3>
  * <ol>
  * <li>You have to tell Junit that you're using the extension using {@code @ExtendWith}.</li>
  * <li>An instance field of type {@link KafkaCluster} will cause a new cluster to be provisioned for
@@ -119,6 +121,23 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  * <li>Your test methods can declare {@code Producer}, {@code Consumer} and {@code Admin}-typed parameters.
  * They will be configured to bootstrap against the {@code cluster}.</li>
  * </ol>
+ *
+ * <h2>Injection rules</h2>
+ * <p>The extension supports injecting clusters and clients:</p>
+ * <ul>
+ *     <li>into fields of the test class</li>
+ *     <li>as parameters to {@code  @BeforeAll}</li>
+ *     <li>as parameters to {@code @BeforeEach}</li>
+ *     <li>as parameters to test methods</li>
+ * </ul>
+ * To avoid collisions with other extensions, such as Mockito, we will only inject into fields which:
+ *  <ul>
+ *      <li> have no annotations</li>
+ *      <li style="list-style: none">OR are annotated with annotations from the following packages</li>
+ *      <li>{@code java.lang}</li>
+ *      <li>{@code org.junit}</li>
+ *      <li>{@code io.kroxylicious}</li>
+ * </ul>
  */
 public class KafkaClusterExtension implements
         ParameterResolver, BeforeEachCallback,
@@ -391,7 +410,7 @@ public class KafkaClusterExtension implements
     /**
      * The type Closeable.
      *
-     * @param <T>   the type parameter
+     * @param <T> the type parameter
      */
     static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
 
@@ -404,8 +423,8 @@ public class KafkaClusterExtension implements
          * Instantiates a new Closeable.
          *
          * @param sourceElement the source element
-         * @param clusterName the cluster name
-         * @param resource the resource
+         * @param clusterName   the cluster name
+         * @param resource      the resource
          */
         public Closeable(AnnotatedElement sourceElement, String clusterName, T resource) {
             this.sourceElement = sourceElement;
@@ -434,25 +453,6 @@ public class KafkaClusterExtension implements
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
         return !parameterContext.getDeclaringExecutable().isAnnotationPresent(TestTemplate.class)
                 && supportsParameter(parameterContext.getParameter());
-    }
-
-    private static boolean supportsParameter(Parameter parameter) {
-        Class<?> type = parameter.getType();
-        if (KafkaCluster.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else if (Admin.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else if (Producer.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else if (Consumer.class.isAssignableFrom(type)) {
-            return true;
-        }
-        else {
-            return false;
-        }
     }
 
     @Override
@@ -529,6 +529,42 @@ public class KafkaClusterExtension implements
         context.getRequiredTestInstances().getAllInstances().forEach(instance -> injectInstanceFields(context, instance));
     }
 
+    private static boolean supportsParameter(Parameter parameter) {
+        Class<?> type = parameter.getType();
+        return KafkaCluster.class.isAssignableFrom(type) || (isKafkaClient(type) && isCandidate(parameter));
+    }
+
+    private static boolean isCandidate(AnnotatedElement annotatedElement) {
+        return noAnnotations(annotatedElement) || hasOnlySupportedAnnotations(annotatedElement);
+    }
+
+    private static boolean isKafkaClient(Class<?> type) {
+        return Admin.class.isAssignableFrom(type) || Producer.class.isAssignableFrom(type) || Consumer.class.isAssignableFrom(type);
+    }
+
+    private static boolean noAnnotations(AnnotatedElement parameter) {
+        return parameter.getAnnotations().length == 0;
+    }
+
+    /**
+     * We want to avoid conflicts with annotations such as mockito's @Mock. However, maintaining a list of
+     * conflicting annotations would be mad. So it seems simpler to maintain a set of known safe annotations with which
+     * we can inject still inject.
+     */
+    private static boolean hasOnlySupportedAnnotations(AnnotatedElement parameter) {
+        boolean supported = true;
+        for (Annotation annotation : parameter.getAnnotations()) {
+            final String canonicalName = annotation.annotationType().getCanonicalName();
+            if (!canonicalName.startsWith("io.kroxylicious")
+                    && !canonicalName.startsWith("org.junit")
+                    && !canonicalName.startsWith("java.lang")) {
+                supported = false;
+                break;
+            }
+        }
+        return supported;
+    }
+
     private void injectInstanceFields(ExtensionContext context, Object instance) {
         injectFields(context, instance, instance.getClass(), ReflectionUtils::isNotStatic);
     }
@@ -555,36 +591,45 @@ public class KafkaClusterExtension implements
                     }
                 });
 
-        findFields(testClass,
-                field -> predicate.test(field) && Admin.class.isAssignableFrom(field.getType()),
+        final Map<Class<?>, List<Field>> fieldsByType = findFields(testClass,
+                field -> predicate.test(field) && isCandidate(field),
                 HierarchyTraversalMode.BOTTOM_UP)
-                .forEach(field -> {
-                    try {
-                        makeAccessible(field).set(testInstance, getAdmin(
-                                "field " + field.getName(),
-                                field,
-                                field.getType().asSubclass(Admin.class),
-                                context));
-                    }
-                    catch (Throwable t) {
-                        ExceptionUtils.throwAsUncheckedException(t);
-                    }
-                });
+                .stream()
+                .collect(Collectors.groupingBy(Field::getType));
 
-        findFields(testClass,
-                field -> predicate.test(field) && Producer.class.isAssignableFrom(field.getType()),
-                HierarchyTraversalMode.BOTTOM_UP)
+        injectClient(Admin.class, KafkaClusterExtension::getAdmin, context, testInstance, fieldsByType);
+        injectClient(Producer.class, KafkaClusterExtension::getProducer, context, testInstance, fieldsByType);
+        injectClient(Consumer.class, KafkaClusterExtension::getConsumer, context, testInstance, fieldsByType);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T, X extends T> void injectClient(Class<T> clientType, ClientFactory<T, X> clientFactory, ExtensionContext context, Object testInstance,
+                                                      Map<Class<?>, List<Field>> fieldsByType) {
+        fieldsByType.entrySet().stream()
+                .filter(entry -> clientType.isAssignableFrom(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .flatMap(List::stream)
+                .filter(field -> {
+                    try {
+                        return makeAccessible(field).get(testInstance) == null;
+                    }
+                    catch (IllegalAccessException e) {
+                        ExceptionUtils.throwAsUncheckedException(e);
+                    }
+                    return false;
+                })
                 .forEach(field -> {
                     try {
-                        makeAccessible(field).set(testInstance, getProducer(
-                                "field " + field.getName(),
-                                field,
-                                (Class) field.getType().asSubclass(Producer.class),
-                                field.getGenericType(),
-                                context));
+                        makeAccessible(field).set(testInstance,
+                                clientFactory.getClient(
+                                        "field " + field.getName(),
+                                        field,
+                                        (Class) field.getType().asSubclass(clientType),
+                                        field.getGenericType(),
+                                        context));
                     }
-                    catch (Throwable t) {
-                        ExceptionUtils.throwAsUncheckedException(t);
+                    catch (Exception e) {
+                        ExceptionUtils.throwAsUncheckedException(e);
                     }
                 });
     }
@@ -849,6 +894,14 @@ public class KafkaClusterExtension implements
                                   AnnotatedElement sourceElement,
                                   Class<? extends Admin> type,
                                   ExtensionContext extensionContext) {
+        return getAdmin(description, sourceElement, type, Void.class, extensionContext);
+    }
+
+    private static Admin getAdmin(String description,
+                                  AnnotatedElement sourceElement,
+                                  Class<? extends Admin> type,
+                                  Type genericType,
+                                  ExtensionContext extensionContext) {
 
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
@@ -960,7 +1013,7 @@ public class KafkaClusterExtension implements
     }
 
     /**
-     * @param sourceElement The source element
+     * @param sourceElement      The source element
      * @param metaAnnotationType The meta-annotation
      * @return A mutable list of annotations from the source element that are meta-annotated with
      * the given {@code metaAnnotationType}.
@@ -1002,7 +1055,7 @@ public class KafkaClusterExtension implements
     /**
      * Find best provisioning strategy kafka cluster provisioning strategy.
      *
-     * @param constraints the constraints
+     * @param constraints     the constraints
      * @param declarationType the declaration type
      * @return the kafka cluster provisioning strategy
      */
@@ -1051,5 +1104,14 @@ public class KafkaClusterExtension implements
             throw new ExtensionConfigurationException("Can only resolve declarations of type "
                     + KafkaCluster.class + " but " + target + " has type " + type.getName());
         }
+    }
+
+    @FunctionalInterface
+    private interface ClientFactory<T, X extends T> {
+        X getClient(String description,
+                    AnnotatedElement sourceElement,
+                    Class<X> type,
+                    Type genericType,
+                    ExtensionContext extensionContext);
     }
 }

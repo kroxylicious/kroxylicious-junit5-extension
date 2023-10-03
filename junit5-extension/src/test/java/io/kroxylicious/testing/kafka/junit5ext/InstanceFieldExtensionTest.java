@@ -5,27 +5,103 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import java.util.concurrent.ExecutionException;
-
-import org.apache.kafka.clients.admin.Admin;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-
+import com.example.RuntimeMarkerAnnotation;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.MockConsumer;
+import org.apache.kafka.clients.consumer.OffsetResetStrategy;
+import org.apache.kafka.clients.producer.Producer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.util.concurrent.ExecutionException;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 @ExtendWith(KafkaClusterExtension.class)
-public class InstanceFieldExtensionTest extends AbstractExtensionTest {
+class InstanceFieldExtensionTest extends AbstractExtensionTest {
 
     @BrokerCluster(numBrokers = 1)
     KafkaCluster instanceCluster;
 
+    @BrokerCluster(numBrokers = 1)
+    @Name("kafkaCluster")
+    KafkaCluster namedCluster;
+
+    Consumer<String, String> injectedConsumer;
+
+    Admin injectedAdmin;
+
+    private Admin privateField;
+
+    Producer<String, String> injectedProducer;
+
+    @Order(1)
+    Producer<String, String> fieldWithOrderAnnotation;
+
+    final MockConsumer<String, String> mockConsumer = new MockConsumer<>(OffsetResetStrategy.LATEST);
+
+    @RuntimeMarkerAnnotation
+    Admin fieldWithUnrecognizedAnnotation;
+
+    @SuppressWarnings("DeprecatedIsStillUsed")
+    @Deprecated
+    Admin fieldWithJavaLangAnnotations;
+
+    @Name("kafkaCluster")
+    Admin namedAdmin;
+
     @Test
-    public void clusterInstanceField()
+    void shouldInjectConsumerField() {
+        assertThat(injectedConsumer).isNotNull().isInstanceOf(Consumer.class);
+    }
+
+    @Test
+    void shouldInjectProducerField() {
+        assertThat(injectedProducer).isNotNull().isInstanceOf(Producer.class);
+    }
+
+    @Test
+    void shouldInjectAdminField() {
+        assertThat(injectedAdmin).isNotNull().isInstanceOf(Admin.class);
+    }
+
+    @Test
+    void shouldInjectIntoPrivateField() {
+        assertThat(privateField).isNotNull().isInstanceOf(Admin.class);
+    }
+
+    @Test
+    void shouldNotInjectIntoInitialisedField() {
+        assertThat(mockConsumer).isNotNull().isInstanceOf(MockConsumer.class);
+    }
+
+    @Test
+    void shouldInjectIntoFieldsWithRecognisedAnnotation() {
+        assertThat(fieldWithOrderAnnotation).isNotNull().isInstanceOf(Producer.class);
+        assertThat(fieldWithJavaLangAnnotations).isNotNull().isInstanceOf(Admin.class);
+        assertThat(namedAdmin).isNotNull().isInstanceOf(Admin.class);
+    }
+
+    @Test
+    void shouldInjectIntoFieldWithJunitAnnotation() {
+        assertThat(fieldWithOrderAnnotation).isNotNull().isInstanceOf(Producer.class);
+        // TODO should we use the producer to send a record?
+    }
+
+    @Test
+    void fieldWithUnrecognizedAnnotationsNotInjected() {
+        assertThat(fieldWithUnrecognizedAnnotation).isNull();
+    }
+
+    @Test
+    void clusterInstanceField()
             throws ExecutionException, InterruptedException {
         var dc = describeCluster(instanceCluster.getKafkaClientConfiguration());
         assertEquals(1, dc.nodes().get().size());
@@ -34,7 +110,7 @@ public class InstanceFieldExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    public void adminParameter(Admin admin) throws ExecutionException, InterruptedException {
+    void adminParameter(Admin admin) throws ExecutionException, InterruptedException {
         assertSameCluster(instanceCluster, admin);
     }
 }
