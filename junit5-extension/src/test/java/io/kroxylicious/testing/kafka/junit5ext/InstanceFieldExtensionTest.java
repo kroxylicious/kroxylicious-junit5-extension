@@ -5,8 +5,10 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import java.util.concurrent.ExecutionException;
-
+import com.example.RuntimeMarkerAnnotation;
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
+import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.MockConsumer;
@@ -16,11 +18,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import com.example.RuntimeMarkerAnnotation;
-
-import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
+import java.util.concurrent.ExecutionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,7 +30,7 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     KafkaCluster instanceCluster;
 
     @BrokerCluster(numBrokers = 1)
-    @Name("kafkaCLuster")
+    @Name("kafkaCluster")
     KafkaCluster namedCluster;
 
     Consumer<String, String> injectedConsumer;
@@ -53,7 +51,7 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     @Deprecated
     Admin fieldWithJavaLangAnnotations;
 
-    @Name("kafkaCLuster")
+    @Name("kafkaCluster")
     Admin namedAdmin;
 
     @Test
