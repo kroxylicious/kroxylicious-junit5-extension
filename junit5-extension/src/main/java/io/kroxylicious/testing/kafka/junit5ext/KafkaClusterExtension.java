@@ -89,7 +89,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  * A JUnit 5 extension that allows declarative injection of a {@link KafkaCluster} into a test
  * via static or instance field(s) and/or parameters.
  *
- * <p>A simple example looks like:</p>
+ * <h2>A simple example looks like:</h2>
  * <pre>{@code
  * import io.kroxylicious.junit5.KafkaClusterExtension;
  * import org.apache.kafka.clients.producer.Producer;
@@ -111,7 +111,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  * }
  * }</pre>
  *
- * <p>Notes:</p>
+ * <h3>Notes:</h3>
  * <ol>
  * <li>You have to tell Junit that you're using the extension using {@code @ExtendWith}.</li>
  * <li>An instance field of type {@link KafkaCluster} will cause a new cluster to be provisioned for
@@ -122,6 +122,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
  * They will be configured to bootstrap against the {@code cluster}.</li>
  * </ol>
  *
+ * <h2>Injection rules</h2>
  * <p>The extension supports injecting clusters and clients:</p>
  * <ul>
  *     <li>into fields of the test class</li>
