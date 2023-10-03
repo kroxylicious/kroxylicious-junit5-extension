@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import com.example.StubAnnotation;
+import com.example.RuntimeMarkerAnnotation;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
@@ -46,7 +46,7 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
 
     final MockConsumer<String, String> mockConsumer = new MockConsumer<>(OffsetResetStrategy.LATEST);
 
-    @StubAnnotation
+    @RuntimeMarkerAnnotation
     Admin fieldWithUnrecognizedAnnotation;
 
     @SuppressWarnings("DeprecatedIsStillUsed")
