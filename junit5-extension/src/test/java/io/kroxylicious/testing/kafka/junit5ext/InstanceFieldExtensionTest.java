@@ -44,7 +44,7 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     @Order(1)
     Producer<String, String> fieldWithOrderAnnotation;
 
-    final MockConsumer<String, String> mockConsumer = new MockConsumer(OffsetResetStrategy.LATEST);
+    final MockConsumer<String, String> mockConsumer = new MockConsumer<>(OffsetResetStrategy.LATEST);
 
     @StubAnnotation
     Admin fieldWithUnrecognizedAnnotation;
