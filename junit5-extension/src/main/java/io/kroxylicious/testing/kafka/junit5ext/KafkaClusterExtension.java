@@ -610,7 +610,7 @@ public class KafkaClusterExtension implements
                 .flatMap(List::stream)
                 .filter(field -> {
                     try {
-                        return field.get(testInstance) == null;
+                        return makeAccessible(field).get(testInstance) == null;
                     }
                     catch (IllegalAccessException e) {
                         ExceptionUtils.throwAsUncheckedException(e);
