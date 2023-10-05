@@ -8,6 +8,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.6.0
 
+* [#190](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/190): Allow controller-only nodes in container mode
 * [#187](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/187): Tighten the conditions under which the extension will inject values.
 * [#186](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/186): Replace a Null Pointer Exception with a more meaningful one when there is no existing cluster
 * [#182](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/182): Prevent possibility of loop when performing consistency test (workaround KAFKA-15507)

@@ -582,7 +582,6 @@ public class KafkaClusterConfig {
         private final String endpoint;
         private final int brokerNum;
         private final String kafkaKraftClusterId;
-        private final String roles;
 
         /**
          * Instantiates a new Config holder.
@@ -602,15 +601,18 @@ public class KafkaClusterConfig {
             this.endpoint = endpoint;
             this.brokerNum = brokerNum;
             this.kafkaKraftClusterId = kafkaKraftClusterId;
-            this.roles = properties.getProperty("process.roles", BROKER_ROLE);
+        }
+
+        private String getRoles() {
+            return properties.getProperty("process.roles", BROKER_ROLE);
         }
 
         public boolean isBroker() {
-            return this.roles.contains(BROKER_ROLE);
+            return getRoles().contains(BROKER_ROLE);
         }
 
         public boolean isController() {
-            return this.roles.contains(CONTROLLER_ROLE);
+            return getRoles().contains(CONTROLLER_ROLE);
         }
     }
 

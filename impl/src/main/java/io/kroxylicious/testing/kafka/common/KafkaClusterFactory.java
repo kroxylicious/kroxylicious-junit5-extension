@@ -73,13 +73,6 @@ public class KafkaClusterFactory {
             builder.kraftMode(kraftMode);
         }
 
-        if (KafkaClusterExecutionMode.CONTAINER == clusterMode && kraftMode && clusterConfig.getBrokersNum() < clusterConfig.getKraftControllers()) {
-            throw new IllegalStateException(
-                    "Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes in " + KafkaClusterExecutionMode.CONTAINER
-                            + " mode so we need to fail fast. This cluster has "
-                            + clusterConfig.getBrokersNum() + " brokers and " + clusterConfig.getKraftControllers() + " controllers");
-        }
-
         var kafkaVersion = System.getenv().getOrDefault(KAFKA_VERSION, "latest");
         builder.kafkaVersion(kafkaVersion);
 

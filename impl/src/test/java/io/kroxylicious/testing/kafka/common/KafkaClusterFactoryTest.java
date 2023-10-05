@@ -8,15 +8,12 @@ package io.kroxylicious.testing.kafka.common;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.fail;
 
 class KafkaClusterFactoryTest {
 
     @SuppressWarnings("resource")
     @Test
-    void shouldThrowInContainerModeWithControllerOnlyNodes() {
-        // Due to https://github.com/ozangunalp/kafka-native/issues/88 we can't support controller only nodes, so we need to fail fast
+    void shouldCreateInstanceInContainerModeWithControllerOnlyNodes() throws Exception {
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
                 .execMode(KafkaClusterExecutionMode.CONTAINER)
@@ -26,11 +23,13 @@ class KafkaClusterFactoryTest {
                 .build();
 
         // When
-        assertThrows(IllegalStateException.class, () -> KafkaClusterFactory.create(kafkaClusterConfig));
+        try (var kafkaCluster = KafkaClusterFactory.create(kafkaClusterConfig)) {
+            assertThat(kafkaCluster).isNotNull();
+        }
     }
 
     @Test
-    void shouldCreateInstanceInVMModeWithControllerOnlyNodes() {
+    void shouldCreateInstanceInVMModeWithControllerOnlyNodes() throws Exception {
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
                 .execMode(KafkaClusterExecutionMode.IN_VM)
@@ -43,13 +42,10 @@ class KafkaClusterFactoryTest {
         try (var kafkaCluster = KafkaClusterFactory.create(kafkaClusterConfig)) {
             assertThat(kafkaCluster).isNotNull();
         }
-        catch (Exception e) {
-            fail("Failed to create KafkaCluster: " + e.getMessage(), e);
-        }
     }
 
     @Test
-    void shouldCreateInstanceInContainerModeWithoutControllerOnlyNodes() {
+    void shouldCreateInstanceInContainerModeWithoutControllerOnlyNodes() throws Exception {
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
                 .execMode(KafkaClusterExecutionMode.IN_VM).kraftMode(true)
@@ -58,9 +54,6 @@ class KafkaClusterFactoryTest {
         // When
         try (var kafkaCluster = KafkaClusterFactory.create(kafkaClusterConfig)) {
             assertThat(kafkaCluster).isNotNull();
-        }
-        catch (Exception e) {
-            fail("Failed to create KafkaCluster: " + e.getMessage(), e);
         }
     }
 
