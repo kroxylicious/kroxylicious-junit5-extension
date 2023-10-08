@@ -5,28 +5,28 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import java.util.stream.Stream;
-
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
+import io.kroxylicious.testing.kafka.api.TerminationStyle;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
-class KafkaClusterConfigTest {
+class KafkaTopologyTest {
 
     private static final int CLIENT_BASE_PORT = 9092;
     private static final int CONTROLLER_BASE_PORT = 10092;
     private static final int INTER_BROKER_BASE_PORT = 11092;
     private static final int ANON_BASE_PORT = 12092;
 
-    private EndpointConfig endpointConfig;
+    private TestDriver driver;
     private KafkaClusterConfig.KafkaClusterConfigBuilder kafkaClusterConfigBuilder;
 
     @BeforeEach
     void setUp(TestInfo testInfo) {
-        endpointConfig = new EndpointConfig();
+        driver = new TestDriver();
         kafkaClusterConfigBuilder = KafkaClusterConfig.builder();
         kafkaClusterConfigBuilder.testInfo(testInfo);
     }
@@ -38,13 +38,13 @@ class KafkaClusterConfigTest {
         var kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
         // When
-        final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
-
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
         // Then
-        assertThat(config.getBrokerNum()).isZero();
-        assertThat(config.getAnonPort()).isEqualTo(ANON_BASE_PORT);
-        assertThat(config.getExternalPort()).isEqualTo(CLIENT_BASE_PORT);
-        assertThat(config.getEndpoint()).isEqualTo("localhost:" + CLIENT_BASE_PORT);
+        KafkaNodeConfiguration config = kafkaTopology.get(0).configuration();
+        assertThat(config.nodeId()).isZero();
+        assertThat(config.anonPort()).isEqualTo(ANON_BASE_PORT);
+        assertThat(config.externalPort()).isEqualTo(CLIENT_BASE_PORT);
+        assertThat(config.clientEndpoint()).isEqualTo("localhost:" + CLIENT_BASE_PORT);
         assertThat(config.getProperties()).containsEntry("node.id", "0");
     }
 
@@ -55,8 +55,11 @@ class KafkaClusterConfigTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(3).brokersNum(numBrokers).build();
 
         // When
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
+
+        // Then
         for (int nodeId = 0; nodeId < numBrokers; nodeId++) {
-            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker,controller");
+            assertNodeIdHasRole(kafkaTopology, nodeId, "broker,controller");
         }
     }
 
@@ -68,10 +71,12 @@ class KafkaClusterConfigTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
 
         // When
-        assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
 
+        // then
+        assertNodeIdHasRole(kafkaTopology, 0, "broker,controller");
         for (int nodeId = 1; nodeId < numControllers; nodeId++) {
-            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "controller");
+            assertNodeIdHasRole(kafkaTopology, nodeId, "controller");
         }
     }
 
@@ -83,48 +88,23 @@ class KafkaClusterConfigTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
 
         // When
-        assertNodeIdHasRole(kafkaClusterConfig, 0, "broker,controller");
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
+
+        // then
+        assertNodeIdHasRole(kafkaTopology, 0, "broker,controller");
 
         for (int nodeId = 1; nodeId < numBrokers; nodeId++) {
-            assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker");
+            assertNodeIdHasRole(kafkaTopology, nodeId, "broker");
         }
     }
 
-    @Test
-    void shouldGenerateConfigForBrokerNodes() {
-        // Given
-        var numBrokers = 3;
-        var numControllers = 1;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
-
-        // When
-        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig);
-
-        // Then
-        assertThat(brokerConfigs).hasSize(3);
+    private void assertNodeIdHasRole(KafkaTopology kafkaTopology, int nodeId, String expectedRole) {
+        assertThat(kafkaTopology.get(nodeId).configuration().getProperties())
+                .extracting(brokerConfig -> brokerConfig.get("process.roles"))
+                .as("nodeId: %s to have process.roles", nodeId).isEqualTo(expectedRole);
     }
 
-    @Test
-    void shouldGenerateConfigForControllerNodes() {
-        // Given
-        var numBrokers = 1;
-        var numControllers = 3;
-        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
-
-        // When
-        final Stream<KafkaClusterConfig.ConfigHolder> brokerConfigs = kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig);
-
-        // Then
-        assertThat(brokerConfigs).hasSize(3);
-    }
-
-    private void assertNodeIdHasRole(KafkaClusterConfig kafkaClusterConfig, int nodeId, String expectedRole) {
-        final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, nodeId);
-        assertThat(config.getProperties()).extracting(brokerConfig -> brokerConfig.get("process.roles")).as("nodeId: %s to have process.roles", nodeId).isEqualTo(
-                expectedRole);
-    }
-
-    static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {
+    static class EndpointConfig implements KafkaEndpoints {
 
         @NotNull
         private static EndpointPair generateEndpoint(int nodeId, int basePort) {
@@ -151,6 +131,65 @@ class KafkaClusterConfigTest {
 
                 default -> throw new IllegalStateException("Unexpected value: " + listener);
             }
+        }
+    }
+
+    private static class TestDriver implements KafkaDriver {
+        EndpointConfig config = new EndpointConfig();
+
+        @Override
+        public KafkaNode createNode(KafkaNodeConfiguration node) {
+            return new KafkaNode() {
+                @Override
+                public int stop(TerminationStyle terminationStyle) {
+                    return 0;
+                }
+
+                @Override
+                public void start() {
+
+                }
+
+                @Override
+                public boolean isStopped() {
+                    return false;
+                }
+
+                @Override
+                public int nodeId() {
+                    return 0;
+                }
+
+                @Override
+                public boolean isBroker() {
+                    return false;
+                }
+
+                @Override
+                public KafkaNodeConfiguration configuration() {
+                    return node;
+                }
+            };
+        }
+
+        @Override
+        public Zookeeper createZookeeper(ZookeeperConfig zookeeperConfig) {
+            return null;
+        }
+
+        @Override
+        public void nodeRemoved(KafkaNode node) {
+
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public EndpointPair getEndpointPair(Listener listener, int nodeId) {
+            return config.getEndpointPair(listener, nodeId);
         }
     }
 }

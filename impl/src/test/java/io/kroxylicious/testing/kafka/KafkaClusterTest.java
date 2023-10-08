@@ -506,13 +506,14 @@ class KafkaClusterTest {
                 ProducerConfig.CLIENT_ID_CONFIG, "myclient",
                 ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
                 ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+                ProducerConfig.ACKS_CONFIG, "all",
                 ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 3_600_000));
         try (var producer = CloseableProducer.create(config)) {
             producer.send(new ProducerRecord<>(topic, "my-key", message)).get(30, TimeUnit.SECONDS);
         }
     }
 
-    private void consume(KafkaCluster cluster, String topic, String message) throws Exception {
+    private void consume(KafkaCluster cluster, String topic, String message) {
         Map<String, Object> config = cluster.getKafkaClientConfiguration();
         config.putAll(Map.of(
                 ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,

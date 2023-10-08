@@ -39,7 +39,7 @@ public class TestcontainersProvisioningStrategy implements KafkaClusterProvision
     @Override
     public KafkaCluster create(List<Annotation> constraints, Class<? extends KafkaCluster> declarationType, TestInfo testInfo) {
         KafkaClusterConfig config = KafkaClusterConfig.fromConstraints(constraints, testInfo);
-        return new TestcontainersKafkaCluster(config);
+        return new TestcontainersKafkaCluster(null, null, config);
     }
 
     @Override
