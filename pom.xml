@@ -85,7 +85,7 @@
 
         <junit.version>5.10.0</junit.version>
         <kafka.version>3.5.1</kafka.version>
-        <testcontainers.version>1.19.0</testcontainers.version>
+        <testcontainers.version>1.19.1</testcontainers.version>
         <lombok.version>1.18.30</lombok.version>
         <assertj-core.version>3.24.2</assertj-core.version>
         <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
