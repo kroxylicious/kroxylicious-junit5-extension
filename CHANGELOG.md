@@ -8,6 +8,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.6.0
 
+* [#193](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/193): Bump Apache Kafka from 3.5.1 to 3.6.0
 * [#190](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/190): Allow controller-only nodes in container mode
 * [#187](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/187): Tighten the conditions under which the extension will inject values.
 * [#186](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/186): Replace a Null Pointer Exception with a more meaningful one when there is no existing cluster
