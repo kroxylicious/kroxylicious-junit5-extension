@@ -28,7 +28,7 @@ import io.kroxylicious.testing.kafka.common.KafkaEndpoints.EndpointPair;
 
 public class KafkaNodeConfiguration {
     private static final String ONE_CONFIG = Integer.toString(1);
-    private final KafkaTopology kafkaTopology;
+    private final TopologyConfiguration kafkaTopology;
     private final int nodeId;
     private final Set<Role> roles;
 
@@ -64,7 +64,7 @@ public class KafkaNodeConfiguration {
         return externalEndpoint.connectAddress();
     }
 
-    public KafkaNodeConfiguration(KafkaTopology kafkaTopology, int nodeId, Set<Role> roles, KafkaClusterConfig config, KafkaEndpoints endpoints) {
+    public KafkaNodeConfiguration(TopologyConfiguration kafkaTopology, int nodeId, Set<Role> roles, KafkaClusterConfig config, KafkaEndpoints endpoints) {
         this.kafkaTopology = kafkaTopology;
         this.nodeId = nodeId;
         this.roles = roles;
@@ -323,5 +323,14 @@ public class KafkaNodeConfiguration {
 
     public String getAnonymousConnectAddress() {
         return anonEndpoint.connectAddress();
+    }
+
+    @Override
+    public String toString() {
+        return "KafkaNodeConfiguration{" +
+                "nodeId=" + nodeId +
+                ", roles=" + roles +
+                ", kraftMode=" + isKraft() +
+                '}';
     }
 }

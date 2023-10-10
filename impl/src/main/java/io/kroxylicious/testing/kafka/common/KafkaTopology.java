@@ -27,7 +27,7 @@ import static java.util.stream.Collectors.toSet;
  * 3. manifests the topology using the driver, creating the nodes and tracking their state
  * 4. enables manipulation of the topology, stopping/starting/removing nodes.
  */
-public class KafkaTopology {
+public class KafkaTopology implements TopologyConfiguration {
     private final KafkaDriver driver;
     private final KafkaClusterConfig config;
 
@@ -66,7 +66,8 @@ public class KafkaTopology {
         this.nodeConfigurations = new HashMap<>();
     }
 
-    boolean isKraftMode() {
+    @Override
+    public boolean isKraftMode() {
         return this.config.isKraftMode();
     }
 
@@ -96,6 +97,7 @@ public class KafkaTopology {
         this.nodes.putAll(nodes);
     }
 
+    @Override
     public String getQuorumVoters() {
         String collect = nodeDescriptions().stream().map(KafkaNodeConfiguration::controllerQuorumAddress)
                 .filter(Optional::isPresent)
@@ -231,6 +233,7 @@ public class KafkaTopology {
         return nodes.get(nodeId);
     }
 
+    @Override
     public Optional<ZookeeperConfig> getZookeeperConfig() {
         return Optional.ofNullable(zookeeperConfig);
     }

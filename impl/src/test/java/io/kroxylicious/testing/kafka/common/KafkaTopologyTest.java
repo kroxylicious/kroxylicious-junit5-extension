@@ -5,21 +5,17 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 
+import static io.kroxylicious.testing.kafka.common.TestKafkaEndpoints.ANON_BASE_PORT;
+import static io.kroxylicious.testing.kafka.common.TestKafkaEndpoints.CLIENT_BASE_PORT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class KafkaTopologyTest {
-
-    private static final int CLIENT_BASE_PORT = 9092;
-    private static final int CONTROLLER_BASE_PORT = 10092;
-    private static final int INTER_BROKER_BASE_PORT = 11092;
-    private static final int ANON_BASE_PORT = 12092;
 
     private TestDriver driver;
     private KafkaClusterConfig.KafkaClusterConfigBuilder kafkaClusterConfigBuilder;
@@ -104,38 +100,8 @@ class KafkaTopologyTest {
                 .as("nodeId: %s to have process.roles", nodeId).isEqualTo(expectedRole);
     }
 
-    static class EndpointConfig implements KafkaEndpoints {
-
-        @NotNull
-        private static EndpointPair generateEndpoint(int nodeId, int basePort) {
-            final int port = basePort + nodeId;
-            return new EndpointPair(new Endpoint("0.0.0.0", port), new Endpoint("localhost", port));
-        }
-
-        @Override
-        public EndpointPair getEndpointPair(Listener listener, int nodeId) {
-            switch (listener) {
-
-                case EXTERNAL -> {
-                    return generateEndpoint(nodeId, CLIENT_BASE_PORT);
-                }
-                case ANON -> {
-                    return generateEndpoint(nodeId, ANON_BASE_PORT);
-                }
-                case INTERNAL -> {
-                    return generateEndpoint(nodeId, INTER_BROKER_BASE_PORT);
-                }
-                case CONTROLLER -> {
-                    return generateEndpoint(nodeId, CONTROLLER_BASE_PORT);
-                }
-
-                default -> throw new IllegalStateException("Unexpected value: " + listener);
-            }
-        }
-    }
-
     private static class TestDriver implements KafkaDriver {
-        EndpointConfig config = new EndpointConfig();
+        TestKafkaEndpoints config = new TestKafkaEndpoints();
 
         @Override
         public KafkaNode createNode(KafkaNodeConfiguration node) {
