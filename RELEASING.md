@@ -11,7 +11,7 @@ In addition to the build pre-requistes:
 
 ## Releasing this project
 
-Firstly ensure that you have completed the [release requirements](https://github.com/kroxylicious/kroxylicious/blob/main/docs/Releasing.adoc#requirements).  Once that is done, use
+Firstly ensure that you have completed the [release requirements](https://github.com/kroxylicious/kroxylicious/blob/main/RELEASING.md#requirements).  Once that is done, use
 the release script to actually perform the release and prepare main for the next development version.
 
 ```shell
