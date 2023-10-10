@@ -14,81 +14,79 @@ import org.testcontainers.utility.DockerImageName;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
-import io.kroxylicious.testing.kafka.common.KafkaOrchestrator;
+import io.kroxylicious.testing.kafka.common.KafkaTopology;
 
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
  */
 public class TestcontainersKafkaCluster implements KafkaCluster {
 
-    private final KafkaOrchestrator kafkaOrchestrator;
-    private final KafkaClusterConfig config;
+    private final KafkaCluster cluster;
     private final TestcontainersKafkaDriver driver;
 
     public TestcontainersKafkaCluster(DockerImageName kafka, DockerImageName zookeeper, KafkaClusterConfig config) {
-        this.config = config;
         driver = new TestcontainersKafkaDriver(config.getTestInfo(), config.isKraftMode(), config.getKafkaVersion(), kafka, zookeeper);
-        kafkaOrchestrator = new KafkaOrchestrator(config, driver);
+        cluster = KafkaTopology.create(driver, config);
     }
 
     @Override
     public void start() {
-        kafkaOrchestrator.start();
+        cluster.start();
     }
 
     @Override
     public int addBroker() {
-        return kafkaOrchestrator.addBroker();
+        return cluster.addBroker();
     }
 
     @Override
     public void removeBroker(int nodeId) throws UnsupportedOperationException, IllegalArgumentException, IllegalStateException {
-        kafkaOrchestrator.removeBroker(nodeId);
+        cluster.removeBroker(nodeId);
     }
 
     @Override
     public void stopNodes(IntPredicate nodeIdPredicate, TerminationStyle terminationStyle) {
-        kafkaOrchestrator.stopNodes(nodeIdPredicate, terminationStyle);
+        cluster.stopNodes(nodeIdPredicate, terminationStyle);
     }
 
     @Override
     public void startNodes(IntPredicate nodeIdPredicate) {
-        kafkaOrchestrator.startNodes(nodeIdPredicate);
+        cluster.startNodes(nodeIdPredicate);
     }
 
     @Override
     public void close() throws Exception {
-        kafkaOrchestrator.close();
+        cluster.close();
     }
 
     @Override
     public int getNumOfBrokers() {
-        return kafkaOrchestrator.getNumOfBrokers();
+        return cluster.getNumOfBrokers();
     }
 
     @Override
     public Set<Integer> getStoppedBrokers() {
-        return kafkaOrchestrator.getStoppedBrokers();
+        return cluster.getStoppedBrokers();
     }
 
     @Override
     public String getBootstrapServers() {
-        return kafkaOrchestrator.getBootstrapServers();
+        return cluster.getBootstrapServers();
     }
 
     @Override
     public String getClusterId() {
-        return kafkaOrchestrator.getClusterId();
+        return cluster.getClusterId();
     }
 
     @Override
     public Map<String, Object> getKafkaClientConfiguration() {
-        return kafkaOrchestrator.getKafkaClientConfiguration();
+        return cluster.getKafkaClientConfiguration();
     }
 
     @Override
     public Map<String, Object> getKafkaClientConfiguration(String user, String password) {
-        return kafkaOrchestrator.getKafkaClientConfiguration(user, password);
+        return cluster.getKafkaClientConfiguration(user, password);
     }
 
     public String getKafkaVersion() {
