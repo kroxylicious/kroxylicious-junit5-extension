@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
@@ -329,6 +330,7 @@ public class TestcontainersKafkaClusterDriver implements KafkaClusterDriver, Kaf
     public static class LoggingGenericContainer<C extends GenericContainer<C>>
             extends GenericContainer<C> {
         private static final String CONTAINER_LOGS_DIR = "container.logs.dir";
+        private static final String SEPARATOR_REGEX_LITERAL = Pattern.quote(File.separator);
         private String name;
 
         /**
@@ -349,7 +351,7 @@ public class TestcontainersKafkaClusterDriver implements KafkaClusterDriver, Kaf
                 if (name != null) {
                     target = target.resolve(name);
                 }
-                target = target.resolve(String.format("%s.%s.%s", getContainerName().replaceFirst(File.separator, ""), getContainerId(), "log"));
+                target = target.resolve(String.format("%s.%s.%s", getContainerName().replaceFirst(SEPARATOR_REGEX_LITERAL, ""), getContainerId(), "log"));
                 target.getParent().toFile().mkdirs();
                 try (var writer = new FileWriter(target.toFile())) {
                     LOGGER.log(System.Logger.Level.DEBUG, "writing logs for {0} to {1}", getContainerName(), target);

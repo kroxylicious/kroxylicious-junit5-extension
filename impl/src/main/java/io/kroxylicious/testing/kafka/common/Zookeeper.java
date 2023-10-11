@@ -5,8 +5,7 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-public interface Zookeeper extends AutoCloseable {
-    @Override
+public interface Zookeeper {
     void close();
 
     void start();
