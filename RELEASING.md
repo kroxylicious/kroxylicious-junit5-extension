@@ -32,13 +32,13 @@ These are described below.
 
 ### Validating the staged artefacts
 
-You can validate the staged artefacts by having an test application (we'll call it `T`) that uses kroxylicious-junit5-extension use the Maven artefacts by making
+You can validate the staged artefacts by having a test application (we'll call it `T`) that uses kroxylicious-junit5-extension use the Maven artefacts by making
 temporary (local) changes to its POM.
 
 1. Find the staging repository in the [Nexus UI](https://s01.oss.sonatype.org/). It'll be named `iokroxylioustesting-nn`.
 2. [Close](https://help.sonatype.com/repomanager2/staging-releases/managing-staging-repositories) the staging respository.  This gives the staging repository a publicly accessible URL.
 3. Add a [`<repositories>`](https://maven.apache.org/pom.html#Repositories) that references the staging repository public url to `T`'s POM.
-4. Update `T`'s kroxylicious-junit5-extension dependenct to refer to the `<RELEASE_VERSION>`.
+4. Update `T`'s kroxylicious-junit5-extension dependency to refer to the `<RELEASE_VERSION>`.
 5. Run `T` build/test cycle but use an alternative cache location to be sure artefacts are being fetched.  Check the build output, you'll see the
    kroxylicious-junit5-extension come from the staging location. 
 ```
@@ -50,7 +50,7 @@ The local changes made to `T`'s POM can be reverted.
 ### Releasing the stage repository and merge the PR.
 
 Use the [Release](https://help.sonatype.com/repomanager2/staging-releases/managing-staging-repositories) to release artefacts.  This makes the
-artefacts public and they'll appear in Maven Central.  Note that propagation time to Maven Central's mirrors can take time.
+artefacts public and they'll appear in Maven Central.  Note that propagation to Maven Central's mirrors can take time (hours).
 
 Use the Github workflow to merge the PR that commits the release to Git.
 
