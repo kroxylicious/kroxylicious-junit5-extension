@@ -34,7 +34,8 @@ import static java.util.stream.Collectors.toSet;
  * 4. enables manipulation of the topology, stopping/starting/removing nodes.
  */
 public class KafkaTopology implements TopologyConfiguration, KafkaCluster {
-    private final KafkaDriver driver;
+    private final KafkaClusterDriver driver;
+    private final KafkaEndpoints endpoints;
     private final KafkaClusterConfig config;
 
     // kludge: creating a KafkaNode may consult the NodeConfigurations of the Topology looking for controllers, so we
@@ -57,11 +58,12 @@ public class KafkaTopology implements TopologyConfiguration, KafkaCluster {
     };
     private final Zookeeper zookeeper;
 
-    private KafkaTopology(KafkaDriver driver, KafkaClusterConfig config) {
+    private KafkaTopology(KafkaClusterDriver driver, KafkaEndpoints endpoints, KafkaClusterConfig config) {
         this.driver = driver;
+        this.endpoints = endpoints;
         this.config = config;
         if (!config.isKraftMode()) {
-            this.zookeeperConfig = new ZookeeperConfig(driver);
+            this.zookeeperConfig = new ZookeeperConfig(endpoints);
             this.zookeeper = driver.createZookeeper(zookeeperConfig);
         }
         else {
@@ -90,7 +92,7 @@ public class KafkaTopology implements TopologyConfiguration, KafkaCluster {
         }
         var newNodeId = first.getAsInt();
         Set<Role> roles = Set.of(Role.BROKER);
-        KafkaNodeConfiguration nodeConfiguration = new KafkaNodeConfiguration(this, newNodeId, roles, config, driver);
+        KafkaNodeConfiguration nodeConfiguration = new KafkaNodeConfiguration(this, newNodeId, roles, config, endpoints);
         KafkaNode newNode = driver.createNode(nodeConfiguration);
         this.nodeConfigurations.put(newNodeId, nodeConfiguration);
         this.nodes.put(newNodeId, newNode);
@@ -210,9 +212,9 @@ public class KafkaTopology implements TopologyConfiguration, KafkaCluster {
         return this.config.isKraftMode();
     }
 
-    public static KafkaTopology create(KafkaDriver driver, KafkaClusterConfig config) {
-        KafkaTopology kafkaTopology = new KafkaTopology(driver, config);
-        Map<Integer, KafkaNodeConfiguration> configs = generateConfigurations(driver, config, kafkaTopology);
+    public static KafkaTopology create(KafkaClusterDriver driver, KafkaEndpoints endpoints, KafkaClusterConfig config) {
+        KafkaTopology kafkaTopology = new KafkaTopology(driver, endpoints, config);
+        Map<Integer, KafkaNodeConfiguration> configs = generateConfigurations(config, endpoints, kafkaTopology);
         kafkaTopology.nodeConfigurations.putAll(configs);
         // createNode requires the topology to have all nodes configurations installed first, so it can ask for all
         // controller node details.
@@ -223,12 +225,12 @@ public class KafkaTopology implements TopologyConfiguration, KafkaCluster {
     }
 
     @NotNull
-    private static Map<Integer, KafkaNodeConfiguration> generateConfigurations(KafkaDriver driver, KafkaClusterConfig config, KafkaTopology kafkaTopology) {
+    private static Map<Integer, KafkaNodeConfiguration> generateConfigurations(KafkaClusterConfig config, KafkaEndpoints endpoints, KafkaTopology kafkaTopology) {
         int nodesToCreate = Math.max(config.getBrokersNum(), config.getKraftControllers());
         Stream<KafkaNodeConfiguration> nodeConfigurationStream = IntStream.range(0, nodesToCreate)
                 .mapToObj(value -> new IdAndRoles(value, roles(config, value)))
                 // note that generation of a configuration may allocate resources like ports to it
-                .map(idAndRoles -> getNodeConfiguration(kafkaTopology, config, idAndRoles, driver));
+                .map(idAndRoles -> getNodeConfiguration(kafkaTopology, endpoints, config, idAndRoles));
         return nodeConfigurationStream.collect(Collectors.toMap(KafkaNodeConfiguration::nodeId, configuration -> configuration));
     }
 
@@ -253,9 +255,8 @@ public class KafkaTopology implements TopologyConfiguration, KafkaCluster {
     public record IdAndRoles(int nodeId, Set<Role> roles) {
     }
 
-    @NotNull
-    private static KafkaNodeConfiguration getNodeConfiguration(KafkaTopology kafkaTopology, KafkaClusterConfig config, IdAndRoles idAndRoles, KafkaDriver driver) {
-        return new KafkaNodeConfiguration(kafkaTopology, idAndRoles.nodeId, idAndRoles.roles, config, driver);
+    private static KafkaNodeConfiguration getNodeConfiguration(KafkaTopology kafkaTopology, KafkaEndpoints endpoints, KafkaClusterConfig config, IdAndRoles idAndRoles) {
+        return new KafkaNodeConfiguration(kafkaTopology, idAndRoles.nodeId, idAndRoles.roles, config, endpoints);
     }
 
     private static Set<Role> roles(KafkaClusterConfig config, int nodeId) {

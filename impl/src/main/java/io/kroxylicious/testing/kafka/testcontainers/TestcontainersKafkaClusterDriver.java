@@ -40,7 +40,7 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
-import io.kroxylicious.testing.kafka.common.KafkaDriver;
+import io.kroxylicious.testing.kafka.common.KafkaClusterDriver;
 import io.kroxylicious.testing.kafka.common.KafkaEndpoints;
 import io.kroxylicious.testing.kafka.common.KafkaNode;
 import io.kroxylicious.testing.kafka.common.KafkaNodeConfiguration;
@@ -52,8 +52,8 @@ import io.kroxylicious.testing.kafka.common.ZookeeperConfig;
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
-public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
-    private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaDriver.class.getName());
+public class TestcontainersKafkaClusterDriver implements KafkaClusterDriver, KafkaEndpoints {
+    private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaClusterDriver.class.getName());
 
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
@@ -92,7 +92,7 @@ public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
     private final String logDirVolumeName = createNamedVolume();
     private TestcontainersZookeeper zookeeper;
 
-    public TestcontainersKafkaDriver(TestInfo testInfo, boolean kraftMode, String kafkaVersion, DockerImageName kafkaImage, DockerImageName zookeeperImage) {
+    public TestcontainersKafkaClusterDriver(TestInfo testInfo, boolean kraftMode, String kafkaVersion, DockerImageName kafkaImage, DockerImageName zookeeperImage) {
         this.kraftMode = kraftMode;
         setDefaultKafkaImage(kafkaVersion);
         this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
@@ -111,7 +111,7 @@ public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
         }
         // Install a shutdown hook to remove any volumes that remain. This is a best effort approach to leaving
         // container resources behind.
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> Set.copyOf(volumesPendingCleanup).forEach(TestcontainersKafkaDriver::removeNamedVolume)));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> Set.copyOf(volumesPendingCleanup).forEach(TestcontainersKafkaClusterDriver::removeNamedVolume)));
     }
 
     private static DockerClient createDockerClient() {
@@ -276,7 +276,7 @@ public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
     // In kraft mode, currently "Advertised listeners cannot be altered when using a Raft-based metadata quorum", so we
     // need to know the listening port before we start the kafka container. For this reason, we need this override
     // to expose addFixedExposedPort for use.
-    public static class KafkaContainer extends TestcontainersKafkaDriver.LoggingGenericContainer<TestcontainersKafkaDriver.KafkaContainer> {
+    public static class KafkaContainer extends TestcontainersKafkaClusterDriver.LoggingGenericContainer<TestcontainersKafkaClusterDriver.KafkaContainer> {
 
         /**
          * Instantiates a new Kafka container.
@@ -296,7 +296,7 @@ public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
     /**
      * The type Zookeeper container.
      */
-    public static class ZookeeperContainer extends TestcontainersKafkaDriver.LoggingGenericContainer<TestcontainersKafkaDriver.ZookeeperContainer> {
+    public static class ZookeeperContainer extends TestcontainersKafkaClusterDriver.LoggingGenericContainer<TestcontainersKafkaClusterDriver.ZookeeperContainer> {
         /**
          * Instantiates a new Zookeeper container.
          *
@@ -310,7 +310,7 @@ public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
     /**
      * Container used for running one-short commands.
      */
-    public static class OneShotContainer extends TestcontainersKafkaDriver.LoggingGenericContainer<TestcontainersKafkaDriver.OneShotContainer> {
+    public static class OneShotContainer extends TestcontainersKafkaClusterDriver.LoggingGenericContainer<TestcontainersKafkaClusterDriver.OneShotContainer> {
         /**
          * Instantiates a new one-shot container
          */
@@ -381,12 +381,12 @@ public class TestcontainersKafkaDriver implements KafkaDriver, KafkaEndpoints {
          * @param name the name
          * @return the logging generic container
          */
-        public TestcontainersKafkaDriver.LoggingGenericContainer<C> withName(String name) {
+        public TestcontainersKafkaClusterDriver.LoggingGenericContainer<C> withName(String name) {
             this.name = name;
             return this;
         }
 
-        public TestcontainersKafkaDriver.LoggingGenericContainer<C> addGenericBind(Bind bind) {
+        public TestcontainersKafkaClusterDriver.LoggingGenericContainer<C> addGenericBind(Bind bind) {
             super.getBinds().add(bind);
             return this;
         }

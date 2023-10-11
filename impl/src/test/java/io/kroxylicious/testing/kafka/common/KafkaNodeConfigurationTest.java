@@ -28,7 +28,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allVariants")
-    public void testBrokerIdSet(KafkaNodeConfiguration configuration) {
+    void testBrokerIdSet(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -37,7 +37,7 @@ class KafkaNodeConfigurationTest {
     }
 
     @Test
-    public void testZookeeperConfiguration() {
+    void testZookeeperConfiguration() {
         // given
         KafkaNodeConfiguration configuration = legacyBroker();
 
@@ -53,7 +53,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "kraftVariants")
-    public void testCommonKraftConfiguration(KafkaNodeConfiguration configuration) {
+    void testCommonKraftConfiguration(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
         assertThat(properties.get(KafkaConfig.NodeIdProp())).isEqualTo(configuration.nodeIdString());
@@ -65,7 +65,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "kraftControllerVariants")
-    public void testKraftControllerListenerConfiguration(KafkaNodeConfiguration configuration) {
+    void testKraftControllerListenerConfiguration(KafkaNodeConfiguration configuration) {
 
         // when
         Properties properties = configuration.getProperties();
@@ -76,7 +76,7 @@ class KafkaNodeConfigurationTest {
     }
 
     @Test
-    public void testKraftBrokerHasNoControllerListener() {
+    void testKraftBrokerHasNoControllerListener() {
         // given
         KafkaNodeConfiguration configuration = kraftBroker();
 
@@ -87,7 +87,7 @@ class KafkaNodeConfigurationTest {
     }
 
     @Test
-    public void testZookeeperDoesNotSetKraftConfiguration() {
+    void testZookeeperDoesNotSetKraftConfiguration() {
         // given
         KafkaNodeConfiguration configuration = legacyBroker();
 
@@ -104,7 +104,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "kraftVariants")
-    public void testZookeeperConfigurationNotPresentInKraftMode(KafkaNodeConfiguration configuration) {
+    void testZookeeperConfigurationNotPresentInKraftMode(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -117,7 +117,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allVariants")
-    public void testMetricsDisabled(KafkaNodeConfiguration configuration) {
+    void testMetricsDisabled(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -127,7 +127,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allVariants")
-    public void testGroupRebalanceDelayIsAlwaysZero(KafkaNodeConfiguration configuration) {
+    void testGroupRebalanceDelayIsAlwaysZero(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -137,7 +137,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allVariants")
-    public void testOffsetTopicConfiguration(KafkaNodeConfiguration configuration) {
+    void testOffsetTopicConfiguration(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -148,7 +148,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allVariants")
-    public void testTransactionStateTopicConfiguration(KafkaNodeConfiguration configuration) {
+    void testTransactionStateTopicConfiguration(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -159,7 +159,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allBrokerVariants")
-    public void testBrokerAdvertisedListenersConfiguration(KafkaNodeConfiguration configuration) {
+    void testBrokerAdvertisedListenersConfiguration(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -172,7 +172,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allBrokerVariants")
-    public void testBrokerListenersConfiguration(KafkaNodeConfiguration configuration) {
+    void testBrokerListenersConfiguration(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -185,7 +185,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allBrokerVariants")
-    public void testBrokerSecurityProtocolMap(KafkaNodeConfiguration configuration) {
+    void testBrokerSecurityProtocolMap(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -198,7 +198,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allBrokerVariants")
-    public void testAllBrokersSetInterBrokerListenerNameToInternal(KafkaNodeConfiguration configuration) {
+    void testAllBrokersSetInterBrokerListenerNameToInternal(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 
@@ -209,7 +209,7 @@ class KafkaNodeConfigurationTest {
 
     @ParameterizedTest
     @MethodSource(value = "allBrokerVariants")
-    public void testAllBrokersSetInternalListenerToEarlyStart(KafkaNodeConfiguration configuration) {
+    void testAllBrokersSetInternalListenerToEarlyStart(KafkaNodeConfiguration configuration) {
         // when
         Properties properties = configuration.getProperties();
 

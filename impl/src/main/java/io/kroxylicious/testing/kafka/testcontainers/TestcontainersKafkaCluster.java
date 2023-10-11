@@ -22,11 +22,11 @@ import io.kroxylicious.testing.kafka.common.KafkaTopology;
 public class TestcontainersKafkaCluster implements KafkaCluster {
 
     private final KafkaCluster cluster;
-    private final TestcontainersKafkaDriver driver;
+    private final TestcontainersKafkaClusterDriver driver;
 
     public TestcontainersKafkaCluster(DockerImageName kafka, DockerImageName zookeeper, KafkaClusterConfig config) {
-        driver = new TestcontainersKafkaDriver(config.getTestInfo(), config.isKraftMode(), config.getKafkaVersion(), kafka, zookeeper);
-        cluster = KafkaTopology.create(driver, config);
+        driver = new TestcontainersKafkaClusterDriver(config.getTestInfo(), config.isKraftMode(), config.getKafkaVersion(), kafka, zookeeper);
+        cluster = KafkaTopology.create(driver, driver, config);
     }
 
     @Override

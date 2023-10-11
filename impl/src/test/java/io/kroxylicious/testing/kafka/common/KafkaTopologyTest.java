@@ -17,12 +17,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class KafkaTopologyTest {
 
-    private TestDriver driver;
+    private TestClusterDriver driver;
     private KafkaClusterConfig.KafkaClusterConfigBuilder kafkaClusterConfigBuilder;
 
     @BeforeEach
     void setUp(TestInfo testInfo) {
-        driver = new TestDriver();
+        driver = new TestClusterDriver();
         kafkaClusterConfigBuilder = KafkaClusterConfig.builder();
         kafkaClusterConfigBuilder.testInfo(testInfo);
     }
@@ -34,7 +34,7 @@ class KafkaTopologyTest {
         var kafkaClusterConfig = kafkaClusterConfigBuilder.build();
 
         // When
-        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, driver, kafkaClusterConfig);
         // Then
         KafkaNodeConfiguration config = kafkaTopology.get(0).configuration();
         assertThat(config.nodeId()).isZero();
@@ -51,7 +51,7 @@ class KafkaTopologyTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(3).brokersNum(numBrokers).build();
 
         // When
-        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, driver, kafkaClusterConfig);
 
         // Then
         for (int nodeId = 0; nodeId < numBrokers; nodeId++) {
@@ -67,7 +67,7 @@ class KafkaTopologyTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
 
         // When
-        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, driver, kafkaClusterConfig);
 
         // then
         assertNodeIdHasRole(kafkaTopology, 0, "broker,controller");
@@ -84,7 +84,7 @@ class KafkaTopologyTest {
         final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true).kraftControllers(numControllers).brokersNum(numBrokers).build();
 
         // When
-        KafkaTopology kafkaTopology = KafkaTopology.create(driver, kafkaClusterConfig);
+        KafkaTopology kafkaTopology = KafkaTopology.create(driver, driver, kafkaClusterConfig);
 
         // then
         assertNodeIdHasRole(kafkaTopology, 0, "broker,controller");
@@ -100,7 +100,7 @@ class KafkaTopologyTest {
                 .as("nodeId: %s to have process.roles", nodeId).isEqualTo(expectedRole);
     }
 
-    private static class TestDriver implements KafkaDriver {
+    private static class TestClusterDriver implements KafkaClusterDriver, KafkaEndpoints {
         TestKafkaEndpoints config = new TestKafkaEndpoints();
 
         @Override

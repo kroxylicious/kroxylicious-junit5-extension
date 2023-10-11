@@ -5,7 +5,7 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-public interface KafkaDriver extends KafkaEndpoints {
+public interface KafkaClusterDriver {
     KafkaNode createNode(KafkaNodeConfiguration node);
 
     Zookeeper createZookeeper(ZookeeperConfig zookeeperConfig);

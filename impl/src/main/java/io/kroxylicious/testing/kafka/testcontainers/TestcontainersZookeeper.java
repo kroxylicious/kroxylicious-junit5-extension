@@ -14,7 +14,7 @@ import io.kroxylicious.testing.kafka.common.Zookeeper;
 
 public class TestcontainersZookeeper implements Zookeeper {
 
-    TestcontainersKafkaDriver.ZookeeperContainer zookeeper;
+    TestcontainersKafkaClusterDriver.ZookeeperContainer zookeeper;
 
     // If Zookeeper runs for less than 500ms, there's almost certainly a problem. This makes it be treated
     // as a startup failure.
@@ -22,7 +22,7 @@ public class TestcontainersZookeeper implements Zookeeper {
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
 
     public TestcontainersZookeeper(DockerImageName imageName, String name, Network network) {
-        zookeeper = new TestcontainersKafkaDriver.ZookeeperContainer(imageName)
+        zookeeper = new TestcontainersKafkaClusterDriver.ZookeeperContainer(imageName)
                 .withName(name)
                 .withNetwork(network)
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)

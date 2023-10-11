@@ -23,7 +23,8 @@ public class InVMKafkaCluster implements KafkaCluster {
     private final KafkaCluster cluster;
 
     public InVMKafkaCluster(KafkaClusterConfig config) {
-        cluster = KafkaTopology.create(new InVMKafkaDriver(), config);
+        InVMKafkaClusterDriver driver = new InVMKafkaClusterDriver();
+        cluster = KafkaTopology.create(driver, driver, config);
     }
 
     @Override

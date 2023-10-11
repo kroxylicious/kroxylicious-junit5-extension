@@ -31,10 +31,10 @@ import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaNode;
 import io.kroxylicious.testing.kafka.common.KafkaNodeConfiguration;
 
-import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaDriver.ANON_PORT;
-import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaDriver.CLIENT_PORT;
-import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaDriver.KAFKA_CONTAINER_MOUNT_POINT;
-import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaDriver.getBrokerLogDirectory;
+import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaClusterDriver.ANON_PORT;
+import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaClusterDriver.CLIENT_PORT;
+import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaClusterDriver.KAFKA_CONTAINER_MOUNT_POINT;
+import static io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaClusterDriver.getBrokerLogDirectory;
 
 public class TestcontainersKafkaNode implements KafkaNode {
 
@@ -45,24 +45,24 @@ public class TestcontainersKafkaNode implements KafkaNode {
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
-    private final TestcontainersKafkaDriver.KafkaContainer kafkaContainer;
+    private final TestcontainersKafkaClusterDriver.KafkaContainer kafkaContainer;
     private final KafkaNodeConfiguration nodeConfiguration;
 
-    public TestcontainersKafkaNode(DockerImageName imageName, KafkaNodeConfiguration nodeConfiguration, TestcontainersKafkaDriver.ZookeeperContainer container,
+    public TestcontainersKafkaNode(DockerImageName imageName, KafkaNodeConfiguration nodeConfiguration, TestcontainersKafkaClusterDriver.ZookeeperContainer container,
                                    String name,
                                    Network network, String logDirVolumeName) {
         kafkaContainer = buildKafkaContainer(nodeConfiguration, container, name, network, imageName, logDirVolumeName);
         this.nodeConfiguration = nodeConfiguration;
     }
 
-    private static TestcontainersKafkaDriver.KafkaContainer buildKafkaContainer(KafkaNodeConfiguration nodeConfiguration,
-                                                                                TestcontainersKafkaDriver.ZookeeperContainer zookeeper,
-                                                                                String name, Network network, DockerImageName imageName, String logDirVolumeName) {
+    private static TestcontainersKafkaClusterDriver.KafkaContainer buildKafkaContainer(KafkaNodeConfiguration nodeConfiguration,
+                                                                                       TestcontainersKafkaClusterDriver.ZookeeperContainer zookeeper,
+                                                                                       String name, Network network, DockerImageName imageName, String logDirVolumeName) {
         String netAlias = "broker-" + nodeConfiguration.nodeIdString();
         Properties properties = new Properties();
         properties.putAll(nodeConfiguration.getProperties());
         properties.put("log.dir", getBrokerLogDirectory(nodeConfiguration.nodeId()));
-        TestcontainersKafkaDriver.KafkaContainer kafkaContainer = new TestcontainersKafkaDriver.KafkaContainer(imageName)
+        TestcontainersKafkaClusterDriver.KafkaContainer kafkaContainer = new TestcontainersKafkaClusterDriver.KafkaContainer(imageName)
                 .withName(name)
                 .withNetwork(network)
                 .withNetworkAliases(netAlias);
@@ -92,7 +92,7 @@ public class TestcontainersKafkaNode implements KafkaNode {
         return kafkaContainer;
     }
 
-    private static void copyHostKeyStoreToContainer(TestcontainersKafkaDriver.KafkaContainer container, Properties properties, String key) {
+    private static void copyHostKeyStoreToContainer(TestcontainersKafkaClusterDriver.KafkaContainer container, Properties properties, String key) {
         if (properties.get(key) != null) {
             try {
                 var hostPath = Path.of(String.valueOf(properties.get(key)));
@@ -133,7 +133,7 @@ public class TestcontainersKafkaNode implements KafkaNode {
         }
     }
 
-    private void gracefulStop(TestcontainersKafkaDriver.KafkaContainer kafkaContainer) {
+    private void gracefulStop(TestcontainersKafkaClusterDriver.KafkaContainer kafkaContainer) {
         // https://github.com/testcontainers/testcontainers-java/issues/1000
         // Note that GenericContainer#stop actually implements stop using kill, so the broker doesn't have chance to
         // tell the controller that it is going away.

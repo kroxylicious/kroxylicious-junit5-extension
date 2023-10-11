@@ -16,7 +16,7 @@ import java.util.Set;
 
 import org.apache.kafka.common.utils.Exit;
 
-import io.kroxylicious.testing.kafka.common.KafkaDriver;
+import io.kroxylicious.testing.kafka.common.KafkaClusterDriver;
 import io.kroxylicious.testing.kafka.common.KafkaEndpoints;
 import io.kroxylicious.testing.kafka.common.KafkaNode;
 import io.kroxylicious.testing.kafka.common.KafkaNodeConfiguration;
@@ -28,13 +28,13 @@ import io.kroxylicious.testing.kafka.common.ZookeeperConfig;
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
-public class InVMKafkaDriver implements KafkaDriver, KafkaEndpoints {
-    private static final System.Logger LOGGER = System.getLogger(InVMKafkaDriver.class.getName());
+public class InVMKafkaClusterDriver implements KafkaClusterDriver, KafkaEndpoints {
+    private static final System.Logger LOGGER = System.getLogger(InVMKafkaClusterDriver.class.getName());
     private final Path tempDirectory;
 
     private final PortAllocator portsAllocator = new PortAllocator();
 
-    public InVMKafkaDriver() {
+    public InVMKafkaClusterDriver() {
         try {
             tempDirectory = Files.createTempDirectory("kafka");
             tempDirectory.toFile().deleteOnExit();
@@ -82,8 +82,8 @@ public class InVMKafkaDriver implements KafkaDriver, KafkaEndpoints {
     }
 
     private static void trapKafkaSystemExit() {
-        Exit.setExitProcedure(InVMKafkaDriver::exitHandler);
-        Exit.setHaltProcedure(InVMKafkaDriver::exitHandler);
+        Exit.setExitProcedure(InVMKafkaClusterDriver::exitHandler);
+        Exit.setHaltProcedure(InVMKafkaClusterDriver::exitHandler);
     }
 
     @Override
