@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
-
 /**
  * Allocates ports to a <code>listener</code> and <code>node.id</code> tuple.
  */
