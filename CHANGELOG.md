@@ -5,6 +5,15 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 ## 1.0.0
 
 
+## 0.7.0
+
+* [#197](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/197): Consumer of the extension should be able to choose the version of the kafka dependency.
+
+### Changes, deprecations and removals
+
+* It is now necessary to declare org.apache.kafka:kafka_2.13 as a test dependency.  If you wish to use kafka in-vm with zookeeper, org.apache.zookeeper:zookeeper
+  must be a test dependency too.
+
 
 ## 0.6.0
 
