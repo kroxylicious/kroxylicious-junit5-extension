@@ -31,6 +31,7 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -76,9 +77,12 @@ public class KafkaClusterConfig {
 
     /**
      * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
+     * Defaults to the version available on the classpath.
+     * <br/>
+     * This value is ignored if execMode is not CONTAINER.
      */
     @Builder.Default
-    private String kafkaVersion = "latest";
+    private String kafkaVersion = AppInfoParser.getVersion();
 
     /**
      * name of SASL mechanism to be configured on kafka for the external listener, if null, anonymous communication

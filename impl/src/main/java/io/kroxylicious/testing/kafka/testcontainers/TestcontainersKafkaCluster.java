@@ -61,6 +61,7 @@ import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
 
@@ -159,10 +160,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        setDefaultKafkaImage(clusterConfig.getKafkaVersion());
+        var tag = getContainerImageVersionTag(clusterConfig.getKafkaVersion());
 
-        this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
-        this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
+        var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
+        var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
+        if (tag != null) {
+            actualKafkaImage = actualKafkaImage.withTag(tag);
+            actualZookeeperImage = actualZookeeperImage.withTag(tag);
+        }
+        this.kafkaImage = actualKafkaImage;
+        this.zookeeperImage = actualZookeeperImage;
+
         this.clusterConfig = clusterConfig;
 
         this.name = Optional.ofNullable(clusterConfig.getTestInfo())
@@ -232,13 +240,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return KAFKA_CONTAINER_MOUNT_POINT + "/broker-" + brokerNum;
     }
 
-    private void setDefaultKafkaImage(String kafkaVersion) {
-        String kafkaVersionTag = (kafkaVersion == null || kafkaVersion.equals("latest")) ? "latest" : "latest-kafka-" + kafkaVersion;
-
-        DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":" + kafkaVersionTag);
-        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":" + kafkaVersionTag);
-    }
-
     private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
         if (properties.get(key) != null) {
             try {
@@ -277,12 +278,33 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     /**
+     * Gets the container image version tag for the specified kafka version.
+     * This knows about the naming conventions used by the ogunalp native image project.
+     *
+     * @param kafkaVersion desired kafka version, which may be null.
+     * @return image tag or null
+     */
+    @Nullable
+    private String getContainerImageVersionTag(String kafkaVersion) {
+        if (kafkaVersion == null) {
+            return null;
+        }
+        else {
+            return kafkaVersion.equals("latest") ? kafkaVersion : "latest-kafka-" + kafkaVersion;
+        }
+    }
+
+    /**
      * Gets kafka version.
      *
      * @return the kafka version
      */
     public String getKafkaVersion() {
-        return kafkaImage.getVersionPart();
+        var v = kafkaImage.getVersionPart();
+        if (v != null) {
+            v = v.replaceFirst("^latest-kafka-", "");
+        }
+        return v;
     }
 
     private synchronized Stream<GenericContainer<?>> allContainers() {
