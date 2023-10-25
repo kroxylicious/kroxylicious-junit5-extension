@@ -16,11 +16,27 @@ testImplementation 'io.kroxylicious.testing:testing-junit5-extension:0.1'
 Maven
 
 ```xml
-<dependency>
-    <groupId>io.kroxylicious.testing</groupId>
-    <artifactId>testing-junit5-extension</artifactId>
-    <version>0.1</version>
-</dependency>
+<dependencies>
+    <dependency>
+        <groupId>io.kroxylicious.testing</groupId>
+        <artifactId>testing-junit5-extension</artifactId>
+        <version>0.1</version>
+    </dependency>
+    <!-- Kafka Broker version you want to use -->
+    <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka_2.13</artifactId>
+        <version>${kafka.version}</version> <!-- versions 3.3.0 or higher is known to work -->
+        <scope>test</scope>
+    </dependency>
+    <!-- Optional, required if you want to use in-VM kafka in Zookeeper mode. -->
+    <dependency>
+        <groupId>org.apache.zookeeper</groupId>
+        <artifactId>zookeeper</artifactId>
+        <version>${zookeeper.version}</version> <!-- version 3.6.3 or higher is known to work -->
+        <scope>test</scope>
+    </dependency>
+</dependencies>
 ```
 
 ## Example

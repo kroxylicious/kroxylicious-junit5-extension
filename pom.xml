@@ -131,6 +131,7 @@
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
                 <version>${kafka.version}</version>
+                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.kafka</groupId>
@@ -151,11 +152,7 @@
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
                 </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.kafka</groupId>
-                <artifactId>kafka-server-common</artifactId>
-                <version>${kafka.version}</version>
+                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.zookeeper</groupId>
@@ -175,6 +172,11 @@
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
                 </exclusions>
+                <!-- The user needs to provide this dependency only if they wish to use in-VM kafka with a Zookeeper
+                     controller.  If they are using in-VM kafka in KRaft node, or container kafka with Zookeeper, it is not
+                     required. -->
+                <scope>provided</scope>
+                <optional>true</optional> <!-- MNG-5227 -->
             </dependency>
             <dependency>
                 <groupId>org.awaitility</groupId>

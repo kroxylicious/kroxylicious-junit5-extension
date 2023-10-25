@@ -39,7 +39,7 @@
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-clients</artifactId>
+            <artifactId>kafka_2.13</artifactId>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
