@@ -58,8 +58,6 @@ import org.apache.kafka.common.serialization.UUIDSerializer;
 import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -75,6 +73,9 @@ import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
@@ -240,7 +241,7 @@ public class KafkaClusterExtension implements
                 });
     }
 
-    @NotNull
+    @NonNull
     private static List<? extends List<Annotation>> invokeConstraintsMethodSource(ExtensionContext context,
                                                                                   ConstraintsMethodSource methodSource) {
         Method testTemplateMethod = context.getRequiredTestMethod();
@@ -305,7 +306,7 @@ public class KafkaClusterExtension implements
                 .toList();
     }
 
-    @NotNull
+    @NonNull
     private static List<Annotation> invokeDimensionMethodSource(ExtensionContext context,
                                                                 DimensionMethodSource methodSource) {
         Method testTemplateMethod = context.getRequiredTestMethod();
@@ -367,14 +368,14 @@ public class KafkaClusterExtension implements
                 testTemplateMethod, requiredTestClass, source), KafkaClusterConstraint.class);
     }
 
-    @NotNull
+    @NonNull
     private static Method getTargetMethod(Class<?> clazz, Class<?> methodClazz, String methodName) throws NoSuchMethodException {
         Class<?> target = methodClazz == null || methodClazz == Void.class ? clazz : methodClazz;
         return ReflectionUtils.makeAccessible(target.getDeclaredMethod(methodName));
     }
 
     @SuppressWarnings("unchecked")
-    @NotNull
+    @NonNull
     private static <T> List<T> coerceToList(String methodName,
                                             Class<? extends Annotation> annotationType,
                                             Method testTemplateMethod, Class<?> requiredTestClass, Object source) {
@@ -397,7 +398,7 @@ public class KafkaClusterExtension implements
         return list;
     }
 
-    @NotNull
+    @NonNull
     private static ParameterResolutionException returnTypeError(Method testTemplateMethod,
                                                                 String methodName,
                                                                 Class<? extends Annotation> annotationType,
@@ -1007,7 +1008,7 @@ public class KafkaClusterExtension implements
         return new Closeable<>(sourceElement, clusterName, c);
     }
 
-    @NotNull
+    @NonNull
     private static KroxyliciousTestInfo generateTestInfo(ExtensionContext extensionContext) {
         return new KroxyliciousTestInfo(extensionContext.getDisplayName(), extensionContext.getTestClass(), extensionContext.getTestMethod(), extensionContext.getTags());
     }
@@ -1018,7 +1019,7 @@ public class KafkaClusterExtension implements
      * @return A mutable list of annotations from the source element that are meta-annotated with
      * the given {@code metaAnnotationType}.
      */
-    @NotNull
+    @NonNull
     private static ArrayList<Annotation> getConstraintAnnotations(AnnotatedElement sourceElement, Class<? extends Annotation> metaAnnotationType) {
         ArrayList<Annotation> constraints;
         if (AnnotationSupport.isAnnotated(sourceElement, metaAnnotationType)) {
@@ -1031,19 +1032,19 @@ public class KafkaClusterExtension implements
         return constraints;
     }
 
-    @NotNull
+    @NonNull
     private static ArrayList<Annotation> filterAnnotations(List<Annotation> annotations,
                                                            Class<? extends Annotation> metaAnnotationType) {
         return filterAnnotations(annotations.stream(), metaAnnotationType);
     }
 
-    @NotNull
+    @NonNull
     private static ArrayList<Annotation> filterAnnotations(Annotation[] annotations,
                                                            Class<? extends Annotation> metaAnnotationType) {
         return filterAnnotations(Arrays.stream(annotations), metaAnnotationType);
     }
 
-    @NotNull
+    @NonNull
     private static ArrayList<Annotation> filterAnnotations(Stream<Annotation> annotations,
                                                            Class<? extends Annotation> metaAnnotationType) {
         ArrayList<Annotation> constraints = annotations
@@ -1094,7 +1095,7 @@ public class KafkaClusterExtension implements
                 });
     }
 
-    @NotNull
+    @NonNull
     private static List<String> classNames(Collection<? extends Class<?>> constraints) {
         return constraints.stream().map(Class::getName).sorted().toList();
     }

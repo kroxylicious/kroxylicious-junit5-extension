@@ -12,8 +12,9 @@ import java.security.KeyStoreException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -64,7 +65,7 @@ class KeytoolCertificateGeneratorTest {
         assertThat(ts.getType()).isEqualTo(generator.getTrustStoreType());
     }
 
-    @NotNull
+    @NonNull
     private List<String> aliasList(KeyStore ks) throws KeyStoreException {
         List<String> aliases = new ArrayList<>();
         ks.aliases().asIterator().forEachRemaining(alias -> aliases.add(alias));

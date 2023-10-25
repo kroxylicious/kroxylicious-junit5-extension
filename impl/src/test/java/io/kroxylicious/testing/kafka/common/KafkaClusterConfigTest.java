@@ -7,10 +7,11 @@ package io.kroxylicious.testing.kafka.common;
 
 import java.util.stream.Stream;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -126,7 +127,7 @@ class KafkaClusterConfigTest {
 
     static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {
 
-        @NotNull
+        @NonNull
         private static EndpointPair generateEndpoint(int nodeId, int basePort) {
             final int port = basePort + nodeId;
             return new EndpointPair(new Endpoint("0.0.0.0", port), new Endpoint("localhost", port));

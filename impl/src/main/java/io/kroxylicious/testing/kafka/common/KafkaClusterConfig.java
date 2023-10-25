@@ -31,9 +31,9 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 import lombok.Builder;
 import lombok.Getter;
@@ -216,7 +216,7 @@ public class KafkaClusterConfig {
      * @param nodeId kafka <code>node.id</code>
      * @return broker configuration.
      */
-    @NotNull
+    @NonNull
     public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
         final var role = determineRole(nodeId);
         Properties nodeConfiguration = new Properties();
@@ -267,13 +267,13 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    @NotNull
+    @NonNull
     private ConfigHolder configureController(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration) {
         return new ConfigHolder(nodeConfiguration, null, null, null,
                 nodeId, kafkaKraftClusterId);
     }
 
-    @NotNull
+    @NonNull
     private ConfigHolder configureBroker(KafkaEndpoints kafkaEndpoints, int nodeId, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
                                          TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties nodeConfiguration) {
         final ConfigHolder configHolder;
@@ -298,7 +298,7 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    @NotNull
+    @NonNull
     private String determineRole(int nodeId) {
         var roles = new ArrayList<String>();
 

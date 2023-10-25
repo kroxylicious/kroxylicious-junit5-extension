@@ -41,7 +41,6 @@ import java.util.stream.Stream;
 
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -61,6 +60,7 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
 
@@ -191,7 +191,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
     }
 
-    @NotNull
+    @NonNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
         String netAlias = "broker-" + holder.getBrokerNum();
         Properties properties = new Properties();
@@ -227,7 +227,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return kafkaContainer;
     }
 
-    @NotNull
+    @NonNull
     private String getBrokerLogDirectory(int brokerNum) {
         return KAFKA_CONTAINER_MOUNT_POINT + "/broker-" + brokerNum;
     }
