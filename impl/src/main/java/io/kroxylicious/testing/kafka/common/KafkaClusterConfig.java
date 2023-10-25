@@ -82,7 +82,8 @@ public class KafkaClusterConfig {
      * This value is ignored if execMode is not CONTAINER.
      */
     @Builder.Default
-    private String kafkaVersion = AppInfoParser.getVersion();
+    @lombok.NonNull
+    private String kafkaVersion = detectKafkaVersionFromClasspath();
 
     /**
      * name of SASL mechanism to be configured on kafka for the external listener, if null, anonymous communication
@@ -573,6 +574,11 @@ public class KafkaClusterConfig {
      */
     public String clusterId() {
         return isKraftMode() ? kafkaKraftClusterId : null;
+    }
+
+    private static String detectKafkaVersionFromClasspath() {
+        var version = AppInfoParser.getVersion();
+        return version == null || version.equals("unknown" /* AppInfoParser.DEFAULT_VALUE */) ? Version.LATEST : version;
     }
 
     /**

@@ -70,6 +70,7 @@ import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.common.Version;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
@@ -90,8 +91,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int INTER_BROKER_PORT = 9092;
     private static final int CONTROLLER_PORT = 9091;
     private static final int ZOOKEEPER_PORT = 2181;
+
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
+    private static final String LATEST_SNAPSHOT_TAG = "latest-snapshot";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration RESTART_BACKOFF_DELAY = Duration.ofMillis(2500);
@@ -104,8 +107,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
-    private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
-    private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
+    private static final DockerImageName LATEST_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO).withTag(LATEST_SNAPSHOT_TAG);
+    private static final DockerImageName LATEST_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO).withTag(LATEST_SNAPSHOT_TAG);
 
     // This uid needs to match the uid used by the kafka container to execute the kafka process
     private static final String KAFKA_CONTAINER_UID = "1001";
@@ -162,8 +165,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
         var tag = getContainerImageVersionTag(clusterConfig.getKafkaVersion());
 
-        var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
-        var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
+        var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(LATEST_KAFKA_IMAGE);
+        var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
         if (tag != null) {
             actualKafkaImage = actualKafkaImage.withTag(tag);
             actualZookeeperImage = actualZookeeperImage.withTag(tag);
@@ -286,11 +289,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      */
     @Nullable
     private String getContainerImageVersionTag(String kafkaVersion) {
-        if (kafkaVersion == null) {
+        if (kafkaVersion == null || kafkaVersion.equalsIgnoreCase(Version.LATEST)) {
             return null;
         }
         else {
-            return kafkaVersion.equals("latest") ? kafkaVersion : "latest-kafka-" + kafkaVersion;
+            return "latest-kafka-" + kafkaVersion;
         }
     }
 
@@ -302,6 +305,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public String getKafkaVersion() {
         var v = kafkaImage.getVersionPart();
         if (v != null) {
+            if (LATEST_SNAPSHOT_TAG.equals(v)) {
+                return Version.LATEST;
+            }
             v = v.replaceFirst("^latest-kafka-", "");
         }
         return v;

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.TestInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class KafkaClusterConfigTest {
 
@@ -117,6 +118,11 @@ class KafkaClusterConfigTest {
 
         // Then
         assertThat(brokerConfigs).hasSize(3);
+    }
+
+    @Test
+    void kafkaVersionDisallowsNulls() {
+        assertThatThrownBy(() -> kafkaClusterConfigBuilder.kafkaVersion(null)).isInstanceOf(NullPointerException.class);
     }
 
     private void assertNodeIdHasRole(KafkaClusterConfig kafkaClusterConfig, int nodeId, String expectedRole) {

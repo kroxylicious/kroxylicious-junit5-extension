@@ -98,7 +98,7 @@ public class KafkaClusterFactory {
     }
 
     private static String getKafkaVersion(KafkaClusterConfig clusterConfig) {
-        return System.getenv().getOrDefault(KAFKA_VERSION, clusterConfig.getKafkaVersion() == null ? "latest" : clusterConfig.getKafkaVersion());
+        return System.getenv().getOrDefault(KAFKA_VERSION, clusterConfig.getKafkaVersion());
     }
 
     private static boolean convertClusterKraftMode(String mode, boolean defaultMode) {
