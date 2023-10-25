@@ -41,6 +41,11 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_2.13</artifactId>
         </dependency>
+        <!-- Dependency owing to use of org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-server-common</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
