@@ -175,7 +175,8 @@
                 <!-- The user needs to provide this dependency only if they wish to use in-VM kafka with a Zookeeper
                      controller.  If they are using in-VM kafka in KRaft node, or container kafka with Zookeeper, it is not
                      required. -->
-                <optional>true</optional>
+                <scope>provided</scope>
+                <optional>true</optional> <!-- MNG-5227 -->
             </dependency>
             <dependency>
                 <groupId>org.awaitility</groupId>
