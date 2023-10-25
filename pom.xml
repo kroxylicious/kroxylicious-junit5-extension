@@ -172,7 +172,10 @@
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
                 </exclusions>
-                <scope>provided</scope>
+                <!-- The user needs to provide this dependency only if they wish to use in-VM kafka with a Zookeeper
+                     controller.  If they are using in-VM kafka in KRaft node, or container kafka with Zookeeper, it is not
+                     required. -->
+                <optional>true</optional>
             </dependency>
             <dependency>
                 <groupId>org.awaitility</groupId>
