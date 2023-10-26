@@ -90,7 +90,7 @@
         <testcontainers.version>1.19.1</testcontainers.version>
         <lombok.version>1.18.30</lombok.version>
         <assertj-core.version>3.24.2</assertj-core.version>
-        <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
+        <spotbugs-annotations.version>4.8.0</spotbugs-annotations.version>
         <zookeeper.version>3.8.3</zookeeper.version>
         <log4j.version>2.21.0</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
@@ -205,9 +205,9 @@
                 <version>${duct-tape.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.google.code.findbugs</groupId>
-                <artifactId>annotations</artifactId>
-                <version>${findbugs.annotations.version}</version>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-annotations</artifactId>
+                <version>${spotbugs-annotations.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>

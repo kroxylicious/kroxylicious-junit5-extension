@@ -13,7 +13,8 @@ import org.apache.kafka.clients.admin.DescribeClusterResult;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.jetbrains.annotations.NotNull;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 
@@ -26,7 +27,7 @@ public abstract class AbstractExtensionTest {
         }
     }
 
-    @NotNull
+    @NonNull
     protected static DescribeClusterResult describeCluster(Admin admin) throws InterruptedException, ExecutionException {
         DescribeClusterResult describeClusterResult = admin.describeCluster();
         describeClusterResult.controller().get();

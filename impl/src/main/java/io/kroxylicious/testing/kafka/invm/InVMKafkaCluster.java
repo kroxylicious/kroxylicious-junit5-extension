@@ -35,8 +35,8 @@ import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaRaftServer;
 import kafka.server.KafkaServer;
@@ -101,7 +101,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 statusCode, message, illegalStateException);
     }
 
-    @NotNull
+    @NonNull
     private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c) {
         KafkaConfig config = buildBrokerConfig(c);
         Option<String> threadNamePrefix = Option.apply(null);
@@ -126,7 +126,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
      * older than 3.5.0. This is to enable users to downgrade the broker used for embedded testing rather
      * than forcing them to increase their kafka-clients version to 3.5.0 (broker 3.5.0 requires kafka-clients 3.5.0)
      */
-    @NotNull
+    @NonNull
     private Server instantiateKraftServer(KafkaConfig config, Option<String> threadNamePrefix) {
         Object kraftServer = construct(KafkaRaftServer.class, config, Time.SYSTEM)
                 .orElseGet(() -> construct(KafkaRaftServer.class, config, Time.SYSTEM, threadNamePrefix).orElseThrow());
@@ -157,7 +157,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 });
     }
 
-    @NotNull
+    @NonNull
     private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
         properties.putAll(c.getProperties());
@@ -167,7 +167,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         return new KafkaConfig(properties);
     }
 
-    @NotNull
+    @NonNull
     private Path getBrokerLogDir(int brokerNum) {
         return this.tempDirectory.resolve(String.format("broker-%d", brokerNum));
     }
