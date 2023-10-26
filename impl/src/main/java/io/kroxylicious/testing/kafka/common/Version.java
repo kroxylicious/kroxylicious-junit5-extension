@@ -19,11 +19,14 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
 @KafkaClusterConstraint
 public @interface Version {
-    String LATEST = "latest";
+    /** The latest release made by the kafka-native project. */
+    String LATEST_RELEASE = "latest";
+    /** The latest development snapshot created by kafka-native project's main build. */
+    String LATEST_SNAPSHOT = "latest-snapshot";
 
     /**
-     * The value of the version, for instance, 3.6.0.  If value "latest" refers to the latest available kafka
-     * version.
+     * The value of the version, for instance, 3.6.0. The value {@code LATEST_RELEASE} or {@code LATEST_SNAPSHOT}
+     * may also be used.
      *
      * @return the version
      */

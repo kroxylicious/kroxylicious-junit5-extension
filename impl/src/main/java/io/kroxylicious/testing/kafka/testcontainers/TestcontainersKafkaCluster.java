@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -94,7 +95,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
-    private static final String LATEST_SNAPSHOT_TAG = "latest-snapshot";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration RESTART_BACKOFF_DELAY = Duration.ofMillis(2500);
@@ -107,8 +107,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
-    private static final DockerImageName LATEST_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO).withTag(LATEST_SNAPSHOT_TAG);
-    private static final DockerImageName LATEST_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO).withTag(LATEST_SNAPSHOT_TAG);
+    private static final DockerImageName LATEST_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO).withTag(Version.LATEST_RELEASE);
+    private static final DockerImageName LATEST_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO).withTag(Version.LATEST_RELEASE);
 
     // This uid needs to match the uid used by the kafka container to execute the kafka process
     private static final String KAFKA_CONTAINER_UID = "1001";
@@ -289,12 +289,16 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      */
     @Nullable
     private String getContainerImageVersionTag(String kafkaVersion) {
-        if (kafkaVersion == null || kafkaVersion.equalsIgnoreCase(Version.LATEST)) {
+        if (kafkaVersion == null || kafkaVersion.equalsIgnoreCase(Version.LATEST_RELEASE)) {
             return null;
         }
-        else {
+        else if (kafkaVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
+            return Version.LATEST_SNAPSHOT;
+        }
+        else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", kafkaVersion)) {
             return "latest-kafka-" + kafkaVersion;
         }
+        return kafkaVersion;
     }
 
     /**
@@ -305,9 +309,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public String getKafkaVersion() {
         var v = kafkaImage.getVersionPart();
         if (v != null) {
-            if (LATEST_SNAPSHOT_TAG.equals(v)) {
-                return Version.LATEST;
+            if (Version.LATEST_RELEASE.equalsIgnoreCase(v)) {
+                return Version.LATEST_RELEASE;
             }
+            else if (Version.LATEST_SNAPSHOT.equalsIgnoreCase(v)) {
+                return Version.LATEST_SNAPSHOT;
+            }
+
             v = v.replaceFirst("^latest-kafka-", "");
         }
         return v;
