@@ -578,7 +578,8 @@ public class KafkaClusterConfig {
 
     private static String detectKafkaVersionFromClasspath() {
         var version = AppInfoParser.getVersion();
-        return version == null || version.equals("unknown" /* AppInfoParser.DEFAULT_VALUE */) ? Version.LATEST_RELEASE : version;
+        var appInfoParserUnknown = "unknown"; // Defined by AppInfoParser.DEFAULT_VALUE. Symbol is package-private.
+        return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
     }
 
     /**
