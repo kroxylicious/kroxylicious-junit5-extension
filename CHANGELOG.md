@@ -13,14 +13,14 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ### Changes, deprecations and removals
 
-* It is now necessary to declare `org.apache.kafka:kafka_2.13` as a test dependency.  If you wish to use kafka in-vm with
-  zookeeper, org.apache.zookeeper:zookeeper must be declared as test dependency too.
+* It is now necessary to declare `org.apache.kafka:kafka_2.13` as a test dependency.
+* If you wish to use kafka in-vm with zookeeper, `org.apache.zookeeper:zookeeper` must be declared as test dependency too.
 * The way `TestcontainersKafkaCluster` determines the native image version tag to use for kafka and zookeeper is changed.
   Previously `TestcontainersKafkaCluster` always used the `latest-snapshot` version.  With this release, it will now default
   to use the version of the kafka native image that corresponds to the version of Kafka Broker found on the classpath.
-  This will give consumers of the test extension that have tests using TestcontainersKafkaCluster and InVMKafkaCluster
-  version consistency and test repeatability.  To get back the original behaviour, annotate the  `KafkaCluster` with
-  `@Version("latest-snapshot")`.
+  This will give consumers of the test extension that have tests using `TestcontainersKafkaCluster` test repeatability
+  and consumers who use both `InVMKafkaCluster` and `TestcontainersKafkaCluster` kafka broker version consistency.
+  To get back the original behaviour, annotate the  `KafkaCluster` with `@Version("latest-snapshot")`.
 
 ## 0.6.0
 
