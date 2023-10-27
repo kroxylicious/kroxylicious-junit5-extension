@@ -79,7 +79,7 @@ public class KafkaClusterConfig {
      * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
      * Defaults to the version available on the classpath.
      * <br/>
-     * This value is ignored if execMode is not CONTAINER.
+     * The value is only used when execMode is {@link KafkaClusterExecutionMode#CONTAINER}.
      */
     @Builder.Default
     @lombok.NonNull
