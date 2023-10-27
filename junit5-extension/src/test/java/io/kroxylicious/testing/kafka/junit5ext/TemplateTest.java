@@ -39,7 +39,6 @@ import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(KafkaClusterExtension.class)
 public class TemplateTest {
@@ -55,7 +54,7 @@ public class TemplateTest {
                                          @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
         try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
-            assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
+            assertThat(admin.describeCluster().nodes().get()).hasSize(cluster.getNumOfBrokers());
         }
     }
 
@@ -63,7 +62,7 @@ public class TemplateTest {
     public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
                                                             Admin admin)
             throws ExecutionException, InterruptedException {
-        assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
+        assertThat(admin.describeCluster().nodes().get()).hasSize(cluster.getNumOfBrokers());
     }
 
     static Set<List<Object>> observedCartesianProduct = new HashSet<>();
@@ -149,16 +148,17 @@ public class TemplateTest {
 
         @AfterAll
         public void afterAll() {
-            assertEquals(Set.of(
+            assertThat(observedTuples).isEqualTo(Set.of(
                     List.of(1, 1),
                     List.of(3, 1),
-                    List.of(3, -1)),
-                    observedTuples);
+                    List.of(3, -1)));
         }
     }
 
     private static Stream<Version> versions() {
         return Stream.of(
+                version(Version.LATEST_RELEASE),
+                version(Version.LATEST_SNAPSHOT),
                 version("3.6.0"),
                 version("3.5.1"),
                 version("3.4.0"),
@@ -179,7 +179,7 @@ public class TemplateTest {
 
         @AfterAll
         public void afterAll() {
-            assertEquals(versions().map(Version::value).map("latest-kafka-%s"::formatted).collect(Collectors.toSet()), observedVersions);
+            assertThat(observedVersions).isEqualTo(versions().map(Version::value).collect(Collectors.toSet()));
         }
     }
 }

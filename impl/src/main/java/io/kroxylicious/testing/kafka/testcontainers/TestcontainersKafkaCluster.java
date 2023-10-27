@@ -35,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -61,6 +62,7 @@ import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
 
@@ -69,6 +71,7 @@ import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.common.Version;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
@@ -89,6 +92,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int INTER_BROKER_PORT = 9092;
     private static final int CONTROLLER_PORT = 9091;
     private static final int ZOOKEEPER_PORT = 2181;
+
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
@@ -103,8 +107,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
-    private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
-    private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
+    private static final DockerImageName LATEST_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO).withTag(Version.LATEST_RELEASE);
+    private static final DockerImageName LATEST_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO).withTag(Version.LATEST_RELEASE);
 
     // This uid needs to match the uid used by the kafka container to execute the kafka process
     private static final String KAFKA_CONTAINER_UID = "1001";
@@ -159,10 +163,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
-        this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
-        this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
+        var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(LATEST_KAFKA_IMAGE);
+        var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
+
+        this.kafkaImage = overrideContainerImageTagIfNecessary(actualKafkaImage, clusterConfig.getKafkaVersion());
+        this.zookeeperImage = overrideContainerImageTagIfNecessary(actualZookeeperImage, clusterConfig.getKafkaVersion());
+
         this.clusterConfig = clusterConfig;
 
         this.name = Optional.ofNullable(clusterConfig.getTestInfo())
@@ -232,13 +239,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return KAFKA_CONTAINER_MOUNT_POINT + "/broker-" + brokerNum;
     }
 
-    private void setDefaultKafkaImage(String kafkaVersion) {
-        String kafkaVersionTag = (kafkaVersion == null || kafkaVersion.equals("latest")) ? "latest" : "latest-kafka-" + kafkaVersion;
-
-        DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":" + kafkaVersionTag);
-        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":" + kafkaVersionTag);
-    }
-
     private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
         if (properties.get(key) != null) {
             try {
@@ -277,12 +277,44 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     /**
+     * Overrides the image tag in the container image name.
+     * This knows about the naming conventions used by the ogunalp native image project.
+     *
+     * @param image container image name
+     * @param overrideVersion desired version, which may be null.
+     * @return container image name
+     */
+    private DockerImageName overrideContainerImageTagIfNecessary(@NonNull DockerImageName image, @Nullable String overrideVersion) {
+        if (overrideVersion == null || overrideVersion.equalsIgnoreCase(image.getVersionPart())) {
+            return image;
+        }
+        else if (overrideVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
+            return image.withTag(Version.LATEST_SNAPSHOT);
+        }
+        else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", overrideVersion)) {
+            return image.withTag("latest-kafka-" + overrideVersion);
+        }
+        return image;
+    }
+
+    /**
      * Gets kafka version.
      *
      * @return the kafka version
      */
     public String getKafkaVersion() {
-        return kafkaImage.getVersionPart();
+        var v = kafkaImage.getVersionPart();
+        if (v != null) {
+            if (Version.LATEST_RELEASE.equalsIgnoreCase(v)) {
+                return Version.LATEST_RELEASE;
+            }
+            else if (Version.LATEST_SNAPSHOT.equalsIgnoreCase(v)) {
+                return Version.LATEST_SNAPSHOT;
+            }
+
+            v = v.replaceFirst("^latest-kafka-", "");
+        }
+        return v;
     }
 
     private synchronized Stream<GenericContainer<?>> allContainers() {

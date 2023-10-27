@@ -26,14 +26,14 @@ Maven
     <dependency>
         <groupId>org.apache.kafka</groupId>
         <artifactId>kafka_2.13</artifactId>
-        <version>${kafka.version}</version> <!-- versions 3.3.0 or higher is known to work -->
+        <version>${kafka.version}</version> <!-- versions from 3.3.0 have been tested  -->
         <scope>test</scope>
     </dependency>
     <!-- Optional, required if you want to use in-VM kafka in Zookeeper mode. -->
     <dependency>
         <groupId>org.apache.zookeeper</groupId>
         <artifactId>zookeeper</artifactId>
-        <version>${zookeeper.version}</version> <!-- version 3.6.3 or higher is known to work -->
+        <version>${zookeeper.version}</version> <!-- versions from 3.6.3 have been tested -->
         <scope>test</scope>
     </dependency>
 </dependencies>

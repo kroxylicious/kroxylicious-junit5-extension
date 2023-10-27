@@ -31,6 +31,7 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -76,9 +77,13 @@ public class KafkaClusterConfig {
 
     /**
      * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
+     * Defaults to the version available on the classpath.
+     * <br/>
+     * The value is only used when execMode is {@link KafkaClusterExecutionMode#CONTAINER}.
      */
     @Builder.Default
-    private String kafkaVersion = "latest";
+    @lombok.NonNull
+    private String kafkaVersion = detectKafkaVersionFromClasspath();
 
     /**
      * name of SASL mechanism to be configured on kafka for the external listener, if null, anonymous communication
@@ -569,6 +574,12 @@ public class KafkaClusterConfig {
      */
     public String clusterId() {
         return isKraftMode() ? kafkaKraftClusterId : null;
+    }
+
+    private static String detectKafkaVersionFromClasspath() {
+        var version = AppInfoParser.getVersion();
+        var appInfoParserUnknown = "unknown"; // Defined by AppInfoParser.DEFAULT_VALUE. Symbol is package-private.
+        return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
     }
 
     /**
