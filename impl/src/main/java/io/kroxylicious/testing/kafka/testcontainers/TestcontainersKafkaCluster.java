@@ -163,16 +163,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        var tag = getContainerImageVersionTag(clusterConfig.getKafkaVersion());
 
         var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(LATEST_KAFKA_IMAGE);
         var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
-        if (tag != null) {
-            actualKafkaImage = actualKafkaImage.withTag(tag);
-            actualZookeeperImage = actualZookeeperImage.withTag(tag);
-        }
-        this.kafkaImage = actualKafkaImage;
-        this.zookeeperImage = actualZookeeperImage;
+
+        this.kafkaImage = overrideContainerImageTagIfNecessary(actualKafkaImage, clusterConfig.getKafkaVersion());
+        this.zookeeperImage = overrideContainerImageTagIfNecessary(actualZookeeperImage, clusterConfig.getKafkaVersion());
 
         this.clusterConfig = clusterConfig;
 
@@ -281,24 +277,24 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     /**
-     * Gets the container image version tag for the specified kafka version.
+     * Overrides the image tag in the container image name.
      * This knows about the naming conventions used by the ogunalp native image project.
      *
-     * @param kafkaVersion desired kafka version, which may be null.
-     * @return image tag or null
+     * @param image container image name
+     * @param overrideVersion desired version, which may be null.
+     * @return container image name
      */
-    @Nullable
-    private String getContainerImageVersionTag(String kafkaVersion) {
-        if (kafkaVersion == null || kafkaVersion.equalsIgnoreCase(Version.LATEST_RELEASE)) {
-            return null;
+    private DockerImageName overrideContainerImageTagIfNecessary(@NonNull DockerImageName image, @Nullable String overrideVersion) {
+        if (overrideVersion == null || overrideVersion.equalsIgnoreCase(image.getVersionPart())) {
+            return image;
         }
-        else if (kafkaVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
-            return Version.LATEST_SNAPSHOT;
+        else if (overrideVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
+            return image.withTag(Version.LATEST_SNAPSHOT);
         }
-        else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", kafkaVersion)) {
-            return "latest-kafka-" + kafkaVersion;
+        else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", overrideVersion)) {
+            return image.withTag("latest-kafka-" + overrideVersion);
         }
-        return kafkaVersion;
+        return image;
     }
 
     /**
