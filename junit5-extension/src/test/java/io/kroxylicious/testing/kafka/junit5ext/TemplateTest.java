@@ -26,14 +26,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.KafkaConfig;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.brokerCluster;
-import static io.kroxylicious.testing.kafka.common.ConstraintUtils.brokerConfig;
+import static io.kroxylicious.testing.kafka.common.ConstraintUtils.config;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.kraftCluster;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
@@ -70,10 +70,10 @@ public class TemplateTest {
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
     public class CartesianProduct {
-        static Stream<BrokerConfig> compression() {
+        static Stream<KafkaConfig> compression() {
             return Stream.of(
-                    brokerConfig("compression.type", "zstd"),
-                    brokerConfig("compression.type", "snappy"));
+                    config("compression.type", "zstd"),
+                    config("compression.type", "snappy"));
         }
 
         @TestTemplate

@@ -90,6 +90,27 @@ When multiple constraints are provided they will _all_ be satisfied.
 
 The cluster will be provisioned using the fastest available mechanism, because your development inner loop is a precious thing.
 
+## Configuring Kafka Resources
+
+To configure kafka resources, apply the `@KafkaConfig` annotation.  It can be applied to the following types:
+
+* `KafkaCluster`
+* `Producer`
+* `Consumer`
+* `Admin`
+
+For example:
+
+```java
+@ExtendWith(KafkaClusterExtension.class)
+class MyTest {
+    @KafkaConfig(name = "compression.type", value = "zstd") KafkaCluster cluster; 
+    @KafkaConfig(name = "client.id", value = "myclient") Producer<String, String> producer;
+
+    // ...
+}
+```
+
 ## Node topology
 
 When generating a cluster using KRaft (the default), you declare how many brokers and controllers you want and the extension will provision the minimum number of nodes to satisfy those conditions. It will create as many nodes as it can that are both KRaft controllers and brokers using [process.roles](https://kafka.apache.org/documentation/#brokerconfigs_process.roles) (process.roles = "broker,controller"). For example:

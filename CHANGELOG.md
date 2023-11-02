@@ -7,6 +7,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.7.0
 
+* [#219](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/219): Allow kafka configuration to be provided for Producers, Consumer and Admin clients too
 * [#143](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/143): Default native kafka image tag from the version of Kafka on the classpath.
 * [#197](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/197): Consumer of the extension should be able to choose the version of the kafka dependency.
 
@@ -21,6 +22,8 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
   This will give consumers of the test extension that have tests using `TestcontainersKafkaCluster` test repeatability
   and consumers who use both `InVMKafkaCluster` and `TestcontainersKafkaCluster` kafka broker version consistency.
   To get back the original behaviour, annotate the  `KafkaCluster` with `@Version("latest-snapshot")`.
+* The annotation `@BrokerConfig` is now deprecated. Use the `@KafkaConfig` to apply configuration instead.  This is
+  understood by `Producer`, `Consumer`, `Admin` types as well as the `KafkaCluster`.
 
 ## 0.6.0
 

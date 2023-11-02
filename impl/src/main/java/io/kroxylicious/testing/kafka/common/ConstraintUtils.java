@@ -42,27 +42,27 @@ public class ConstraintUtils {
     }
 
     /**
-     *  Creates a constraint to ensure the broker is configured with a particular configuration property.
+     *  Creates a constraint to ensure the kafka resource is configured with a particular configuration property.
      *
      * @param name the name
      * @param value the value
-     * @return the broker config
+     * @return the config annotation
      */
-    public static BrokerConfig brokerConfig(String name, String value) {
-        return mkAnnotation(BrokerConfig.class, Map.of("name", name, "value", value));
+    public static KafkaConfig config(String name, String value) {
+        return mkAnnotation(KafkaConfig.class, Map.of("name", name, "value", value));
     }
 
     /**
-     *  Creates a constraint to ensure the broker is configured with a list of configuration properties.
+     *  Creates a constraint to ensure the kafka resource is configured with a list of configuration properties.
      *
      * @param configs the configs
-     * @return the broker config list
+     * @return the config annotation
      */
-    public static BrokerConfig.List brokerConfigs(Map<String, String> configs) {
-        return mkAnnotation(BrokerConfig.List.class, Map.of("value",
+    public static KafkaConfig.List configs(Map<String, String> configs) {
+        return mkAnnotation(KafkaConfig.List.class, Map.of("value",
                 configs.entrySet().stream()
-                        .map(entry -> mkAnnotation(BrokerConfig.class, Map.of("name", entry.getKey(), "value", entry.getValue())))
-                        .toArray(size -> new BrokerConfig[size])));
+                        .map(entry -> mkAnnotation(KafkaConfig.class, Map.of("name", entry.getKey(), "value", entry.getValue())))
+                        .toArray(size -> new KafkaConfig[size])));
     }
 
     /**
