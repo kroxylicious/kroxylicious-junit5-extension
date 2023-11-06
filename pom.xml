@@ -96,7 +96,7 @@
         <awaitility.version>4.2.0</awaitility.version>
         <annotations.version>24.0.1</annotations.version>
         <duct-tape.version>1.0.8</duct-tape.version>
-        <mockito.version>5.6.0</mockito.version>
+        <mockito.version>5.7.0</mockito.version>
 
         <!-- Required for JDK 21 compatibility, remove dependency management for byte-buddy once assertj bumps to a newer bytebuddy -->
         <byte-buddy.version>1.14.9</byte-buddy.version>
