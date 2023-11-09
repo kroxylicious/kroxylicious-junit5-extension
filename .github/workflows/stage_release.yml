@@ -25,12 +25,12 @@ name: Stage Release
 #
 # It requires the following:
 # variables:
-# KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME - Sonar Type Access User Token Username
+# KROXYLICIOUS_SONATYPE_TOKEN_USERNAME - Sonatype Access User Token Username
 # secrets:
 # KROXYLICIOUS_RELEASE_TOKEN             - GitHub PAT wih content/createPullRequest permission for Kroxylicious repo.
 # KROXYLICIOUS_RELEASE_GPG_PRIVATE_KEY   - GPG private key for Kroxylicious
 # KROXYLICIOUS_RELEASE_GPG_PASSPHRASE    - GPG passphrase
-# KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD - Sonar Type Access User Token Password
+# KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD - Sonatype Access User Token Password
 #
 
 on:
@@ -83,8 +83,8 @@ jobs:
           java-version: 17
           distribution: temurin
           server-id: ossrh
-          server-username: SONAR_TYPE_TOKEN_USERNAME # env variable for Sonar Type username
-          server-password: SONAR_TYPE_TOKEN_PASSWORD # env variable for Sonar Type password
+          server-username: SONATYPE_TOKEN_USERNAME # env variable for Sonatype username
+          server-password: SONATYPE_TOKEN_PASSWORD # env variable for Sonatype password
           gpg-passphrase: MAVEN_GPG_PASSPHRASE # env variable for GPG private key passphrase
           gpg-private-key: ${{ secrets.KROXYLICIOUS_RELEASE_GPG_PRIVATE_KEY }} # Value of the GPG private key to import
           overwrite-settings: true
@@ -92,8 +92,8 @@ jobs:
       - name: 'Verify no existing staging repository exists'
         if: ${{ github.event.inputs.dry-run == 'false' }}
         env:
-          SONAR_TYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME }}
-          SONAR_TYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD }}
+          SONATYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONATYPE_TOKEN_USERNAME }}
+          SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
         run: ./scripts/transition-staging-repository-state.sh -a
 
       - name: 'Stage Release'
@@ -105,22 +105,22 @@ jobs:
                                      ${{ github.event.inputs.dry-run == 'true' && '-d' || '' }} \
                                      ${{ github.event.inputs.skip-tests == 'true' && '-s' || '' }}
         env:
-          SONAR_TYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME }}
-          SONAR_TYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD }}
+          SONATYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONATYPE_TOKEN_USERNAME }}
+          SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.KROXYLICIOUS_RELEASE_GPG_PASSPHRASE }}
           GH_TOKEN: ${{ secrets.KROXYLICIOUS_RELEASE_TOKEN }} # For the gh cmd line tool used by stage-release.sh
 
       - name: 'Drop stage repository, if failed'
         if: ${{ failure() && github.event.inputs.dry-run == 'false' }}
         env:
-          SONAR_TYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME }}
-          SONAR_TYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD }}
+          SONATYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONATYPE_TOKEN_USERNAME }}
+          SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
         run: ./scripts/transition-staging-repository-state.sh -s drop
 
       - name: 'Close stage repository'
         if: ${{ github.event.inputs.dry-run == 'false' }}
         env:
-          SONAR_TYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME }}
-          SONAR_TYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD }}
+          SONATYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONATYPE_TOKEN_USERNAME }}
+          SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
         run: ./scripts/transition-staging-repository-state.sh -s close
 

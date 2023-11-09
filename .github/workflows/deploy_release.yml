@@ -22,9 +22,9 @@ name: Deploy Release
 #
 # It requires the following:
 # variables:
-# KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME - Sonar Type Access User Token Username
+# KROXYLICIOUS_SONATYPE_TOKEN_USERNAME - Sonatype Access User Token Username
 # secrets:
-# KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD - Sonar Type Access User Token Password
+# KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD - Sonatype Access User Token Password
 # KROXYLICIOUS_RELEASE_TOKEN             - GitHub PAT wih content/createPullRequest permission for Kroxylicious repo.
 #
 
@@ -64,14 +64,14 @@ jobs:
           java-version: 17
           distribution: temurin
           server-id: ossrh
-          server-username: SONAR_TYPE_TOKEN_USERNAME # env variable for Sonar Type username
-          server-password: SONAR_TYPE_TOKEN_PASSWORD # env variable for Sonar Type password
+          server-username: SONATYPE_TOKEN_USERNAME # env variable for Sonatype username
+          server-password: SONATYPE_TOKEN_PASSWORD # env variable for Sonatype password
           overwrite-settings: true
 
       - name: 'Transition snapshot repository to desired state'
         env:
-          SONAR_TYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONAR_TYPE_TOKEN_USERNAME }}
-          SONAR_TYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONAR_TYPE_TOKEN_PASSWORD }}
+          SONATYPE_TOKEN_USERNAME: ${{ vars.KROXYLICIOUS_SONATYPE_TOKEN_USERNAME }}
+          SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
         run: ./scripts/transition-staging-repository-state.sh -s ${{ github.event.inputs.next-state }}
 
 
