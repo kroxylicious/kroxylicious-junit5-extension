@@ -22,8 +22,8 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
   This will give consumers of the test extension that have tests using `TestcontainersKafkaCluster` test repeatability
   and consumers who use both `InVMKafkaCluster` and `TestcontainersKafkaCluster` kafka broker version consistency.
   To get back the original behaviour, annotate the  `KafkaCluster` with `@Version("latest-snapshot")`.
-* The annotation `@BrokerConfig` is now deprecated. Use the `@KafkaConfig` to apply configuration instead.  This is
-  understood by `Producer`, `Consumer`, `Admin` types as well as the `KafkaCluster`.
+* The annotation `@ClientConfig` is now available to pass configuration to Kafka Clients.  This is
+  understood by `Producer`, `Consumer`, and `Admin` types.
 
 ## 0.6.0
 

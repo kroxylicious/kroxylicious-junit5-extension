@@ -27,10 +27,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.shaded.org.awaitility.Awaitility;
 
+import kafka.server.KafkaConfig;
+
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.BrokerConfig;
+import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
-import io.kroxylicious.testing.kafka.common.KafkaConfig;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
@@ -54,7 +57,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
     private static final String CONSUMER_GROUP = "mygroup";
     private static final String TRANSACTIONAL_ID = "mytxn1";
-    public static final String CLIENT_ID = "myclientid";
+    private static final String CLIENT_ID = "myclientid";
 
     @Test
     public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
@@ -66,20 +69,8 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    public void brokerConfigs(@KafkaConfig(name = "compression.type", value = "zstd") @KafkaConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
+    public void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
                               Admin admin)
-            throws Exception {
-        assertSameCluster(clusterWithConfigs, admin);
-        ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
-        var configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-        assertEquals("zstd", configs.get("compression.type").value());
-        assertEquals("false", configs.get("delete.topic.enable").value());
-    }
-
-    @Test
-    @SuppressWarnings("removal")
-    public void brokerConfigsDeprecatedAnnotation(@io.kroxylicious.testing.kafka.common.BrokerConfig(name = "compression.type", value = "zstd") @io.kroxylicious.testing.kafka.common.BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
-                                                  Admin admin)
             throws Exception {
         assertSameCluster(clusterWithConfigs, admin);
         ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
@@ -92,7 +83,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     public void consumerConfiguration(
                                       KafkaCluster cluster,
                                       Admin admin,
-                                      @KafkaConfig(name = ConsumerConfig.GROUP_ID_CONFIG, value = CONSUMER_GROUP) Consumer<String, String> consumer)
+                                      @ClientConfig(name = ConsumerConfig.GROUP_ID_CONFIG, value = CONSUMER_GROUP) Consumer<String, String> consumer)
             throws Exception {
 
         var topic = createTopic(admin);
@@ -110,7 +101,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     public void producerConfiguration(KafkaCluster cluster,
                                       Admin admin,
-                                      @KafkaConfig(name = ProducerConfig.TRANSACTIONAL_ID_CONFIG, value = TRANSACTIONAL_ID) Producer<String, String> producer)
+                                      @ClientConfig(name = ProducerConfig.TRANSACTIONAL_ID_CONFIG, value = TRANSACTIONAL_ID) Producer<String, String> producer)
             throws Exception {
 
         var topic = createTopic(admin);
@@ -128,7 +119,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
 
     @Test
     public void adminConfiguration(KafkaCluster cluster,
-                                   @KafkaConfig(name = ConsumerConfig.CLIENT_ID_CONFIG, value = CLIENT_ID) Admin admin) {
+                                   @ClientConfig(name = ConsumerConfig.CLIENT_ID_CONFIG, value = CLIENT_ID) Admin admin) {
 
         assertThat(admin).isNotNull();
         // reflection is the best we can do.
@@ -273,13 +264,13 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         var listenerPattern = Pattern.compile("(?<listenerName>[a-zA-Z]+)://" + Pattern.quote(bootstrapServer));
         ConfigResource broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
         var brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
-        String advertisedListener = brokerConfigs.get(kafka.server.KafkaConfig.AdvertisedListenersProp()).value();
+        String advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
         // e.g. advertisedListener = "EXTERNAL://localhost:37565,INTERNAL://localhost:35173"
         var matcher = listenerPattern.matcher(advertisedListener);
         assertTrue(matcher.find(),
                 "Expected '" + advertisedListener + "' to contain a match for " + listenerPattern.pattern());
         var listenerName = matcher.group("listenerName");
-        String protocolMap = brokerConfigs.get(kafka.server.KafkaConfig.ListenerSecurityProtocolMapProp()).value();
+        String protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
         assertTrue(protocolMap.contains(listenerName + ":SSL"),
                 "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL");
 

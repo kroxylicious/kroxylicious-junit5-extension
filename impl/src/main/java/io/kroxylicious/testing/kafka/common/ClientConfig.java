@@ -14,31 +14,26 @@ import java.lang.annotation.Target;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 
 /**
- * {@code @KafkaConfig} can be used to annotate a field in a test class or a
- *  parameter in a lifecycle method or test method in order to provide Kafka configuration to it.
- *  <br/>
- *  The following types are supported:
- *  <ol>
- *      <li>{@link io.kroxylicious.testing.kafka.api.KafkaCluster}</li>
- *      <li>{@link org.apache.kafka.clients.admin.AdminClient}</li>
- *      <li>{@link org.apache.kafka.clients.producer.Producer}</li>
- *      <li>{@link org.apache.kafka.clients.consumer.Consumer}</li>
- *  </ol>
+ * {@link ClientConfig} is used to provide client configuration to any of the three Kafka
+ * Clients ({@link org.apache.kafka.clients.admin.AdminClient},
+ * {@link org.apache.kafka.clients.producer.Producer} and {@link org.apache.kafka.clients.consumer.Consumer}).
+ * <br/>
+ * The annotation is supported on fields in a test class, or on a parameter in a lifecycle method or test method.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
-@Repeatable(KafkaConfig.List.class)
+@Repeatable(ClientConfig.List.class)
 @KafkaClusterConstraint
-public @interface KafkaConfig {
+public @interface ClientConfig {
     /**
-     * The name of the kafka configuration parameter.
+     * The name of the kafka client configuration parameter.
      *
      * @return the name
      **/
     String name();
 
     /**
-     * The value of the kafka configuration parameter.
+     * The value of the kafka client configuration parameter.
      *
      * @return the value
      */
@@ -52,10 +47,10 @@ public @interface KafkaConfig {
     @KafkaClusterConstraint
     @interface List {
         /**
-         * List of kafka configurations.
+         * List of kafka client configurations.
          *
          * @return the value of the config list
          */
-        KafkaConfig[] value();
+        ClientConfig[] value();
     }
 }

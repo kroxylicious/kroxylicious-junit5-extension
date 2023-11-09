@@ -81,7 +81,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
-import io.kroxylicious.testing.kafka.common.KafkaConfig;
+import io.kroxylicious.testing.kafka.common.ClientConfig;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -981,12 +981,12 @@ public class KafkaClusterExtension implements
     private static Map<String, Object> buildConfig(AnnotatedElement sourceElement, KafkaCluster cluster) {
         var clientConfig = cluster.getKafkaClientConfiguration();
         for (Annotation annotation : sourceElement.getAnnotations()) {
-            if (annotation instanceof KafkaConfig.List configList) {
+            if (annotation instanceof ClientConfig.List configList) {
                 for (var config : configList.value()) {
                     clientConfig.put(config.name(), config.value());
                 }
             }
-            else if (annotation instanceof KafkaConfig config) {
+            else if (annotation instanceof ClientConfig config) {
                 clientConfig.put(config.name(), config.value());
             }
         }

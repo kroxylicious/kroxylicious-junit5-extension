@@ -35,6 +35,7 @@ import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import kafka.server.KafkaConfig;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Singular;
@@ -107,12 +108,9 @@ public class KafkaClusterConfig {
     @Singular
     private final Map<String, String> brokerConfigs;
 
-    @SuppressWarnings("removal")
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
             ClusterId.class,
             BrokerCluster.class,
-            KafkaConfig.class,
-            KafkaConfig.List.class,
             BrokerConfig.class,
             BrokerConfig.List.class,
             KRaftCluster.class,
@@ -139,7 +137,6 @@ public class KafkaClusterConfig {
      * @param testInfo information about the test execution context.
      * @return the kafka cluster config
      */
-    @SuppressWarnings("removal")
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations, TestInfo testInfo) {
         var builder = builder();
         builder.testInfo(testInfo);
@@ -186,21 +183,12 @@ public class KafkaClusterConfig {
             if (annotation instanceof Version version) {
                 builder.kafkaVersion(version.value());
             }
-            // BrokerConfig is deprecated, replacement is KafkaConfig.
-            if (annotation instanceof BrokerConfig.List brokerConfigList1) {
-                for (var config1 : brokerConfigList1.value()) {
-                    builder.brokerConfig(config1.name(), config1.value());
-                }
-            }
-            else if (annotation instanceof BrokerConfig brokerConfig1) {
-                builder.brokerConfig(brokerConfig1.name(), brokerConfig1.value());
-            }
-            if (annotation instanceof KafkaConfig.List brokerConfigList) {
+            if (annotation instanceof BrokerConfig.List brokerConfigList) {
                 for (var config : brokerConfigList.value()) {
                     builder.brokerConfig(config.name(), config.value());
                 }
             }
-            else if (annotation instanceof KafkaConfig brokerConfig) {
+            else if (annotation instanceof BrokerConfig brokerConfig) {
                 builder.brokerConfig(brokerConfig.name(), brokerConfig.value());
             }
         }
@@ -415,7 +403,7 @@ public class KafkaClusterConfig {
         putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
         putConfig(server, "zookeeper.sasl.enabled", "false");
         putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
-        putConfig(server, kafka.server.KafkaConfig.ZkSessionTimeoutMsProp(), Long.toString(6000));
+        putConfig(server, KafkaConfig.ZkSessionTimeoutMsProp(), Long.toString(6000));
     }
 
     private void configureKraftNode(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration, TreeMap<String, String> protocolMap,

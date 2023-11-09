@@ -42,27 +42,27 @@ public class ConstraintUtils {
     }
 
     /**
-     *  Creates a constraint to ensure the kafka resource is configured with a particular configuration property.
+     *  Creates a constraint to ensure the broker is configured with a particular configuration property.
      *
-     * @param name the name
+     * @param name  the name
      * @param value the value
-     * @return the config annotation
+     * @return the broker config
      */
-    public static KafkaConfig config(String name, String value) {
-        return mkAnnotation(KafkaConfig.class, Map.of("name", name, "value", value));
+    public static BrokerConfig brokerConfig(String name, String value) {
+        return mkAnnotation(BrokerConfig.class, Map.of("name", name, "value", value));
     }
 
     /**
-     *  Creates a constraint to ensure the kafka resource is configured with a list of configuration properties.
+     *  Creates a constraint to ensure the broker is configured with a list of configuration properties.
      *
      * @param configs the configs
-     * @return the config annotation
+     * @return the broker config list
      */
-    public static KafkaConfig.List configs(Map<String, String> configs) {
-        return mkAnnotation(KafkaConfig.List.class, Map.of("value",
+    public static BrokerConfig.List brokerConfigs(Map<String, String> configs) {
+        return mkAnnotation(BrokerConfig.List.class, Map.of("value",
                 configs.entrySet().stream()
-                        .map(entry -> mkAnnotation(KafkaConfig.class, Map.of("name", entry.getKey(), "value", entry.getValue())))
-                        .toArray(size -> new KafkaConfig[size])));
+                        .map(entry -> mkAnnotation(BrokerConfig.class, Map.of("name", entry.getKey(), "value", entry.getValue())))
+                        .toArray(BrokerConfig[]::new)));
     }
 
     /**
@@ -77,7 +77,7 @@ public class ConstraintUtils {
 
     /**
      * Creates a constraint to supply a cluster with a configured number of Kraft controller nodes.
-     *
+     * <br/>
      * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @param numControllers the number of controllers
@@ -89,7 +89,7 @@ public class ConstraintUtils {
 
     /**
      * Creates a constraint to supply a cluster using ZooKeeper for controller nodes.
-     *
+     * <br/>
      * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @return the zookeeper cluster
