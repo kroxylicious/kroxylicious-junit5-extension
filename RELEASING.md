@@ -21,7 +21,7 @@ kroxylicious-junit5-extension repository.  Create the following repository secre
 
 | Secret                               | Description                                   |
 |--------------------------------------|-----------------------------------------------|
-| KROXYLICIOUS_RELEASE_GPG_PRIVATE_KEY | GPG private key for Kroxylicious (plain text) |
+| KROXYLICIOUS_RELEASE_GPG_PRIVATE_KEY | GPG private key for signing Kroxylicious (plain text) |
 | KROXYLICIOUS_RELEASE_GPG_PASSPHRASE  | GPG passphrase                                |
 
 
