@@ -7,27 +7,39 @@ package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConsumerGroupListing;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
+import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -43,6 +55,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ParameterExtensionTest extends AbstractExtensionTest {
 
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
+    private static final String CONSUMER_GROUP = "mygroup";
+    private static final String TRANSACTIONAL_ID = "mytxn1";
+    private static final String CLIENT_ID = "myclientid";
 
     @Test
     public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
@@ -56,12 +71,59 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     public void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
                               Admin admin)
-            throws ExecutionException, InterruptedException {
+            throws Exception {
         assertSameCluster(clusterWithConfigs, admin);
         ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
-        Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+        var configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
         assertEquals("zstd", configs.get("compression.type").value());
         assertEquals("false", configs.get("delete.topic.enable").value());
+    }
+
+    @Test
+    public void consumerConfiguration(
+                                      KafkaCluster cluster,
+                                      Admin admin,
+                                      @ClientConfig(name = ConsumerConfig.GROUP_ID_CONFIG, value = CONSUMER_GROUP) Consumer<String, String> consumer)
+            throws Exception {
+
+        var topic = createTopic(admin);
+
+        consumer.subscribe(List.of(topic));
+        // start the consumer to create the group
+        consumer.poll(Duration.ofSeconds(1));
+
+        var groups = admin.listConsumerGroups().all().get(5, TimeUnit.SECONDS);
+        assertThat(groups)
+                .singleElement()
+                .extracting(ConsumerGroupListing::groupId).isEqualTo(CONSUMER_GROUP);
+    }
+
+    @Test
+    public void producerConfiguration(KafkaCluster cluster,
+                                      Admin admin,
+                                      @ClientConfig(name = ProducerConfig.TRANSACTIONAL_ID_CONFIG, value = TRANSACTIONAL_ID) Producer<String, String> producer)
+            throws Exception {
+
+        var topic = createTopic(admin);
+
+        producer.initTransactions();
+        producer.beginTransaction();
+        // send a record to start the transaction
+        producer.send(new ProducerRecord<>(topic, "hello world")).get(5, TimeUnit.SECONDS);
+
+        var transactions = admin.describeTransactions(List.of(TRANSACTIONAL_ID)).all().get(5, TimeUnit.SECONDS);
+        assertThat(transactions)
+                .hasSize(1)
+                .containsKey(TRANSACTIONAL_ID);
+    }
+
+    @Test
+    public void adminConfiguration(KafkaCluster cluster,
+                                   @ClientConfig(name = ConsumerConfig.CLIENT_ID_CONFIG, value = CLIENT_ID) Admin admin) {
+
+        assertThat(admin).isNotNull();
+        // reflection is the best we can do.
+        assertThat(admin).extracting("clientId").isEqualTo(CLIENT_ID);
     }
 
     @Test
@@ -201,7 +263,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         assertFalse(bootstrapServer.contains(","), "expect a single bootstrap server");
         var listenerPattern = Pattern.compile("(?<listenerName>[a-zA-Z]+)://" + Pattern.quote(bootstrapServer));
         ConfigResource broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
-        Config brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
+        var brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
         String advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
         // e.g. advertisedListener = "EXTERNAL://localhost:37565,INTERNAL://localhost:35173"
         var matcher = listenerPattern.matcher(advertisedListener);
@@ -212,6 +274,16 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         assertTrue(protocolMap.contains(listenerName + ":SSL"),
                 "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL");
 
+    }
+
+    @NotNull
+    private String createTopic(Admin admin) throws Exception {
+        var topic = UUID.randomUUID().toString();
+        admin.createTopics(List.of(new NewTopic(topic, 1, (short) 1))).all().get(5, TimeUnit.SECONDS);
+
+        Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> admin.listTopics().namesToListings().get(),
+                n -> n.containsKey(new NewTopic(topic, 1, (short) 1).name()));
+        return topic;
     }
 
 }

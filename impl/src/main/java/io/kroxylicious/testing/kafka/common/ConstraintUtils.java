@@ -44,7 +44,7 @@ public class ConstraintUtils {
     /**
      *  Creates a constraint to ensure the broker is configured with a particular configuration property.
      *
-     * @param name the name
+     * @param name  the name
      * @param value the value
      * @return the broker config
      */
@@ -62,7 +62,7 @@ public class ConstraintUtils {
         return mkAnnotation(BrokerConfig.List.class, Map.of("value",
                 configs.entrySet().stream()
                         .map(entry -> mkAnnotation(BrokerConfig.class, Map.of("name", entry.getKey(), "value", entry.getValue())))
-                        .toArray(size -> new BrokerConfig[size])));
+                        .toArray(BrokerConfig[]::new)));
     }
 
     /**
@@ -77,7 +77,7 @@ public class ConstraintUtils {
 
     /**
      * Creates a constraint to supply a cluster with a configured number of Kraft controller nodes.
-     *
+     * <br/>
      * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @param numControllers the number of controllers
@@ -89,7 +89,7 @@ public class ConstraintUtils {
 
     /**
      * Creates a constraint to supply a cluster using ZooKeeper for controller nodes.
-     *
+     * <br/>
      * Note this constraint is mutually exclusive with `ZooKeeperCluster` constraint.
      *
      * @return the zookeeper cluster
