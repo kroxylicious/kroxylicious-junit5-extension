@@ -6,23 +6,23 @@ The component is released using GitHub automation.
 
 At a high level, the process is as follows:
 
-1. The developer adds their PGP private key/passphrase as repository secrets
+1. The developer adds their private key/passphrase as repository secrets
 1. The workflow `stage_release` tags, builds/signs the release, and stages the release on a Nexus staging repository.
 1. The stage release is verified using manual verification steps.
 1. The workflow `deploy_release` releases from the staged repository to Maven Central.
-1. The developer removes their PGP private key/passphrase as repository secrets.
+1. The developer removes their private key/passphrase as repository secrets.
 
 ## Pre-Requisites
 
 You must be a member of the Kroxylicious organization and have access to [create 
-secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) within the
-kroxylicious-junit5-extension repository.  Create the following repository secrets.
+secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) within the kroxylicious-junit5-extension repository.
 
+Create the following repository secrets:
 
-| Secret                               | Description                                   |
-|--------------------------------------|-----------------------------------------------|
-| KROXYLICIOUS_RELEASE_GPG_PRIVATE_KEY | GPG private key for signing Kroxylicious (plain text) |
-| KROXYLICIOUS_RELEASE_GPG_PASSPHRASE  | GPG passphrase                                |
+| Secret                                        | Description                                             |
+|-----------------------------------------------|---------------------------------------------------------|
+| `KROXYLICIOUS_RELEASE_PRIVATE_KEY`            | Private key of the project admin conducting the release |
+| `KROXYLICIOUS_RELEASE_PRIVATE_KEY_PASSPHRASE` | Passphrase used to protect the private key              |
 
 
 ## Release steps
@@ -52,20 +52,23 @@ temporary (local) changes to its POM.
 3. Update `T`'s kroxylicious-junit5-extension dependency to refer to the `<RELEASE_VERSION>`.
 4. Run `T` build/test cycle but use an alternative cache location to be sure artefacts are being fetched.  Check the build output, you'll see the
    kroxylicious-junit5-extension come from the staging location.
-```
+```bash
 MAVEN_OPTS="-Dmaven.repo.local=/tmp/repository" mvn verify
 ```
-If the build passes, proceed with the next two steps.
+If the build passes, proceed to make the release public.
 The local changes made to `T`'s POM can be reverted.
 
-### Deploy Release
+### Making the release public
 
-Run [deploy_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/deploy_release.yml).
-Set the `next-state` to `release` to publish the artefact. 
+1. Run [deploy_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/deploy_release.yml)
+   setting the `next-state` to `release` to publish the artefact.
+2. Merge release PR.
+3. Manually create the release notes for release by following the
+   [Draft a new release](https://github.com/kroxylicious/kroxylicious-junit5-extension/releases) workflow.  Copy
+   the release note content from the [CHANGELOG.md](./CHANGELOG.md).
+4. Let [Kroxylicious Team Developers](https://kroxylicious.slack.com/archives/C04V1K6EAKZ) know the release is finished.
 
-### Merge the PR
-
-To complete the release, merge the PR.  Otherwise if the release 
+If anything goes wrong, follow the steps in the next section.
 
 ### Failed Releases
 
@@ -78,9 +81,10 @@ The release tag needs to be removed manually:
 git push --delete origin v0.7.0
 ```
 
-### Remove PGP secrets
+### Remove your private key/passphrase
 
-Remove your PGP secrets from the [repository secrets]((https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) .)
+Remove your private key/passphrase secrets from the
+[repository secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions).
 
 
 
