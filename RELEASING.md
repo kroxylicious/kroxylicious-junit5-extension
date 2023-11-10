@@ -2,69 +2,89 @@
 
 This document describes how to release this component.
 
+The component is released using GitHub automation.
 
-## Release Pre-Requisites
+At a high level, the process is as follows:
 
-In addition to the build pre-requistes:
+1. The developer adds their private key/passphrase as repository secrets
+1. The workflow `stage_release` tags, builds/signs the release, and stages the release on a Nexus staging repository.
+1. The stage release is verified using manual verification steps.
+1. The workflow `deploy_release` releases from the staged repository to Maven Central.
+1. The developer removes their private key/passphrase as repository secrets.
 
-- [`gh`](https://cli.github.com/) Github CLI (optional)
+## Pre-Requisites
 
-## Releasing this project
+You must be a member of the Kroxylicious organization and have access to [create 
+secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) within the kroxylicious-junit5-extension repository.
 
-Firstly ensure that you have completed the [release requirements](https://github.com/kroxylicious/kroxylicious/blob/main/RELEASING.md#requirements).  Once that is done, use
-the release script to actually perform the release and prepare main for the next development version.
+Create the following repository secrets:
 
-```shell
-./scripts/release.sh -k <YOUR_KEY_SHORT_ID> -v <RELEASE_VERSION>
-```
+| Secret                                        | Description                                             |
+|-----------------------------------------------|---------------------------------------------------------|
+| `KROXYLICIOUS_RELEASE_PRIVATE_KEY`            | Private key of the project admin conducting the release |
+| `KROXYLICIOUS_RELEASE_PRIVATE_KEY_PASSPHRASE` | Passphrase used to protect the private key              |
 
-where `<YOUR_KEY_SHORT_ID>` is the short id of your PGP key
-and `<RELEASE_VERSION>` is a release number such as `0.6.0`.
 
-The script will push the Maven artefacts to a Nexus **staging repository** and it will open a PR that will commit the release to Git.
+## Release steps
 
-The next steps are:
-1.  Validate the staged artefacts.
-2.  If the staging artefacts are **good**, release the stage repository.  If they are not, **drop** the stage repository and start the release over.
-3.  Merge the PR.
+Use the [Kroxylicious Team Developers](https://kroxylicious.slack.com/archives/C04V1K6EAKZ) Slack Channel to coordinate
+the release with the other developers.  It is important no other work is merged to main during the release.
 
-These are described below.
+### Stage the Release
 
-### Validating the staged artefacts
+Run [stage_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/stage_release.yml).
+Set the `release-version` argument to the version being release e.g. `0.7.0`.
+
+This will:
+
+* raise single PR that will contain two commits:
+  1. the first will version the artefacts at `release-version`.  A `release-version` tag will point at this commit.
+  2. the second will re-open main for development, at the next snapshot.
+* stage a release [Nexus UI](https://s01.oss.sonatype.org/). It'll be named `iokroxylioustesting-nn`.
+
+### Verify the Release
 
 You can validate the staged artefacts by having a test application (we'll call it `T`) that uses kroxylicious-junit5-extension use the Maven artefacts by making
 temporary (local) changes to its POM.
 
 1. Find the staging repository in the [Nexus UI](https://s01.oss.sonatype.org/). It'll be named `iokroxylioustesting-nn`.
-2. [Close](https://help.sonatype.com/repomanager2/staging-releases/managing-staging-repositories) the staging respository.  This gives the staging repository a publicly accessible URL.
-3. Add a [`<repositories>`](https://maven.apache.org/pom.html#Repositories) that references the staging repository public url to `T`'s POM.
-4. Update `T`'s kroxylicious-junit5-extension dependency to refer to the `<RELEASE_VERSION>`.
-5. Run `T` build/test cycle but use an alternative cache location to be sure artefacts are being fetched.  Check the build output, you'll see the
-   kroxylicious-junit5-extension come from the staging location. 
-```
+2. Add a [`<repositories>`](https://maven.apache.org/pom.html#Repositories) that references the staging repository public url to `T`'s POM.
+3. Update `T`'s kroxylicious-junit5-extension dependency to refer to the `<RELEASE_VERSION>`.
+4. Run `T` build/test cycle but use an alternative cache location to be sure artefacts are being fetched.  Check the build output, you'll see the
+   kroxylicious-junit5-extension come from the staging location.
+```bash
 MAVEN_OPTS="-Dmaven.repo.local=/tmp/repository" mvn verify
 ```
-If the build passes, proceed to release otherwise the staging repository should be dropped.
-The local changes made to `T`'s POM can be reverted. 
+If the build passes, proceed to make the release public.
+The local changes made to `T`'s POM can be reverted.
 
-### Releasing the stage repository and merge the PR.
+### Making the release public
 
-Use the [Release](https://help.sonatype.com/repomanager2/staging-releases/managing-staging-repositories) to release artefacts.  This makes the
-artefacts public and they'll appear in Maven Central.  Note that propagation to Maven Central's mirrors can take time (hours).
+1. Run [deploy_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/deploy_release.yml)
+   setting the `next-state` to `release` to publish the artefact.
+2. Merge release PR.
+3. Manually create the release notes for release by following the
+   [Draft a new release](https://github.com/kroxylicious/kroxylicious-junit5-extension/releases) workflow.  Copy
+   the release note content from the [CHANGELOG.md](./CHANGELOG.md).
+4. Let [Kroxylicious Team Developers](https://kroxylicious.slack.com/archives/C04V1K6EAKZ) know the release is finished.
 
-Use the Github workflow to merge the PR that commits the release to Git.
+If anything goes wrong, follow the steps in the next section.
 
-### Dropping the stage repository
+### Failed Releases
 
-If the validation step fails and the maven artefacts are deemed bad, drop the staging repository.
+If the release fails verification, use the [deploy_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/deploy_release.yml)
+to `drop` the snapshot repository and close the PR.
 
-Use the [Drop](https://help.sonatype.com/repomanager2/staging-releases/managing-staging-repositories) to drop the stage repository.
+The release tag needs to be removed manually:
 
-In this case the PR should be closed without merging.
+```shell
+git push --delete origin v0.7.0
+```
 
-Once the issue is resolved, repeat the release, bumping the release micro by 1.
+### Remove your private key/passphrase
 
-
+Remove your private key/passphrase secrets from the
+[repository secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions).
 
 
 
