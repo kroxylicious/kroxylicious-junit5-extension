@@ -13,22 +13,28 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -73,15 +79,20 @@ import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
+import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import info.schnatterer.mobynamesgenerator.MobyNamesGenerator;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
+import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints;
+import io.kroxylicious.testing.kafka.common.Topic;
+import io.kroxylicious.testing.kafka.common.TopicConfig;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -508,6 +519,36 @@ public class KafkaClusterExtension implements
             return getConsumer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
                     extensionContext);
         }
+        else if (String.class.isAssignableFrom(type) && parameter.isAnnotationPresent(Topic.class)) {
+
+            var cluster = findClusterFromContext(parameter, extensionContext, type, "parameter " + parameter.getName());
+
+            var anno = parameter.getAnnotation(Topic.class);
+
+            // KW find better way to do this.
+            if (cluster instanceof KafkaEndpoints endpoints) {
+                var anonBootstrap = IntStream.range(0, cluster.getNumOfBrokers())
+                        .mapToObj(n -> endpoints.getEndpointPair(KafkaEndpoints.Listener.ANON, n))
+                        .map(KafkaEndpoints.EndpointPair::connectAddress)
+                        .collect(Collectors.joining(","));
+
+                try (var admin = Admin.create(Map.of(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, anonBootstrap))) {
+                    var topic = MobyNamesGenerator.getRandomName();
+                    var np = Optional.of(anno.numPartitions()).filter(x -> x > 0);
+                    var rf = Optional.of(anno.replicationFactor()).filter(x -> x > 0);
+                    var nt = new NewTopic(topic, np, rf).configs(buildTopicConfig(parameter));
+                    var unused = admin.createTopics(List.of(nt));
+
+                    Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> admin.listTopics().namesToListings().get(),
+                            n -> n.containsKey(topic));
+
+                    return topic;
+                }
+            }
+            else {
+                throw new IllegalStateException();
+            }
+        }
         else {
             throw new ExtensionConfigurationException("Could not resolve " + parameterContext);
         }
@@ -533,7 +574,8 @@ public class KafkaClusterExtension implements
 
     private static boolean supportsParameter(Parameter parameter) {
         Class<?> type = parameter.getType();
-        return KafkaCluster.class.isAssignableFrom(type) || (isKafkaClient(type) && isCandidate(parameter));
+        return KafkaCluster.class.isAssignableFrom(type) ||
+                ((isKafkaClient(type) || isKafkaTopic(parameter)) && isCandidate(parameter));
     }
 
     private static boolean isCandidate(AnnotatedElement annotatedElement) {
@@ -542,6 +584,11 @@ public class KafkaClusterExtension implements
 
     private static boolean isKafkaClient(Class<?> type) {
         return Admin.class.isAssignableFrom(type) || Producer.class.isAssignableFrom(type) || Consumer.class.isAssignableFrom(type);
+    }
+
+    private static boolean isKafkaTopic(Parameter parameter) {
+        Class<?> type = parameter.getType();
+        return String.class.isAssignableFrom(type) && parameter.isAnnotationPresent(Topic.class);
     }
 
     private static boolean noAnnotations(AnnotatedElement parameter) {
@@ -991,6 +1038,21 @@ public class KafkaClusterExtension implements
             }
         }
         return clientConfig;
+    }
+
+    private static Map<String, String> buildTopicConfig(AnnotatedElement sourceElement) {
+        var topicConfig = new HashMap<String, String>();
+        for (Annotation annotation : sourceElement.getAnnotations()) {
+            if (annotation instanceof TopicConfig.List configList) {
+                for (var config : configList.value()) {
+                    topicConfig.put(config.name(), config.value());
+                }
+            }
+            else if (annotation instanceof TopicConfig config) {
+                topicConfig.put(config.name(), config.value());
+            }
+        }
+        return topicConfig;
     }
 
     private static Closeable<KafkaCluster> createCluster(ExtensionContext extensionContext, String clusterName, Class<? extends KafkaCluster> type,

@@ -13,6 +13,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.ConsumerGroupListing;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -36,6 +38,8 @@ import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
+import io.kroxylicious.testing.kafka.common.Topic;
+import io.kroxylicious.testing.kafka.common.TopicConfig;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
@@ -273,6 +277,41 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         String protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
         assertTrue(protocolMap.contains(listenerName + ":SSL"),
                 "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL");
+    }
+
+    @Test
+    public void topic(KafkaCluster cluster,
+                      @Topic String topic,
+                      Admin admin)
+            throws Exception {
+
+        assertThat(topic).isNotNull();
+        var result = admin.describeTopics(List.of(topic)).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the broker")
+                .containsKey(topic);
+    }
+
+    @Test
+    public void topicWithConfig(KafkaCluster cluster,
+                                @TopicConfig(name = org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG, value = "compact") @Topic String topic,
+                                Admin admin)
+            throws Exception {
+
+        assertThat(topic).isNotNull();
+        var result = admin.describeTopics(List.of(topic)).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the broker")
+                .containsKey(topic);
+        var resourceKey = new ConfigResource(ConfigResource.Type.TOPIC, topic);
+        var configs = admin.describeConfigs(List.of(resourceKey)).all().get(5, TimeUnit.SECONDS);
+        assertThat(configs)
+                .containsKey(resourceKey);
+
+        Config config = configs.get(resourceKey);
+        assertThat(config.get(org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG))
+                .extracting(ConfigEntry::value)
+                .isEqualTo("compact");
 
     }
 
