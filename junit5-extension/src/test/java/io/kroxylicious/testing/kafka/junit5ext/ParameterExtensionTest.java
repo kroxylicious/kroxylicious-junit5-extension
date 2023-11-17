@@ -12,18 +12,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.Config;
-import org.apache.kafka.clients.admin.ConfigEntry;
-import org.apache.kafka.clients.admin.ConsumerGroupListing;
-import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.shaded.org.awaitility.Awaitility;
@@ -32,18 +31,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.common.BrokerConfig;
-import io.kroxylicious.testing.kafka.common.ClientConfig;
-import io.kroxylicious.testing.kafka.common.KRaftCluster;
-import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
-import io.kroxylicious.testing.kafka.common.Tls;
-import io.kroxylicious.testing.kafka.common.Topic;
-import io.kroxylicious.testing.kafka.common.TopicConfig;
-import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
+import io.kroxylicious.testing.kafka.common.*;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.apache.kafka.common.config.TopicConfig.*;
+import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.InstanceOfAssertFactories.list;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -281,38 +274,84 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
 
     @Test
     public void topic(KafkaCluster cluster,
-                      @Topic String topic,
+                      Topic topic,
                       Admin admin)
             throws Exception {
 
-        assertThat(topic).isNotNull();
-        var result = admin.describeTopics(List.of(topic)).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(topic).isNotNull().extracting(Topic::name).isNotNull();
+
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
         assertThat(result)
-                .describedAs("expected topic to exist on the broker")
-                .containsKey(topic);
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
     }
 
     @Test
-    public void topicWithConfig(KafkaCluster cluster,
-                                @TopicConfig(name = org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG, value = "compact") @Topic String topic,
-                                Admin admin)
+    public void topicConfig(KafkaCluster cluster,
+                            @TopicConfig(name = CLEANUP_POLICY_CONFIG, value = CLEANUP_POLICY_COMPACT) Topic topic,
+                            Admin admin)
+            throws Exception {
+        var resourceKey = new ConfigResource(ConfigResource.Type.TOPIC, topic.name());
+        var all = admin.describeConfigs(List.of(resourceKey)).all().get(5, TimeUnit.SECONDS);
+        assertThat(all).containsOnlyKeys(resourceKey);
+
+        var config = all.get(resourceKey);
+        assertThat(config.get(CLEANUP_POLICY_CONFIG))
+                .extracting(ConfigEntry::value)
+                .isEqualTo(CLEANUP_POLICY_COMPACT);
+    }
+
+    @Test
+    public void topicWithSpecifiedPartitions(KafkaCluster cluster,
+                                             @TopicPartitions(2) Topic topic,
+                                             Admin admin)
+            throws Exception {
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+
+        var topicDescription = result.get(topic.name());
+        assertThat(topicDescription)
+                .extracting(TopicDescription::partitions, list(TopicPartitionInfo.class))
+                .hasSize(2);
+    }
+
+    @Test
+    public void topicWithSpecifiedReplicationFactor(@BrokerCluster(numBrokers = 2) KafkaCluster cluster,
+                                                    @TopicReplicationFactor(2) Topic topic,
+                                                    Admin admin)
+            throws Exception {
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+
+        var topicDescription = result.get(topic.name());
+        assertThat(topicDescription)
+                .extracting(TopicDescription::partitions, list(TopicPartitionInfo.class))
+                .singleElement()
+                .extracting(TopicPartitionInfo::replicas, list(Node.class))
+                .hasSize(2);
+    }
+
+    @Test
+    public void topicGetsBrokerDefaults(@BrokerConfig(name = "num.partitions", value = "2") KafkaCluster cluster,
+                                        Topic topic,
+                                        Admin admin)
             throws Exception {
 
-        assertThat(topic).isNotNull();
-        var result = admin.describeTopics(List.of(topic)).allTopicNames().get(5, TimeUnit.SECONDS);
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
         assertThat(result)
-                .describedAs("expected topic to exist on the broker")
-                .containsKey(topic);
-        var resourceKey = new ConfigResource(ConfigResource.Type.TOPIC, topic);
-        var configs = admin.describeConfigs(List.of(resourceKey)).all().get(5, TimeUnit.SECONDS);
-        assertThat(configs)
-                .containsKey(resourceKey);
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
 
-        Config config = configs.get(resourceKey);
-        assertThat(config.get(org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG))
-                .extracting(ConfigEntry::value)
-                .isEqualTo("compact");
-
+        var topicDescription = result.get(topic.name());
+        assertThat(topicDescription)
+                .describedAs("expected topic to have default number of partitions")
+                .extracting(TopicDescription::partitions)
+                .asInstanceOf(InstanceOfAssertFactories.LIST)
+                .hasSize(2);
     }
 
     @NonNull

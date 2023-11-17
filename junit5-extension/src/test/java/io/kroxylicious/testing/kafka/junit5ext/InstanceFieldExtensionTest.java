@@ -20,6 +20,7 @@ import com.example.RuntimeMarkerAnnotation;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.Topic;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +40,8 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     Consumer<String, String> injectedConsumer;
 
     Admin injectedAdmin;
+
+    Topic injectedTopic;
 
     private Admin privateField;
 
@@ -72,6 +75,13 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     @Test
     void shouldInjectAdminField() {
         assertThat(injectedAdmin).isNotNull().isInstanceOf(Admin.class);
+    }
+
+    @Test
+    void shouldInjectTopicField() {
+        assertThat(injectedTopic)
+                .isNotNull()
+                .extracting(Topic::name).isNotNull();
     }
 
     @Test

@@ -64,6 +64,7 @@ import org.apache.kafka.common.serialization.UUIDSerializer;
 import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -89,10 +90,8 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
-import io.kroxylicious.testing.kafka.common.ClientConfig;
+import io.kroxylicious.testing.kafka.common.*;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints;
-import io.kroxylicious.testing.kafka.common.Topic;
-import io.kroxylicious.testing.kafka.common.TopicConfig;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -101,7 +100,7 @@ import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
 /**
  * A JUnit 5 extension that allows declarative injection of a {@link KafkaCluster} into a test
  * via static or instance field(s) and/or parameters.
- *
+ * <br/>
  * <h2>A simple example looks like:</h2>
  * <pre>{@code
  * import io.kroxylicious.junit5.KafkaClusterExtension;
@@ -215,10 +214,8 @@ public class KafkaClusterExtension implements
         Parameter parameter = Arrays.stream(parameters).filter(p -> KafkaCluster.class.isAssignableFrom(p.getType())).findFirst().get();
         DimensionMethodSource[] freeConstraintsSource = parameter.getAnnotationsByType(DimensionMethodSource.class);
 
-        var lists = Arrays.stream(freeConstraintsSource).map(methodSource -> {
-            return invokeDimensionMethodSource(context, methodSource);
-        }).toList();
-        List<? extends List<Annotation>> cartesianProduct = lists.size() > 0 ? cartesianProduct((List) lists) : List.of();
+        var lists = Arrays.stream(freeConstraintsSource).map(methodSource -> invokeDimensionMethodSource(context, methodSource)).toList();
+        List<? extends List<Annotation>> cartesianProduct = lists.isEmpty() ? List.of() : cartesianProduct((List) lists);
 
         ConstraintsMethodSource annotation = parameter.getAnnotation(ConstraintsMethodSource.class);
         var constraints = annotation != null ? invokeConstraintsMethodSource(context, annotation) : List.<List<Annotation>> of();
@@ -505,49 +502,23 @@ public class KafkaClusterExtension implements
         }
         else if (Admin.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Admin.class);
-            return getAdmin("parameter " + parameter.getName(), parameter, paramType, extensionContext);
+            return createAdmin("parameter " + parameter.getName(), parameter, paramType, extensionContext);
         }
         else if (Producer.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Producer.class);
             Type paramGenericType = parameterContext.getDeclaringExecutable().getGenericParameterTypes()[parameterContext.getIndex()];
-            return getProducer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
+            return createProducer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
                     extensionContext);
         }
         else if (Consumer.class.isAssignableFrom(type)) {
             var paramType = type.asSubclass(Consumer.class);
             Type paramGenericType = parameterContext.getDeclaringExecutable().getGenericParameterTypes()[parameterContext.getIndex()];
-            return getConsumer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
+            return createConsumer("parameter " + parameter.getName(), parameter, (Class) paramType, paramGenericType,
                     extensionContext);
         }
-        else if (String.class.isAssignableFrom(type) && parameter.isAnnotationPresent(Topic.class)) {
-
-            var cluster = findClusterFromContext(parameter, extensionContext, type, "parameter " + parameter.getName());
-
-            var anno = parameter.getAnnotation(Topic.class);
-
-            // KW find better way to do this.
-            if (cluster instanceof KafkaEndpoints endpoints) {
-                var anonBootstrap = IntStream.range(0, cluster.getNumOfBrokers())
-                        .mapToObj(n -> endpoints.getEndpointPair(KafkaEndpoints.Listener.ANON, n))
-                        .map(KafkaEndpoints.EndpointPair::connectAddress)
-                        .collect(Collectors.joining(","));
-
-                try (var admin = Admin.create(Map.of(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, anonBootstrap))) {
-                    var topic = MobyNamesGenerator.getRandomName();
-                    var np = Optional.of(anno.numPartitions()).filter(x -> x > 0);
-                    var rf = Optional.of(anno.replicationFactor()).filter(x -> x > 0);
-                    var nt = new NewTopic(topic, np, rf).configs(buildTopicConfig(parameter));
-                    var unused = admin.createTopics(List.of(nt));
-
-                    Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> admin.listTopics().namesToListings().get(),
-                            n -> n.containsKey(topic));
-
-                    return topic;
-                }
-            }
-            else {
-                throw new IllegalStateException();
-            }
+        else if (Topic.class.isAssignableFrom(type)) {
+            var paramType = type.asSubclass(Topic.class);
+            return createTopic("parameter " + parameter.getName(), parameter, paramType, type, extensionContext);
         }
         else {
             throw new ExtensionConfigurationException("Could not resolve " + parameterContext);
@@ -575,7 +546,7 @@ public class KafkaClusterExtension implements
     private static boolean supportsParameter(Parameter parameter) {
         Class<?> type = parameter.getType();
         return KafkaCluster.class.isAssignableFrom(type) ||
-                ((isKafkaClient(type) || isKafkaTopic(parameter)) && isCandidate(parameter));
+                ((isKafkaClient(type) || isKafkaTopic(parameter.getType())) && isCandidate(parameter));
     }
 
     private static boolean isCandidate(AnnotatedElement annotatedElement) {
@@ -586,9 +557,8 @@ public class KafkaClusterExtension implements
         return Admin.class.isAssignableFrom(type) || Producer.class.isAssignableFrom(type) || Consumer.class.isAssignableFrom(type);
     }
 
-    private static boolean isKafkaTopic(Parameter parameter) {
-        Class<?> type = parameter.getType();
-        return String.class.isAssignableFrom(type) && parameter.isAnnotationPresent(Topic.class);
+    private static boolean isKafkaTopic(Class<?> type) {
+        return Topic.class.isAssignableFrom(type);
     }
 
     private static boolean noAnnotations(AnnotatedElement parameter) {
@@ -646,14 +616,16 @@ public class KafkaClusterExtension implements
                 .stream()
                 .collect(Collectors.groupingBy(Field::getType));
 
-        injectClient(Admin.class, KafkaClusterExtension::getAdmin, context, testInstance, fieldsByType);
-        injectClient(Producer.class, KafkaClusterExtension::getProducer, context, testInstance, fieldsByType);
-        injectClient(Consumer.class, KafkaClusterExtension::getConsumer, context, testInstance, fieldsByType);
+        injectField(Admin.class, KafkaClusterExtension::createAdmin, context, testInstance, fieldsByType);
+        injectField(Producer.class, KafkaClusterExtension::createProducer, context, testInstance, fieldsByType);
+        injectField(Consumer.class, KafkaClusterExtension::createConsumer, context, testInstance, fieldsByType);
+        injectField(Topic.class, KafkaClusterExtension::createTopic, context, testInstance, fieldsByType);
+
     }
 
     @SuppressWarnings("unchecked")
-    private static <T, X extends T> void injectClient(Class<T> clientType, ClientFactory<T, X> clientFactory, ExtensionContext context, Object testInstance,
-                                                      Map<Class<?>, List<Field>> fieldsByType) {
+    private static <T, X extends T> void injectField(Class<T> clientType, Injector<T, X> injector, ExtensionContext context, Object testInstance,
+                                                     Map<Class<?>, List<Field>> fieldsByType) {
         fieldsByType.entrySet().stream()
                 .filter(entry -> clientType.isAssignableFrom(entry.getKey()))
                 .map(Map.Entry::getValue)
@@ -670,7 +642,7 @@ public class KafkaClusterExtension implements
                 .forEach(field -> {
                     try {
                         makeAccessible(field).set(testInstance,
-                                clientFactory.getClient(
+                                injector.inject(
                                         "field " + field.getName(),
                                         field,
                                         (Class) field.getType().asSubclass(clientType),
@@ -939,18 +911,18 @@ public class KafkaClusterExtension implements
         }
     }
 
-    private static Admin getAdmin(String description,
-                                  AnnotatedElement sourceElement,
-                                  Class<? extends Admin> type,
-                                  ExtensionContext extensionContext) {
-        return getAdmin(description, sourceElement, type, Void.class, extensionContext);
+    private static Admin createAdmin(String description,
+                                     AnnotatedElement sourceElement,
+                                     Class<? extends Admin> type,
+                                     ExtensionContext extensionContext) {
+        return createAdmin(description, sourceElement, type, Void.class, extensionContext);
     }
 
-    private static Admin getAdmin(String description,
-                                  AnnotatedElement sourceElement,
-                                  Class<? extends Admin> type,
-                                  Type genericType,
-                                  ExtensionContext extensionContext) {
+    private static Admin createAdmin(String description,
+                                     AnnotatedElement sourceElement,
+                                     Class<? extends Admin> type,
+                                     Type genericType,
+                                     ExtensionContext extensionContext) {
 
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
@@ -965,11 +937,11 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private static Producer<?, ?> getProducer(String description,
-                                              AnnotatedElement sourceElement,
-                                              Class<? extends Producer<?, ?>> type,
-                                              Type genericType,
-                                              ExtensionContext extensionContext) {
+    private static Producer<?, ?> createProducer(String description,
+                                                 AnnotatedElement sourceElement,
+                                                 Class<? extends Producer<?, ?>> type,
+                                                 Type genericType,
+                                                 ExtensionContext extensionContext) {
         Serializer<?> keySerializer = getSerializerFromGenericType(genericType, 0);
         LOGGER.log(TRACE, "test {0}: decl {1}: key serializer {2}",
                 extensionContext.getUniqueId(),
@@ -995,11 +967,11 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    private static Consumer<?, ?> getConsumer(String description,
-                                              AnnotatedElement sourceElement,
-                                              Class<? extends Consumer<?, ?>> type,
-                                              Type genericType,
-                                              ExtensionContext extensionContext) {
+    private static Consumer<?, ?> createConsumer(String description,
+                                                 AnnotatedElement sourceElement,
+                                                 Class<? extends Consumer<?, ?>> type,
+                                                 Type genericType,
+                                                 ExtensionContext extensionContext) {
         Deserializer<?> keySerializer = getDeserializerFromGenericType(genericType, 0);
         LOGGER.log(TRACE, "test {0}: decl {1}: key deserializer {2}",
                 extensionContext.getUniqueId(),
@@ -1023,6 +995,42 @@ public class KafkaClusterExtension implements
                 },
                         (Class<Closeable<KafkaConsumer<?, ?>>>) (Class) Closeable.class)
                 .get();
+    }
+
+    @NotNull
+    private static Topic createTopic(String description,
+                                     AnnotatedElement sourceElement,
+                                     Class<? extends Topic> type,
+                                     Type genericType,
+                                     ExtensionContext extensionContext) {
+        var cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
+
+        // KW find better way to do this.
+        if (cluster instanceof KafkaEndpoints endpoints) {
+            var anonBootstrap = IntStream.range(0, cluster.getNumOfBrokers())
+                    .mapToObj(n -> endpoints.getEndpointPair(KafkaEndpoints.Listener.ANON, n))
+                    .map(KafkaEndpoints.EndpointPair::connectAddress)
+                    .collect(Collectors.joining(","));
+
+            try (var admin = Admin.create(Map.of(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, anonBootstrap))) {
+                var topicName = MobyNamesGenerator.getRandomName();
+                var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
+                var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);
+                var topicDef = new NewTopic(topicName, numPartitions, replicationFactor).configs(buildTopicConfig(sourceElement));
+                var createFuture = admin.createTopics(List.of(topicDef)).all();
+
+                Awaitility.await()
+                        .failFast(createFuture::isCompletedExceptionally)
+                        .atMost(Duration.ofSeconds(5))
+                        .until(() -> admin.listTopics().namesToListings().get(),
+                                n -> n.containsKey(topicName));
+
+                return () -> topicName;
+            }
+        }
+        else {
+            throw new IllegalStateException();
+        }
     }
 
     private static Map<String, Object> buildConfig(AnnotatedElement sourceElement, KafkaCluster cluster) {
@@ -1186,11 +1194,11 @@ public class KafkaClusterExtension implements
     }
 
     @FunctionalInterface
-    private interface ClientFactory<T, X extends T> {
-        X getClient(String description,
-                    AnnotatedElement sourceElement,
-                    Class<X> type,
-                    Type genericType,
-                    ExtensionContext extensionContext);
+    private interface Injector<T, X extends T> {
+        X inject(String description,
+                 AnnotatedElement sourceElement,
+                 Class<X> type,
+                 Type genericType,
+                 ExtensionContext extensionContext);
     }
 }

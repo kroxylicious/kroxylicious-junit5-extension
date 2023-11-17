@@ -20,8 +20,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.Topic;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -37,6 +39,8 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
 
     @Order(3)
     static AdminClient staticAdminClient;
+
+    static Topic staticTopic;
 
     @Test
     void testKafkaClusterStaticField()
@@ -55,6 +59,13 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
     @Test
     void adminClientStaticField() throws ExecutionException, InterruptedException {
         assertSameCluster(staticCluster, staticAdminClient);
+    }
+
+    @Test
+    void topicStaticField() throws ExecutionException, InterruptedException {
+        assertThat(staticTopic)
+                .isNotNull()
+                .extracting(Topic::name).isNotNull();
     }
 
     @Test
