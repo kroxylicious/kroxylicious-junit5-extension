@@ -10,11 +10,7 @@ import java.lang.annotation.*;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 
 /**
- * {@link TopicConfig} is used to provide client configuration to any of the three Kafka
- * Clients ({@link org.apache.kafka.clients.admin.AdminClient},
- * {@link org.apache.kafka.clients.producer.Producer} and {@link org.apache.kafka.clients.consumer.Consumer}).
- * <br/>
- * The annotation is supported on fields in a test class, or on a parameter in a lifecycle method or test method.
+ * {@link TopicConfig} is used to provide topic configuration. It may be applied to the {@link Topic} type.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
@@ -22,14 +18,14 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @KafkaClusterConstraint
 public @interface TopicConfig {
     /**
-     * The name of the kafka client configuration parameter.
+     * The name of the kafka topic configuration parameter.
      *
      * @return the name
      **/
     String name();
 
     /**
-     * The value of the kafka client configuration parameter.
+     * The value of the kafka topic configuration parameter.
      *
      * @return the value
      */
@@ -43,7 +39,7 @@ public @interface TopicConfig {
     @KafkaClusterConstraint
     @interface List {
         /**
-         * List of kafka client configurations.
+         * List of kafka topic configurations.
          *
          * @return the value of the config list
          */

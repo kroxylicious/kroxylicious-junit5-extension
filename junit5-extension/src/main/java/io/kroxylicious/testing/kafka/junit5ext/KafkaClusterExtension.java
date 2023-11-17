@@ -29,10 +29,8 @@ import java.util.ServiceLoader;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -90,8 +88,8 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
-import io.kroxylicious.testing.kafka.common.*;
-import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints;
+import io.kroxylicious.testing.kafka.common.ClientConfig;
+import io.kroxylicious.testing.kafka.internal.AnonymousAdminSource;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -1005,14 +1003,8 @@ public class KafkaClusterExtension implements
                                      ExtensionContext extensionContext) {
         var cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
-        // KW find better way to do this.
-        if (cluster instanceof KafkaEndpoints endpoints) {
-            var anonBootstrap = IntStream.range(0, cluster.getNumOfBrokers())
-                    .mapToObj(n -> endpoints.getEndpointPair(KafkaEndpoints.Listener.ANON, n))
-                    .map(KafkaEndpoints.EndpointPair::connectAddress)
-                    .collect(Collectors.joining(","));
-
-            try (var admin = Admin.create(Map.of(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, anonBootstrap))) {
+        if (cluster instanceof AnonymousAdminSource adminSource) {
+            try (var admin = adminSource.createAnonymousAdmin()) {
                 var topicName = MobyNamesGenerator.getRandomName();
                 var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
                 var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);
@@ -1029,7 +1021,7 @@ public class KafkaClusterExtension implements
             }
         }
         else {
-            throw new IllegalStateException();
+            throw new UnsupportedOperationException("Kafka cluster " + cluster.getClass() + " does not support producing an anonymous admin client.");
         }
     }
 

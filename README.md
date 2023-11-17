@@ -116,7 +116,7 @@ To configure kafka clients, apply the `@ClientConfig` annotation.  It can be app
 For example:
 
 ```java
-@ExtendWith(KafkaClusterExtension.class) 
+@ExtendWith(KafkaClusterExtension.class)
 class MyTest {
     @ClientConfig(name = "client.id", value = "myclient") Producer<String, String> producer;
 

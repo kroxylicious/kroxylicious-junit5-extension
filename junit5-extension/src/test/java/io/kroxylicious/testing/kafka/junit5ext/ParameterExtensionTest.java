@@ -12,7 +12,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import org.apache.kafka.clients.admin.*;
+import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.BrokerConfig;
+import io.kroxylicious.testing.kafka.common.ClientConfig;
+import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
+import io.kroxylicious.testing.kafka.common.Tls;
+import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.ConsumerGroupListing;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.Producer;
@@ -31,11 +42,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.*;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
-import static org.apache.kafka.common.config.TopicConfig.*;
-import static org.assertj.core.api.Assertions.*;
+import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_COMPACT;
+import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.list;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
