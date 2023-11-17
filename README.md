@@ -116,13 +116,32 @@ To configure kafka clients, apply the `@ClientConfig` annotation.  It can be app
 For example:
 
 ```java
-@ExtendWith(KafkaClusterExtension.class)
+@ExtendWith(KafkaClusterExtension.class) 
 class MyTest {
     @ClientConfig(name = "client.id", value = "myclient") Producer<String, String> producer;
 
     // ...
 }
 ```
+
+## Creating Test Topics
+
+The test framework can create topic(s) for the test.  It is
+guaranteed that the test will exist before the test method is invoked.
+
+You can also specify configuration for the topic using the annotation `@TopicConfig`,
+or set its partition count or replication factor with `@TopicPartitions` and `@TopicReplicationFactor`
+respectively.
+
+```java
+@ExtendWith(KafkaClusterExtension.class)
+class MyTest {
+    Topic myTopic;
+    @TopicConfig(name = "cleanup.policy", value = "compact") Topic myTopicWithConfig;
+    // ...
+}
+```
+
 
 ## Node topology
 
