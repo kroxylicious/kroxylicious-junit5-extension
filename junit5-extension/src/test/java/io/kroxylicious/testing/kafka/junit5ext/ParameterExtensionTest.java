@@ -22,11 +22,11 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.testcontainers.shaded.org.awaitility.Awaitility;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -276,7 +276,7 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
 
     }
 
-    @NotNull
+    @NonNull
     private String createTopic(Admin admin) throws Exception {
         var topic = UUID.randomUUID().toString();
         admin.createTopics(List.of(new NewTopic(topic, 1, (short) 1))).all().get(5, TimeUnit.SECONDS);
