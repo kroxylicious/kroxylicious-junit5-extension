@@ -1185,12 +1185,4 @@ public class KafkaClusterExtension implements
         }
     }
 
-    @FunctionalInterface
-    private interface Injector<T, X extends T> {
-        X inject(String description,
-                 AnnotatedElement sourceElement,
-                 Class<X> type,
-                 Type genericType,
-                 ExtensionContext extensionContext);
-    }
 }
