@@ -89,7 +89,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
-import io.kroxylicious.testing.kafka.internal.AnonymousAdminSource;
+import io.kroxylicious.testing.kafka.internal.AdminSource;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -1003,8 +1003,8 @@ public class KafkaClusterExtension implements
                                      ExtensionContext extensionContext) {
         var cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
-        if (cluster instanceof AnonymousAdminSource adminSource) {
-            try (var admin = adminSource.createAnonymousAdmin()) {
+        if (cluster instanceof AdminSource adminSource) {
+            try (var admin = adminSource.createAdmin()) {
                 var topicName = MobyNamesGenerator.getRandomName();
                 var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
                 var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);

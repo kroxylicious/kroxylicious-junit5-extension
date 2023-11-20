@@ -43,6 +43,7 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -69,18 +70,19 @@ import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
+import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.common.Version;
-import io.kroxylicious.testing.kafka.internal.AnonymousAdminSource;
+import io.kroxylicious.testing.kafka.internal.AdminSource;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
  */
-public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AnonymousAdminSource {
+public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AdminSource {
 
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     /**
@@ -821,7 +823,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     @Override
-    public Admin createAnonymousAdmin() {
-        return Admin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
+    public @NotNull Admin createAdmin() {
+        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
     }
 }
