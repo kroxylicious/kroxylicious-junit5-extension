@@ -7,6 +7,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.7.0
 
+* [#231](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/231): Bump org.testcontainers:testcontainers-bom from 1.19.1 to 1.19.2
 * [#219](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/219): Allow kafka configuration to be provided for Producers, Consumer and Admin clients too
 * [#143](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/143): Default native kafka image tag from the version of Kafka on the classpath.
 * [#197](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/197): Consumer of the extension should be able to choose the version of the kafka dependency.
