@@ -94,7 +94,6 @@
         <zookeeper.version>3.8.3</zookeeper.version>
         <log4j.version>2.21.1</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
-        <annotations.version>24.0.1</annotations.version>
         <duct-tape.version>1.0.8</duct-tape.version>
         <mockito.version>5.7.0</mockito.version>
 
@@ -203,11 +202,6 @@
                 <groupId>org.projectlombok</groupId>
                 <artifactId>lombok</artifactId>
                 <version>${lombok.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains</groupId>
-                <artifactId>annotations</artifactId>
-                <version>${annotations.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.rnorth.duct-tape</groupId>
