@@ -305,9 +305,9 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
         var resourceKey = new ConfigResource(ConfigResource.Type.TOPIC, topic.name());
         var all = admin.describeConfigs(List.of(resourceKey)).all().get(5, TimeUnit.SECONDS);
 
-        var config = all.get(resourceKey);
-        assertThat(config).isNotNull();
-        assertThat(config.get(CLEANUP_POLICY_CONFIG))
+        var topicConfig = all.get(resourceKey);
+        assertThat(topicConfig).isNotNull();
+        assertThat(topicConfig.get(CLEANUP_POLICY_CONFIG))
                 .extracting(ConfigEntry::value)
                 .isEqualTo(CLEANUP_POLICY_COMPACT);
     }
