@@ -10,15 +10,12 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
-
 /**
  * Used to specify the number of partitions of a {@link Topic} injected into
  * a test as field or parameter.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
-@KafkaClusterConstraint
 public @interface TopicPartitions {
     /**
      * The number of partitions.

@@ -5,9 +5,11 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
-import java.lang.annotation.*;
-
-import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Repeatable;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
 /**
  * {@link TopicConfig} is used to provide topic configuration. It may be applied to the {@link Topic} type.
@@ -15,7 +17,6 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
 @Repeatable(TopicConfig.List.class)
-@KafkaClusterConstraint
 public @interface TopicConfig {
     /**
      * The name of the kafka topic configuration parameter.
@@ -36,7 +37,6 @@ public @interface TopicConfig {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.FIELD, ElementType.PARAMETER })
-    @KafkaClusterConstraint
     @interface List {
         /**
          * List of kafka topic configurations.
