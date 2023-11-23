@@ -27,9 +27,9 @@ import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.assertj.core.api.InstanceOfAssertFactories;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.testcontainers.shaded.org.awaitility.Awaitility;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
