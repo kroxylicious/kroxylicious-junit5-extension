@@ -62,7 +62,6 @@ import org.apache.kafka.common.serialization.UUIDSerializer;
 import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -995,7 +994,7 @@ public class KafkaClusterExtension implements
                 .get();
     }
 
-    @NotNull
+    @NonNull
     private static Topic createTopic(String description,
                                      AnnotatedElement sourceElement,
                                      Class<? extends Topic> type,

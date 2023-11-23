@@ -36,7 +36,6 @@ import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
@@ -458,7 +457,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @Override
-    public @NotNull Admin createAdmin() {
+    public @NonNull Admin createAdmin() {
         return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
     }
 }
