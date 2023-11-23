@@ -31,7 +31,6 @@
         <dependency>
             <groupId>io.kroxylicious.testing</groupId>
             <artifactId>testing-api</artifactId>
-            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>

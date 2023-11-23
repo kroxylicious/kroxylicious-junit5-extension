@@ -107,6 +107,21 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>io.kroxylicious.testing</groupId>
+                <artifactId>testing-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.kroxylicious.testing</groupId>
+                <artifactId>testing-junit5-extension</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.kroxylicious.testing</groupId>
+                <artifactId>testing-impl</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
                 <version>${junit.version}</version>
