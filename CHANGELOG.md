@@ -7,6 +7,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.7.0
 
+* [#221](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/221): Add ability to inject test topics into tests #229
 * [#231](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/231): Bump org.testcontainers:testcontainers-bom from 1.19.1 to 1.19.2
 * [#219](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/219): Allow kafka configuration to be provided for Producers, Consumer and Admin clients too
 * [#143](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/143): Default native kafka image tag from the version of Kafka on the classpath.

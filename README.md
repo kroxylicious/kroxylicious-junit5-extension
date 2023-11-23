@@ -124,6 +124,25 @@ class MyTest {
 }
 ```
 
+## Creating Test Topics
+
+The test framework can create topic(s) for the test.  It is
+guaranteed that the test will exist before the test method is invoked.
+
+You can also specify configuration for the topic using the annotation `@TopicConfig`,
+or set its partition count or replication factor with `@TopicPartitions` and `@TopicReplicationFactor`
+respectively.
+
+```java
+@ExtendWith(KafkaClusterExtension.class)
+class MyTest {
+    Topic myTopic;
+    @TopicConfig(name = "cleanup.policy", value = "compact") Topic myTopicWithConfig;
+    // ...
+}
+```
+
+
 ## Node topology
 
 When generating a cluster using KRaft (the default), you declare how many brokers and controllers you want and the extension will provision the minimum number of nodes to satisfy those conditions. It will create as many nodes as it can that are both KRaft controllers and brokers using [process.roles](https://kafka.apache.org/documentation/#brokerconfigs_process.roles) (process.roles = "broker,controller"). For example:

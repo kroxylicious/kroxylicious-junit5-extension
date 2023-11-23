@@ -40,6 +40,8 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
 
     Admin injectedAdmin;
 
+    Topic injectedTopic;
+
     private Admin privateField;
 
     Producer<String, String> injectedProducer;
@@ -72,6 +74,13 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     @Test
     void shouldInjectAdminField() {
         assertThat(injectedAdmin).isNotNull().isInstanceOf(Admin.class);
+    }
+
+    @Test
+    void shouldInjectTopicField() {
+        assertThat(injectedTopic)
+                .isNotNull()
+                .extracting(Topic::name).isNotNull();
     }
 
     @Test

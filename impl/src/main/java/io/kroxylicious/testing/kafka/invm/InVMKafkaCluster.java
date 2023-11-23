@@ -31,10 +31,12 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
+import org.jetbrains.annotations.NotNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
@@ -46,16 +48,18 @@ import scala.Option;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
+import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.internal.AdminSource;
 
 import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
 
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
-public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
+public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AdminSource {
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final PrintStream LOGGING_PRINT_STREAM = LoggingPrintStream.loggingPrintStream(LOGGER, System.Logger.Level.DEBUG);
     private static final int STARTUP_TIMEOUT = 30;
@@ -453,4 +457,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         Exit.setHaltProcedure(InVMKafkaCluster::exitHandler);
     }
 
+    @Override
+    public @NotNull Admin createAdmin() {
+        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
+    }
 }
