@@ -16,8 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
 
 @ExtendWith(KafkaClusterExtension.class)
 public class BeforeEachTest {
