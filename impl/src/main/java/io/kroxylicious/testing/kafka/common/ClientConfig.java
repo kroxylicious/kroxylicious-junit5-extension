@@ -11,8 +11,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
-
 /**
  * {@link ClientConfig} is used to provide client configuration to any of the three Kafka
  * Clients ({@link org.apache.kafka.clients.admin.AdminClient},
@@ -23,7 +21,6 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
 @Repeatable(ClientConfig.List.class)
-@KafkaClusterConstraint
 public @interface ClientConfig {
     /**
      * The name of the kafka client configuration parameter.
@@ -44,7 +41,6 @@ public @interface ClientConfig {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Target({ ElementType.FIELD, ElementType.PARAMETER })
-    @KafkaClusterConstraint
     @interface List {
         /**
          * List of kafka client configurations.
