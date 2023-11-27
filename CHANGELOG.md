@@ -4,6 +4,9 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 1.0.0
 
+## 0.8.0
+
+* [#244](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/244): Bump org.testcontainers:testcontainers-bom from 1.19.2 to 1.19.3
 
 ## 0.7.0
 
