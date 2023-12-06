@@ -7,6 +7,7 @@ package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -458,8 +459,13 @@ public class KafkaClusterExtension implements
 
     @Override
     public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-        return !parameterContext.getDeclaringExecutable().isAnnotationPresent(TestTemplate.class)
-                && supportsParameter(parameterContext.getParameter());
+        return !hasTestTemplateConfiguration(parameterContext.getDeclaringExecutable()) && supportsParameter(parameterContext.getParameter());
+    }
+
+    private boolean hasTestTemplateConfiguration(Executable executable) {
+        return executable.isAnnotationPresent(TestTemplate.class)
+                && Arrays.stream(executable.getParameters()).anyMatch(
+                        p -> p.getAnnotationsByType(DimensionMethodSource.class).length > 0 || p.getAnnotationsByType(ConstraintsMethodSource.class).length > 0);
     }
 
     @Override
