@@ -50,7 +50,7 @@ import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.asse
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(KafkaClusterExtension.class)
-public class TemplateTest {
+class TemplateTest {
 
     @SuppressWarnings("unused")
     static Stream<BrokerCluster> clusterSizes() {
@@ -60,8 +60,7 @@ public class TemplateTest {
     }
 
     @TestTemplate
-    public void testMultipleClusterSizes(
-                                         @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
+    void testMultipleClusterSizes(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
         try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
             assertThat(admin.describeCluster().nodes().get()).hasSize(cluster.getNumOfBrokers());
@@ -69,15 +68,15 @@ public class TemplateTest {
     }
 
     @TestTemplate
-    public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
-                                                            Admin admin)
+    void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
+                                                     Admin admin)
             throws ExecutionException, InterruptedException {
         assertThat(admin.describeCluster().nodes().get()).hasSize(cluster.getNumOfBrokers());
     }
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class CartesianProduct {
+    class CartesianProduct {
 
         private final Set<List<Object>> observedCartesianProduct = new HashSet<>();
 
@@ -89,8 +88,8 @@ public class TemplateTest {
         }
 
         @TestTemplate
-        public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
-                                         Admin admin)
+        void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
+                                  Admin admin)
                 throws ExecutionException, InterruptedException {
             // Given
             assertSameCluster(cluster, admin);
@@ -112,7 +111,7 @@ public class TemplateTest {
         }
 
         @AfterAll
-        public void afterAll() {
+        void afterAll() {
             // We are basically asserting that the test was invoked with all the expected combinations of parameters
             assertThat(observedCartesianProduct).containsExactlyInAnyOrder(
                     List.of(1, "zstd"),
@@ -132,12 +131,12 @@ public class TemplateTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class Tuples {
+    class Tuples {
         private final Set<List<Integer>> observedTuples = new HashSet<>();
 
         @TestTemplate
-        public void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
-                               Admin admin)
+        void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
+                        Admin admin)
                 throws ExecutionException, InterruptedException {
             int numBrokers = admin.describeCluster().nodes().get().size();
             int numControllers;
@@ -159,7 +158,7 @@ public class TemplateTest {
         }
 
         @AfterAll
-        public void afterAll() {
+        void afterAll() {
             assertThat(observedTuples).isEqualTo(Set.of(
                     List.of(1, 1),
                     List.of(3, 1),
@@ -180,24 +179,24 @@ public class TemplateTest {
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class Versions {
+    class Versions {
 
         private final Set<String> observedVersions = new HashSet<>();
 
         @TestTemplate
-        public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster) {
+        void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster) {
             observedVersions.add(cluster.getKafkaVersion());
         }
 
         @AfterAll
-        public void afterAll() {
+        void afterAll() {
             assertThat(observedVersions).isEqualTo(versions().map(Version::value).collect(Collectors.toSet()));
         }
     }
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class CooperationWithAnotherTestTemplateInvocationContextProvider {
+    class CooperationWithAnotherTestTemplateInvocationContextProvider {
         private final AtomicInteger observedInvocations = new AtomicInteger();
         private final Set<MyTestParam> observedResolvedParams = new HashSet<>();
 
