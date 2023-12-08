@@ -6,6 +6,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.8.0
 
+* [#250](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/250): Bump Apache Kafka to 3.6.1
 * [#248](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/248): Allow user to bring their own test templating when using KafkaClusterExtension
 * [#244](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/244): Bump org.testcontainers:testcontainers-bom from 1.19.2 to 1.19.3
 
