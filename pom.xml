@@ -86,7 +86,7 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <junit.version>5.10.1</junit.version>
-        <kafka.version>3.6.0</kafka.version>
+        <kafka.version>3.6.1</kafka.version>
         <testcontainers.version>1.19.3</testcontainers.version>
         <lombok.version>1.18.30</lombok.version>
         <assertj-core.version>3.24.2</assertj-core.version>
