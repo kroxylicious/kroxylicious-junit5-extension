@@ -62,7 +62,7 @@ The local changes made to `T`'s POM can be reverted.
 
 1. Run [deploy_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/deploy_release.yml)
    setting the `next-state` to `release` to publish the artefact.
-2. Merge release PR.
+2. Merge release PR (use Rebase and Merge strategy).
 3. Manually create the release notes for release by following the
    [Draft a new release](https://github.com/kroxylicious/kroxylicious-junit5-extension/releases) workflow.  Copy
    the release note content from the [CHANGELOG.md](./CHANGELOG.md).
