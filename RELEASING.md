@@ -7,7 +7,7 @@ The component is released using GitHub automation.
 At a high level, the process is as follows:
 
 1. The developer adds their private key/passphrase as repository secrets
-1. The workflow `stage_release` tags, builds/signs the release, and stages the release on a Nexus staging repository.
+1. The workflow `stage_release` tags, builds/signs the release, and stages the release on a Nexus staging repository. This process uses the GitHub machine account [kroxylicious-robot](https://github.com/kroxylicious-robot) and a user token owned by Sonatype account `kroxylicious` account.
 1. The stage release is verified using manual verification steps.
 1. The workflow `deploy_release` releases from the staged repository to Maven Central.
 1. The developer removes their private key/passphrase as repository secrets.
@@ -62,7 +62,7 @@ The local changes made to `T`'s POM can be reverted.
 
 1. Run [deploy_workflow](https://github.com/kroxylicious/kroxylicious-junit5-extension/actions/workflows/deploy_release.yml)
    setting the `next-state` to `release` to publish the artefact.
-2. Merge release PR.
+2. Merge release PR (use Rebase and Merge strategy).
 3. Manually create the release notes for release by following the
    [Draft a new release](https://github.com/kroxylicious/kroxylicious-junit5-extension/releases) workflow.  Copy
    the release note content from the [CHANGELOG.md](./CHANGELOG.md).
