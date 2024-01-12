@@ -4,6 +4,10 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 1.0.0
 
+## 0.8.1
+
+* [#262](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/262): Support embedding a 3.7 broker
+
 ## 0.8.0
 
 * [#250](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/250): Bump Apache Kafka to 3.6.1
