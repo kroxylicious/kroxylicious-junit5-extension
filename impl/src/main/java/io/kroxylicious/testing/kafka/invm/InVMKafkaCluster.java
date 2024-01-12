@@ -12,6 +12,7 @@ import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
@@ -34,6 +35,7 @@ import java.util.stream.IntStream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.server.common.MetadataVersion;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
@@ -44,6 +46,7 @@ import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
 import scala.Option;
+import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -113,14 +116,28 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         if (kraftMode) {
             var clusterId = c.getKafkaKraftClusterId();
             var directories = StorageTool.configToLogDirectories(config);
-            var metaProperties = StorageTool.buildMetadataProperties(clusterId, config);
-            // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
-            // required to support start/stop.
-            StorageTool.formatCommand(LOGGING_PRINT_STREAM, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
+            prepareLogDirsForKraft(clusterId, config, directories);
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
+        }
+    }
+
+    private static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, Seq<String> directories) {
+        try {
+            // in kafka 3.7.0 the MetadataProperties class moved package, we use reflection to enable the extension to work with
+            // the old and new class.
+            Method buildMetadataProperties = StorageTool.class.getDeclaredMethod("buildMetadataProperties", String.class, KafkaConfig.class);
+            Object metaProperties = buildMetadataProperties.invoke(null, clusterId, config);
+            Method formatCommand = StorageTool.class.getDeclaredMethod("formatCommand", PrintStream.class, Seq.class, metaProperties.getClass(), MetadataVersion.class,
+                    boolean.class);
+            // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
+            // required to support start/stop.
+            formatCommand.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
+        }
+        catch (Exception e) {
+            throw new RuntimeException("failed to prepare log dirs for KRaft", e);
         }
     }
 
