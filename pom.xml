@@ -95,7 +95,7 @@
         <log4j.version>2.22.1</log4j.version>
         <awaitility.version>4.2.0</awaitility.version>
         <duct-tape.version>1.0.8</duct-tape.version>
-        <mockito.version>5.8.0</mockito.version>
+        <mockito.version>5.9.0</mockito.version>
         <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
 
         <!-- Required for JDK 21 compatibility, remove dependency management for byte-buddy once assertj bumps to a newer bytebuddy -->
