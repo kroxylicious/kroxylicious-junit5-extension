@@ -36,6 +36,10 @@ while getopts ":s:ah" opt; do
   esac
 done
 
+# TODO: refactor to use the REST API https://oss.sonatype.org/nexus-staging-plugin/default/docs/index.html to avoid the awkish hell
+# curl --silent -u xxxx:xxx  -H "accept: application/json" -X GET https://s01.oss.sonatype.org/service/local/staging/profile_repositories | jq .
+
+
 # The rc-list table looks like this:
 #[INFO] ID                   State    Description
 #[INFO] iokroxylicious-1032  CLOSED   unknown
@@ -65,7 +69,7 @@ elif [[ ${STATE} ]]; then
     close|drop|release)
       # Workaround for https://issues.sonatype.org/browse/OSSRH-66257
       MAVEN_OPTS="--add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.desktop/java.awt.font=ALL-UNNAMED" \
-        mvn ${PLUGIN}:${STATE} "${MVN_ARGS[@]}" -DstagingRepositoryId=${STAGING_REPO_IDS}
+        mvn ${PLUGIN}:${STATE} "${MVN_ARGS[@]}" -DstagingRepositoryId=${STAGING_REPO_IDS} -DstagingProgressTimeoutMinutes=10
       ;;
     *)
       usage

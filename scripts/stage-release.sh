@@ -6,15 +6,19 @@
 #
 
 set -e
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+. "${SCRIPT_DIR}/common.sh"
 
 REPOSITORY="origin"
 BRANCH_FROM="main"
-SNAPSHOT_INCREMENT_INDEX=2
 DRY_RUN="false"
 SKIP_VALIDATION="false"
 TEMPORARY_RELEASE_BRANCH=""
 PREPARE_DEVELOPMENT_BRANCH=""
 ORIGINAL_GH_DEFAULT_REPO=""
+GPG_KEY=""
+RELEASE_VERSION=""
+DEVELOPMENT_VERSION=""
 while getopts ":v:b:k:r:n:dsh" opt; do
   case $opt in
     v) RELEASE_VERSION="${OPTARG}"
@@ -24,12 +28,8 @@ while getopts ":v:b:k:r:n:dsh" opt; do
     r) REPOSITORY="${OPTARG}"
     ;;
     k) GPG_KEY="${OPTARG}"
-      if [[ -z "${GPG_KEY}" ]]; then
-          echo "GPG_KEY not set unable to sign the release. Please specify -k <YOUR_GPG_KEY>" 1>&2
-          exit 1
-      fi
     ;;
-    n) SNAPSHOT_INCREMENT_INDEX="${OPTARG}"
+    n) DEVELOPMENT_VERSION="${OPTARG}"
     ;;
     d) DRY_RUN="true"
     ;;
@@ -41,7 +41,7 @@ usage: $0 -k keyid -v version [-b branch] [-r repository] [-s] [-d] [-h]
  -k short key id used to sign the release
  -v version number e.g. 0.3.0
  -b branch to release from (defaults to 'main')
- -n snapshot index to increment when opening main for new development (defaults to '2')
+ -n development versin e.g. 0.4.0-SNAPSHOT
  -r the remote name of the kroxylicious repository (defaults to 'origin')
  -s skips validation
  -d dry-run mode
@@ -49,25 +49,28 @@ usage: $0 -k keyid -v version [-b branch] [-r repository] [-s] [-d] [-h]
 EOF
       exit 1
     ;;
-    \?) echo "Invalid option -${OPTARG}" >&2
+    \:) echo "Option -${OPTARG} requires an argument" >&2
+    exit 1
+    ;;
+    \?) echo "Unrecognised option -${OPTARG}" >&2
     exit 1
     ;;
   esac
 
-  case ${OPTARG} in
-    -*) echo "Option $opt needs a valid argument"
-    exit 1
-    ;;
-  esac
 done
 
 if [[ -z "${GPG_KEY}" ]]; then
-    echo "GPG_KEY not set unable to sign the release. Please specify -k <YOUR_GPG_KEY>" 1>&2
+    echo "GPG_KEY not set, unable to sign the release. Please specify -k <YOUR_GPG_KEY>" 1>&2
     exit 1
 fi
 
-if [[ -z ${RELEASE_VERSION} ]]; then
+if [[ -z "${RELEASE_VERSION}" ]]; then
   echo "No version specified aborting"
+  exit 1
+fi
+
+if [[ -z "${DEVELOPMENT_VERSION}" ]]; then
+  echo "No development version specified aborting"
   exit 1
 fi
 
@@ -86,7 +89,7 @@ cleanup() {
       gh repo set-default ${ORIGINAL_GH_DEFAULT_REPO}
     fi
 
-    if [[ ${RELEASE_TAG} ]]; then
+    if [[ -n ${RELEASE_TAG:-} ]]; then
       git tag --delete "${RELEASE_TAG}" || true
     fi
 
@@ -100,6 +103,13 @@ cleanup() {
     if [[ "${DRY_RUN:-false}" == true && ${PREPARE_DEVELOPMENT_BRANCH} ]]; then
         git branch -D "${PREPARE_DEVELOPMENT_BRANCH}" || true
     fi
+}
+
+setVersion() {
+  local VERSION=$1
+  mvn -q -B versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false -DprocessAllModules=true
+
+  git add '**/pom.xml' 'pom.xml'
 }
 
 trap cleanup EXIT
@@ -126,11 +136,14 @@ if [[ "${SKIP_VALIDATION:-false}" != true ]]; then
 fi
 
 echo "Versioning Kroxylicious-junit-extension as ${RELEASE_VERSION}"
+setVersion "${RELEASE_VERSION}"
 
-mvn -q versions:set -DnewVersion="${RELEASE_VERSION}" -DgenerateBackupPoms=false
+#Set the release version in the Changelog
+${SED} -i -e "s_##\sSNAPSHOT_## ${RELEASE_VERSION//./\\.}_g" CHANGELOG.md
+git add 'CHANGELOG.md'
+
 echo "Validating things still build"
-mvn -q clean install -Pquick
-
+mvn -q -B clean install -Pquick
 
 RELEASE_TAG="v${RELEASE_VERSION}"
 
@@ -143,13 +156,16 @@ git tag -f "${RELEASE_TAG}"
 git push "${REPOSITORY}" "${RELEASE_TAG}" ${GIT_DRYRUN:-}
 
 echo "Deploying release"
-mvn -q deploy -Prelease -DskipTests=true -DreleaseSigningKey="${GPG_KEY}" ${MVN_DEPLOY_DRYRUN}
+mvn -q deploy -Prelease -DskipTests=true -DreleaseSigningKey="${GPG_KEY}" ${MVN_DEPLOY_DRYRUN:-}
 
 PREPARE_DEVELOPMENT_BRANCH="prepare-development-${RELEASE_DATE}"
-git checkout -b ${PREPARE_DEVELOPMENT_BRANCH} ${TEMPORARY_RELEASE_BRANCH}
-mvn versions:set -DnextSnapshot=true -DnextSnapshotIndexToIncrement="${SNAPSHOT_INCREMENT_INDEX}" -DgenerateBackupPoms=false
+git checkout -b "${PREPARE_DEVELOPMENT_BRANCH}" "${TEMPORARY_RELEASE_BRANCH}"
+setVersion "${DEVELOPMENT_VERSION}"
 
-git add '**/pom.xml' 'pom.xml'
+# bump the Changelog to the next SNAPSHOT version. We do it this way so the changelog has the new release as the first entry
+${SED} -i -e "s_##\s${RELEASE_VERSION//./\\.}_## SNAPSHOT\n## ${RELEASE_VERSION//./\\.}_g" CHANGELOG.md
+
+git add '**/pom.xml' 'pom.xml' 'CHANGELOG.md'
 git commit --message "Start next development version" --signoff
 
 if [[ "${DRY_RUN:-false}" == true ]]; then
@@ -163,12 +179,17 @@ then
 fi
 
 ORIGINAL_GH_DEFAULT_REPO=$(gh repo set-default -v | (grep -v 'no default repository' || true))
-gh repo set-default $(git remote get-url ${REPOSITORY})
+gh repo set-default "$(git remote get-url "${REPOSITORY}")"
+
+# create GitHub release via CLI https://cli.github.com/manual/gh_release_create
+# it is created as a draft, the deploy_release workflow will publish it.
+echo "Creating draft release notes."
+gh release create "${RELEASE_TAG}" --title "${RELEASE_TAG}" --notes-file "CHANGELOG.md" --draft
 
 BODY="Release version ${RELEASE_VERSION}"
 
 # Workaround https://github.com/cli/cli/issues/2691
-git push ${REPOSITORY} HEAD
+git push "${REPOSITORY}" HEAD
 
 echo "Create pull request to merge the released version."
-gh pr create --head ${PREPARE_DEVELOPMENT_BRANCH} --base ${BRANCH_FROM} --title "Kroxylicious junit extension development version ${RELEASE_DATE}" --body "${BODY}" --repo $(gh repo set-default -v)
+gh pr create --head "${PREPARE_DEVELOPMENT_BRANCH}" --base "${BRANCH_FROM}" --title "Kroxylicious junit extension development version ${RELEASE_DATE}" --body "${BODY}" --repo "$(gh repo set-default -v)"

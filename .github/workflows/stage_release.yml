@@ -39,6 +39,9 @@ on:
       release-version:
         description: 'The release version, e.g. 0.7.0'
         required: true
+      development-version:
+        description: 'The next development version, e.g. 0.7.0-SNAPSHOT'
+        required: true
       branch:
         description: 'The branch from which the release is cut'
         required: false
@@ -47,7 +50,7 @@ on:
         description: 'Whether to skip the tests before pushing the tag'
         type: boolean
         required: false
-        default: true
+        default: false
       dry-run:
         description: 'Dry-run mode, no remote tags or PRs will be created, no artefacts will be staged'
         type: boolean
@@ -96,11 +99,18 @@ jobs:
           SONATYPE_TOKEN_PASSWORD: ${{ secrets.KROXYLICIOUS_SONATYPE_TOKEN_PASSWORD }}
         run: ./scripts/transition-staging-repository-state.sh -a
 
+      - name: 'Verify no existing release note exist for tag'
+        env:
+          GH_TOKEN: ${{ secrets.KROXYLICIOUS_RELEASE_TOKEN }} # For the gh cmd line tool used by transition-github-release-note-state.sh
+        run: ./scripts/transition-github-release-note-state.sh -v ${{ github.event.inputs.release-version }} -a
+
+
       - name: 'Stage Release'
         run: |
           SIGNING_KEY_SHORT_NAME=$(gpg --list-public-keys --keyid-format short --with-colons | awk -F: '/^pub:/ {print $5}')
-          ./scripts/stage-release.sh -k ${SIGNING_KEY_SHORT_NAME} \
+          ./scripts/stage-release.sh -k "${SIGNING_KEY_SHORT_NAME}" \
                                      -v ${{ github.event.inputs.release-version }} \
+                                     -n ${{ github.event.inputs.development-version }} \
                                      -b ${{ github.event.inputs.branch }} \
                                      ${{ github.event.inputs.dry-run == 'true' && '-d' || '' }} \
                                      ${{ github.event.inputs.skip-tests == 'true' && '-s' || '' }}
