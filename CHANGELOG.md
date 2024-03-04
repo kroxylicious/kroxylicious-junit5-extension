@@ -6,6 +6,8 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.9.0
 
+* [#283](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/283): Bump kafka.version from 3.6.1 to 3.7.0.
+
 ## 0.8.1
 
 * [#262](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/262): Support embedding a 3.7 broker
