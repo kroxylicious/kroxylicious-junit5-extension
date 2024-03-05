@@ -52,7 +52,7 @@ jobs:
         run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KafkaClusterTest
 
       - name: Archive container logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: container-logs
