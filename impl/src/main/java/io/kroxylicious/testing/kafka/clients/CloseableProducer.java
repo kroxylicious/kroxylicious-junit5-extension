@@ -23,6 +23,7 @@ import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.ProducerFencedException;
 
 /**
@@ -131,6 +132,11 @@ public record CloseableProducer<K, V>(Producer<K, V> instance) implements Produc
     @Override
     public Map<MetricName, ? extends Metric> metrics() {
         return instance.metrics();
+    }
+
+    @Override
+    public Uuid clientInstanceId(Duration timeout) {
+        return instance.clientInstanceId(timeout);
     }
 
     @Override
