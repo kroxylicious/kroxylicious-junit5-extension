@@ -6,6 +6,9 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## 0.9.0
 
+
+
+* [#289](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/289): Bump org.testcontainers:testcontainers-bom from 1.19.6 to 1.19.7
 * [#283](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/283): Bump kafka.version from 3.6.1 to 3.7.0.
 
 ## 0.8.1
