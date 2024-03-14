@@ -105,9 +105,10 @@ cleanup() {
     fi
 }
 
-setVersion() {
-  local VERSION=$1
-  mvn -q -B versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false -DprocessAllModules=true
+updateVersions() {
+  local FROM_VERSION=$1
+  local NEW_VERSION=$2
+  mvn -q -B versions:set -DnewVersion="${NEW_VERSION}" -DgenerateBackupPoms=false -DprocessAllModules=true
 
   git add '**/pom.xml' 'pom.xml'
 }
@@ -117,6 +118,7 @@ trap cleanup EXIT
 git stash --all
 echo "Creating release branch from ${BRANCH_FROM}"
 git fetch -q "${REPOSITORY}"
+INITIAL_VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.4.0:evaluate -Dexpression=project.version -q -DforceStdout)
 RELEASE_DATE=$(date -u '+%Y-%m-%d')
 TEMPORARY_RELEASE_BRANCH="prepare-release-${RELEASE_DATE}"
 git checkout -b "prepare-release-${RELEASE_DATE}" "${REPOSITORY}/${BRANCH_FROM}"
@@ -136,8 +138,7 @@ if [[ "${SKIP_VALIDATION:-false}" != true ]]; then
 fi
 
 echo "Versioning Kroxylicious-junit-extension as ${RELEASE_VERSION}"
-setVersion "${RELEASE_VERSION}"
-
+updateVersions "${INITIAL_VERSION}" "${RELEASE_VERSION}"
 #Set the release version in the Changelog
 ${SED} -i -e "s_##\sSNAPSHOT_## ${RELEASE_VERSION//./\\.}_g" CHANGELOG.md
 git add 'CHANGELOG.md'
@@ -148,7 +149,6 @@ mvn -q -B clean install -Pquick
 RELEASE_TAG="v${RELEASE_VERSION}"
 
 echo "Committing framework release to git"
-git add '**/pom.xml' 'pom.xml'
 git commit --message "Release Framework version ${RELEASE_TAG}" --signoff
 
 git tag -f "${RELEASE_TAG}"
@@ -160,12 +160,11 @@ mvn -q deploy -Prelease -DskipTests=true -DreleaseSigningKey="${GPG_KEY}" ${MVN_
 
 PREPARE_DEVELOPMENT_BRANCH="prepare-development-${RELEASE_DATE}"
 git checkout -b "${PREPARE_DEVELOPMENT_BRANCH}" "${TEMPORARY_RELEASE_BRANCH}"
-setVersion "${DEVELOPMENT_VERSION}"
-
+updateVersions "${RELEASE_VERSION}" "${DEVELOPMENT_VERSION}"
 # bump the Changelog to the next SNAPSHOT version. We do it this way so the changelog has the new release as the first entry
 ${SED} -i -e "s_##\s${RELEASE_VERSION//./\\.}_## SNAPSHOT\n## ${RELEASE_VERSION//./\\.}_g" CHANGELOG.md
 
-git add '**/pom.xml' 'pom.xml' 'CHANGELOG.md'
+git add 'CHANGELOG.md'
 git commit --message "Start next development version" --signoff
 
 if [[ "${DRY_RUN:-false}" == true ]]; then
