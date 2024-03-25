@@ -88,7 +88,7 @@
         <junit.version>5.10.2</junit.version>
         <kafka.version>3.7.0</kafka.version>
         <testcontainers.version>1.19.7</testcontainers.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.32</lombok.version>
         <assertj-core.version>3.25.3</assertj-core.version>
         <spotbugs-annotations.version>4.8.3</spotbugs-annotations.version>
         <zookeeper.version>3.8.3</zookeeper.version>
