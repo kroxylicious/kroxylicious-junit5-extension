@@ -7,6 +7,7 @@ without having to hard-code exactly _how_ that cluster is provisioned.
 As such it allows you to write very flexible tests that abstract over different kinds of cluster.
 
 ## Dependency
+Current version: ![Maven Central Version](https://img.shields.io/maven-central/v/io.kroxylicious.testing/testing-junit5-extension)
 
 Gradle 
 ```
