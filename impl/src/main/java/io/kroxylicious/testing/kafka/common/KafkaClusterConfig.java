@@ -31,6 +31,7 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
+import org.apache.kafka.common.security.plain.PlainLoginModule;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
@@ -42,6 +43,8 @@ import lombok.Singular;
 import lombok.ToString;
 
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
+
+import javax.security.auth.spi.LoginModule;
 
 /**
  * The Kafka cluster config class.
@@ -90,6 +93,8 @@ public class KafkaClusterConfig {
      * will be used.
      */
     private final String saslMechanism;
+    @Builder.Default
+    private Class<? extends LoginModule> loginModule = PlainLoginModule.class;
     private final String securityProtocol;
     @Builder.Default
     private Integer brokersNum = 1;
@@ -104,6 +109,12 @@ public class KafkaClusterConfig {
      */
     @Singular
     private final Map<String, String> users;
+
+    @Singular
+    private final Map<String, String> jaasServerOptions;
+
+    @Singular
+    private final Map<String, String> jaasClientOptions;
 
     @Singular
     private final Map<String, String> brokerConfigs;
@@ -361,18 +372,18 @@ public class KafkaClusterConfig {
         if (saslMechanism != null) {
             putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
 
-            var saslPairs = new StringBuilder();
+            var moduleOptions = new StringBuilder();
 
-            Optional.ofNullable(users).orElse(Map.of()).forEach((key, value) -> {
-                saslPairs.append(String.format("user_%s", key));
-                saslPairs.append("=");
-                saslPairs.append(value);
-                saslPairs.append(" ");
-            });
+            var serverOptions = Optional.ofNullable(jaasServerOptions).orElse(Map.of()).entrySet().stream();
+            var userOptions = Optional.ofNullable(users).orElse(Map.of()).entrySet().stream().collect(Collectors.toMap(e -> String.format("user_%s", e.getKey()), e -> e.getValue())).entrySet().stream();
 
-            // TODO support other than PLAIN
-            String plainModuleConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required %s;", saslPairs);
-            putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase()), plainModuleConfig);
+            moduleOptions.append(Stream.concat(serverOptions, userOptions)
+                    .map(e -> String.join("=", e.getKey(), e.getValue()))
+                    .collect(Collectors.joining(" ")));
+
+            var moduleConfig = String.format("%s required %s;", loginModule.getName(), moduleOptions);
+            var configKey = String.format("listener.name.%s.%s.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase(), saslMechanism.toLowerCase());
+            putConfig(server, configKey, moduleConfig);
         }
     }
 
@@ -541,16 +552,19 @@ public class KafkaClusterConfig {
             }
             kafkaConfig.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
 
-            if ("PLAIN".equals(saslMechanism)) {
-                if (user != null && password != null) {
-                    kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG,
-                            String.format("org.apache.kafka.common.security.plain.PlainLoginModule required username=\"%s\" password=\"%s\";",
-                                    user, password));
-                }
+            var copy = new HashMap<>(jaasClientOptions == null ? Map.of() : jaasClientOptions);
+            if (user != null && !copy.containsKey("username")) {
+                copy.put("username", user);
             }
-            else {
-                throw new IllegalStateException(String.format("unsupported SASL mechanism %s", saslMechanism));
+            if (password != null && !copy.containsKey("password")) {
+                copy.put("password", password);
             }
+
+            var moduleOptions = copy.entrySet().stream()
+                    .map(e -> String.join("=", e.getKey(),  e.getValue()))
+                    .collect(Collectors.joining(" "));
+
+            kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG, String.format("%s required %s;", loginModule.getName(), moduleOptions));
         }
 
         kafkaConfig.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);

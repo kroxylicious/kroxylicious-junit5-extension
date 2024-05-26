@@ -25,10 +25,12 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.Timeout;
@@ -483,6 +485,38 @@ class KafkaClusterTest {
             verifyRecordRoundTrip(1, cluster);
         }
     }
+
+    @Test
+    void kafkaClusterKraftModeWithOAuthBearerAuth() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(true)
+                .testInfo(testInfo)
+                .saslMechanism("OAUTHBEARER")
+                .securityProtocol("SASL_PLAINTEXT")
+                .loginModule(OAuthBearerLoginModule.class)
+                .jaasClientOption("unsecuredLoginStringClaim_sub", "thePrincipalName")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    @Disabled
+    void kafkaClusterKraftModeWithOAuthBearerAuthFail() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(true)
+                .testInfo(testInfo)
+                .saslMechanism("OAUTHBEARER")
+                .securityProtocol("SASL_PLAINTEXT")
+                .loginModule(OAuthBearerLoginModule.class)
+                //.jaasClientOption("unsecuredLoginStringClaim_sub", "")
+                .build())) {
+            cluster.start();
+            verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
 
     private void verifyRecordRoundTrip(int expected, KafkaCluster cluster) throws Exception {
         var topic = "roundTrip" + Uuid.randomUuid();
