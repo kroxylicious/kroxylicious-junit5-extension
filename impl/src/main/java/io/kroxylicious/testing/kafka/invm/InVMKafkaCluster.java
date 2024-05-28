@@ -56,8 +56,6 @@ import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.internal.AdminSource;
 
-import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
-
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
@@ -134,7 +132,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                     boolean.class);
             // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
             // required to support start/stop.
-            formatCommand.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
+            formatCommand.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, MetadataVersion.latestProduction(), true);
         }
         catch (Exception e) {
             throw new RuntimeException("failed to prepare log dirs for KRaft", e);
@@ -207,10 +205,14 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
         });
+        var anonConnectConfigForCluster = clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)));
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
+
+        Utils.createUsersOnClusterIfNecessary(anonConnectConfigForCluster, clusterConfig);
+
     }
 
     private void tryToStartServerWithRetry(KafkaClusterConfig.ConfigHolder configHolder, Server server) {

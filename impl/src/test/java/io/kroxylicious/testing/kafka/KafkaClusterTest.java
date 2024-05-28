@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
+import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -25,6 +26,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.awaitility.Awaitility;
@@ -48,6 +50,8 @@ import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -336,31 +340,75 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeWithAuth() throws Exception {
+    static Stream<Arguments> kafkaClusterWithUsernamePasswordBasedSaslAuth() {
+        return Stream.of(
+                Arguments.of("PLAIN", true),
+                Arguments.of("PLAIN", false),
+                Arguments.of("SCRAM-SHA-256", true),
+                Arguments.of("SCRAM-SHA-512", true),
+                Arguments.of("SCRAM-SHA-512", false));
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void kafkaClusterWithUsernamePasswordBasedSaslAuth(String mechanism, boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .testInfo(testInfo)
                 .securityProtocol("SASL_PLAINTEXT")
-                .saslMechanism("PLAIN")
+                .saslMechanism(mechanism)
                 .user("guest", "pass")
                 .build())) {
+            assumeThat(scramSupportedByCluster(cluster, kraft)).isTrue();
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
     }
 
-    @Test
-    void kafkaClusterZookeeperModeWithAuth() throws Exception {
+    /**
+     * Tests the ability of the client to authenticate using OAuth Bearer.
+     * <br/>
+     * That this test uses Kafka's unsecured OAuth Bearer implementation (which
+     * uses unsigned JWT tokens).  Note that Kafka enables this mechanism by default.
+     * @param kraft kraft mode
+     * @throws Exception exception
+     */
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterWithOAuthBearerAuth(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(kraft)
                 .testInfo(testInfo)
-                .kraftMode(false)
+                .saslMechanism("OAUTHBEARER")
                 .securityProtocol("SASL_PLAINTEXT")
-                .saslMechanism("PLAIN")
-                .user("guest", "pass")
+                .jaasClientOption("unsecuredLoginStringClaim_sub", "principal")
+                .jaasServerOption("unsecuredLoginStringClaim_sub", "principal")
                 .build())) {
+            assumeThat(scramSupportedByCluster(cluster, kraft)).isTrue();
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterWithOAuthBearerAuthFail(boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(kraft)
+                .testInfo(testInfo)
+                .saslMechanism("OAUTHBEARER")
+                .securityProtocol("SASL_PLAINTEXT")
+                .jaasClientOption("unsecuredLoginStringClaim_sub", "principal")
+                .jaasServerOption("unsecuredLoginStringClaim_sub", "principal")
+                .jaasServerOption("unsecuredValidatorRequiredScope", "foo")
+                .build())) {
+            cluster.start();
+
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                assertThatThrownBy(() -> performClusterOperation(admin))
+                        .hasCauseInstanceOf(SaslAuthenticationException.class)
+                        .hasMessageContaining("{\"status\":\"insufficient_scope\", \"scope\":\"[foo]\"}");
+            }
         }
     }
 
@@ -559,6 +607,10 @@ class KafkaClusterTest {
         }
     }
 
+    private void performClusterOperation(Admin admin) {
+        var unused = admin.describeCluster().nodes().toCompletionStage().toCompletableFuture().join();
+    }
+
     @BeforeEach
     void before(TestInfo testInfo) throws IOException {
         this.testInfo = testInfo;
@@ -568,5 +620,10 @@ class KafkaClusterTest {
     private void createClientCertificate() throws GeneralSecurityException, IOException {
         this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
         this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@kroxylicious.io", "client", "Dev", "Kroxylicious.ip", null, null, "US");
+    }
+
+    private boolean scramSupportedByCluster(KafkaCluster cluster, boolean kraft) {
+        // https://github.com/ozangunalp/kafka-native/issues/181
+        return !(cluster instanceof TestcontainersKafkaCluster && kraft);
     }
 }

@@ -334,10 +334,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 zookeeper.start();
             }
             Startables.deepStart(nodes.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            var anonConnectConfigForCluster = clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)));
             awaitExpectedBrokerCountInClusterViaTopic(
-                    clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
+                    anonConnectConfigForCluster,
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
+
+            Utils.createUsersOnClusterIfNecessary(anonConnectConfigForCluster, clusterConfig);
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
