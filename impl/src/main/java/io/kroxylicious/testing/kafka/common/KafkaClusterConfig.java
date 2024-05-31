@@ -542,80 +542,87 @@ public class KafkaClusterConfig {
 
         if (securityProtocol != null) {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
-
             if (securityProtocol.contains("SSL")) {
-                String clientTrustStoreFilePath;
-                String clientTrustStorePassword;
-                if (clientKeytoolCertificateGenerator != null) {
-                    if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
-                        // SSL client auth case
-                        kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
-                        kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
-                        kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
-                    }
-                    try {
-                        clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
-                    }
-                    catch (GeneralSecurityException | IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
-                    clientTrustStorePassword = clientKeytoolCertificateGenerator.getPassword();
-                }
-                else {
-                    Path clientTrustStore;
-                    try {
-                        Path certsDirectory = Files.createTempDirectory("kafkaClient");
-                        clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
-                        certsDirectory.toFile().deleteOnExit();
-                        clientTrustStore.toFile().deleteOnExit();
-                        brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
-                                clientTrustStore.toAbsolutePath().toString());
-                    }
-                    catch (GeneralSecurityException | IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
-                    clientTrustStorePassword = brokerKeytoolCertificateGenerator.getPassword();
-                }
-                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientTrustStoreFilePath);
-                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientTrustStorePassword);
+                buildSecurityProtocolConfig(kafkaConfig);
             }
         }
 
         if (saslMechanism != null) {
-            kafkaConfig.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
-
-            var lm = loginModule;
-            if (lm == null) {
-                lm = deriveLoginModuleFromSasl(saslMechanism);
-            }
-
-            if (securityProtocol == null) {
-                kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name());
-            }
-
-            var jaasOptions = new HashMap<>(jaasClientOptions == null ? Map.of() : jaasClientOptions);
-
-            if (isSaslPlain() || isSaslScram()) {
-                if (user != null && !jaasOptions.containsKey("username")) {
-                    jaasOptions.put("username", user);
-                }
-                if (password != null && !jaasOptions.containsKey("password")) {
-                    jaasOptions.put("password", password);
-                }
-            }
-
-            var moduleOptions = jaasOptions.entrySet().stream()
-                    .map(e -> String.join("=", e.getKey(), e.getValue()))
-                    .collect(Collectors.joining(" "));
-
-            kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG, String.format("%s required %s;", lm, moduleOptions));
+            buildSaslConnectConfig(kafkaConfig, user, password, securityProtocol, saslMechanism);
         }
 
         kafkaConfig.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 
         return kafkaConfig;
+    }
+
+    private void buildSecurityProtocolConfig(Map<String, Object> kafkaConfig) {
+        String clientTrustStoreFilePath;
+        String clientTrustStorePassword;
+        if (clientKeytoolCertificateGenerator != null) {
+            if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
+                // SSL client auth case
+                kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
+                kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
+                kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
+            }
+            try {
+                clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
+            }
+            catch (GeneralSecurityException | IOException e) {
+                throw new RuntimeException(e);
+            }
+            clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
+            clientTrustStorePassword = clientKeytoolCertificateGenerator.getPassword();
+        }
+        else {
+            Path clientTrustStore;
+            try {
+                Path certsDirectory = Files.createTempDirectory("kafkaClient");
+                clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
+                certsDirectory.toFile().deleteOnExit();
+                clientTrustStore.toFile().deleteOnExit();
+                brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
+                        clientTrustStore.toAbsolutePath().toString());
+            }
+            catch (GeneralSecurityException | IOException e) {
+                throw new RuntimeException(e);
+            }
+            clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
+            clientTrustStorePassword = brokerKeytoolCertificateGenerator.getPassword();
+        }
+        kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientTrustStoreFilePath);
+        kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientTrustStorePassword);
+    }
+
+    private void buildSaslConnectConfig(Map<String, Object> kafkaConfig, String user, String password, String securityProtocol, String saslMechanism) {
+        kafkaConfig.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
+
+        var lm = loginModule;
+        if (lm == null) {
+            lm = deriveLoginModuleFromSasl(saslMechanism);
+        }
+
+        if (securityProtocol == null) {
+            kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name());
+        }
+
+        var jaasOptions = new HashMap<>(jaasClientOptions == null ? Map.of() : jaasClientOptions);
+
+        if (isSaslPlain() || isSaslScram()) {
+            if (user != null && !jaasOptions.containsKey("username")) {
+                jaasOptions.put("username", user);
+            }
+            if (password != null && !jaasOptions.containsKey("password")) {
+                jaasOptions.put("password", password);
+            }
+        }
+
+        var moduleOptions = jaasOptions.entrySet().stream()
+                .map(e -> String.join("=", e.getKey(), e.getValue()))
+                .collect(Collectors.joining(" "));
+
+        kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG, String.format("%s required %s;", lm, moduleOptions));
     }
 
     private boolean isSaslPlain() {

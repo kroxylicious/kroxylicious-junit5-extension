@@ -47,7 +47,6 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
-import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -336,7 +335,6 @@ class KafkaClusterTest {
                 .saslMechanism(mechanism)
                 .user("guest", "pass")
                 .build())) {
-            assumeThat(scramSupportedByCluster(cluster, kraft)).isTrue();
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -361,7 +359,8 @@ class KafkaClusterTest {
                 .jaasClientOption("unsecuredLoginStringClaim_sub", "principal")
                 .jaasServerOption("unsecuredLoginStringClaim_sub", "principal")
                 .build())) {
-            assumeThat(scramSupportedByCluster(cluster, kraft)).isTrue();
+            // https://github.com/ozangunalp/kafka-native/issues/181
+            assumeThat(true).isTrue();
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -532,6 +531,7 @@ class KafkaClusterTest {
      * Pings the cluster in order to assert connectivity. We don't care about the result.
      * @param admin admin
      */
+    @SuppressWarnings("java:S1481") // making clear the intent that the result of the operation is unneeded.
     private void performClusterOperation(Admin admin) {
         var unused = admin.describeCluster().nodes().toCompletionStage().toCompletableFuture().join();
     }
@@ -547,8 +547,4 @@ class KafkaClusterTest {
         this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@kroxylicious.io", "client", "Dev", "Kroxylicious.ip", null, null, "US");
     }
 
-    private boolean scramSupportedByCluster(KafkaCluster cluster, boolean kraft) {
-        // https://github.com/ozangunalp/kafka-native/issues/181
-        return !(cluster instanceof TestcontainersKafkaCluster && kraft);
-    }
 }

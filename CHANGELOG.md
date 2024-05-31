@@ -7,9 +7,15 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 ## 0.9.0
 
 
-
+* [#322](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/322): Allow test Kafka Clusters to use SASL SCRAM-SHA and OAUTH bearer
 * [#289](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/289): Bump org.testcontainers:testcontainers-bom from 1.19.6 to 1.19.7
 * [#283](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/283): Bump kafka.version from 3.6.1 to 3.7.0.
+
+### Changes, deprecations and removals
+
+* For SCRAM support in KRaft mode,  the Kafka Broker must be 3.5 or above and it must use storage format IBP_3_5_IV2
+  or higher.  If using CONTAINER mode, be aware that support for this combination was introduced in
+  [kafka-native 0.9.0](https://github.com/ozangunalp/kafka-native/releases/tag/v0.9.0)
 
 ## 0.8.1
 

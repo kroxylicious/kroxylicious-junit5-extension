@@ -176,7 +176,10 @@ public class Utils {
         }
         var sci = new ScramCredentialInfo(ScramMechanism.fromMechanismName(saslMechanism), SCRAM_ITERATIONS);
         try (var admin = Admin.create(connectionConfig)) {
-            // TODO fail gracefully if KRaft and Metaddata version does not yet support SCRAM
+            // We have no reliable to tell if the cluster actually supports Scram. In the KRaft case, the Kafka Broker
+            // needs to be running at least version 3.5 and using the metadata format IBP_3_5_IV2.
+            // As a client, we have no way to observe the metadata format version in use by the Broker.
+            // The error message from alterUserScramCredentials is sufficiently clear if support is not present.
             admin.alterUserScramCredentials(users.entrySet().stream()
                     .map(e -> new UserScramCredentialUpsertion(e.getKey(), sci, e.getValue()))
                     .map(UserScramCredentialAlteration.class::cast)
