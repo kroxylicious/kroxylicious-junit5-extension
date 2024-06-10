@@ -14,7 +14,6 @@ import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -39,6 +38,7 @@ import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import kafka.server.KafkaConfig;
 import lombok.Builder;
 import lombok.Getter;
@@ -46,6 +46,8 @@ import lombok.Singular;
 import lombok.ToString;
 
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
+
+import static java.util.Locale.*;
 
 /**
  * The Kafka cluster config class.
@@ -65,11 +67,11 @@ public class KafkaClusterConfig {
     public static final String INTERNAL_LISTENER_NAME = "INTERNAL";
     public static final String ANON_LISTENER_NAME = "ANON";
 
-    private static final String SASL_SCRAM_SHA_MECHANISM_PREFIX = "SCRAM-SHA-";
-    private static final String SASL_PLAIN_MECHANISM_NAME = "PLAIN";
-    private static final String SASL_OAUTHBEARER_MECHANISM_NAME = "OAUTHBEARER";
-    private static final String SASL_SCRAM_256_MECHANISM_NAME = "SCRAM-SHA-256";
-    private static final String SASL_SCRAM_512_MECHANISM_NAME = "SCRAM-SHA-512";
+    private static final String SCRAM_SHA_SASL_MECHANISM_PREFIX = "SCRAM-SHA-";
+    private static final String PLAIN_SASL_MECHANISM_NAME = "PLAIN";
+    private static final String OAUTHBEARER_SASL_MECHANISM_NAME = "OAUTHBEARER";
+    private static final String SCRAM_256_SASL_MECHANISM_NAME = "SCRAM-SHA-256";
+    private static final String SCRAM_512_SASL_MECHANISM_NAME = "SCRAM-SHA-512";
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -105,6 +107,7 @@ public class KafkaClusterConfig {
      * name of login module that will be used to for client and broker. if null, the login module will be
      * derived from the saslMechanism.
      */
+    @Nullable
     private String loginModule;
 
     private final String securityProtocol;
@@ -187,7 +190,7 @@ public class KafkaClusterConfig {
                 }
             }
             if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
-                builder.saslMechanism(SASL_PLAIN_MECHANISM_NAME);
+                builder.saslMechanism(PLAIN_SASL_MECHANISM_NAME);
                 sasl = true;
                 Map<String, String> users = new HashMap<>();
                 for (var user : saslPlainAuthList.value()) {
@@ -196,7 +199,7 @@ public class KafkaClusterConfig {
                 builder.users(users);
             }
             else if (annotation instanceof SaslPlainAuth saslPlainAuth) {
-                builder.saslMechanism(SASL_PLAIN_MECHANISM_NAME);
+                builder.saslMechanism(PLAIN_SASL_MECHANISM_NAME);
                 sasl = true;
                 builder.users(Map.of(saslPlainAuth.user(), saslPlainAuth.password()));
             }
@@ -357,7 +360,7 @@ public class KafkaClusterConfig {
                         "US");
                 if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
                     if (securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())) {
-                        server.put("listener.name.EXTERNAL." + BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                        server.put("listener.name.%s.%s".formatted(EXTERNAL_LISTENER_NAME.toLowerCase(ROOT), BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG), "required");
                     }
                     else {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
@@ -384,11 +387,7 @@ public class KafkaClusterConfig {
         if (saslMechanism != null) {
             putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
 
-            var lm = loginModule;
-            if (lm == null) {
-                lm = deriveLoginModuleFromSasl(saslMechanism);
-            }
-
+            var lm = Optional.ofNullable(loginModule).orElse(deriveLoginModuleFromSasl(saslMechanism));
             var serverOptions = Optional.ofNullable(jaasServerOptions).orElse(Map.of()).entrySet().stream();
             Stream<Map.Entry<String, String>> userOptions = Stream.empty();
             // Note: Scram users are added to the server at after startup.
@@ -403,21 +402,21 @@ public class KafkaClusterConfig {
                     .collect(Collectors.joining(" "));
 
             var moduleConfig = String.format("%s required %s;", lm, moduleOptions);
-            var configKey = String.format("listener.name.%s.%s.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase(), saslMechanism.toLowerCase(Locale.ROOT));
+            var configKey = String.format("listener.name.%s.%s.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase(ROOT), saslMechanism.toLowerCase(ROOT));
 
             putConfig(server, configKey, moduleConfig);
         }
     }
 
     private String deriveLoginModuleFromSasl(String saslMechanism) {
-        switch (saslMechanism.toUpperCase(Locale.ROOT)) {
-            case SASL_PLAIN_MECHANISM_NAME -> {
+        switch (saslMechanism.toUpperCase(ROOT)) {
+            case PLAIN_SASL_MECHANISM_NAME -> {
                 return PlainLoginModule.class.getName();
             }
-            case SASL_SCRAM_256_MECHANISM_NAME, SASL_SCRAM_512_MECHANISM_NAME -> {
+            case SCRAM_256_SASL_MECHANISM_NAME, SCRAM_512_SASL_MECHANISM_NAME -> {
                 return ScramLoginModule.class.getName();
             }
-            case SASL_OAUTHBEARER_MECHANISM_NAME -> {
+            case OAUTHBEARER_SASL_MECHANISM_NAME -> {
                 return OAuthBearerLoginModule.class.getName();
             }
             default -> throw new IllegalArgumentException("Cannot derive login module from saslMechanism %s".formatted(saslMechanism));
@@ -598,11 +597,7 @@ public class KafkaClusterConfig {
     private void buildSaslConnectConfig(Map<String, Object> kafkaConfig, String user, String password, String securityProtocol, String saslMechanism) {
         kafkaConfig.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
 
-        var lm = loginModule;
-        if (lm == null) {
-            lm = deriveLoginModuleFromSasl(saslMechanism);
-        }
-
+        var lm = Optional.ofNullable(loginModule).orElse(deriveLoginModuleFromSasl(saslMechanism));
         if (securityProtocol == null) {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name());
         }
@@ -626,11 +621,11 @@ public class KafkaClusterConfig {
     }
 
     private boolean isSaslPlain() {
-        return this.saslMechanism != null && this.saslMechanism.toUpperCase(Locale.ROOT).equals(SASL_PLAIN_MECHANISM_NAME);
+        return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).equals(PLAIN_SASL_MECHANISM_NAME);
     }
 
     public boolean isSaslScram() {
-        return this.saslMechanism != null && this.saslMechanism.toUpperCase(Locale.ROOT).startsWith(SASL_SCRAM_SHA_MECHANISM_PREFIX);
+        return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).startsWith(SCRAM_SHA_SASL_MECHANISM_PREFIX);
     }
 
     /**
