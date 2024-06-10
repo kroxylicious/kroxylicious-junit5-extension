@@ -15,7 +15,11 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 * For SCRAM support in KRaft mode,  the Kafka Broker must be 3.5 or above and it must use storage format IBP_3_5_IV2
   or higher.  If using CONTAINER mode, be aware that support for this combination was introduced in
-  [kafka-native 0.9.0](https://github.com/ozangunalp/kafka-native/releases/tag/v0.9.0)
+  [kafka-native 0.9.0](https://github.com/ozangunalp/kafka-native/releases/tag/v0.9.0).
+* In KRaft mode, the metadata storage format used by the test clusters defaults to `MetadataVersion.LATEST_PRODUCTION`
+  rather than `MINIMUM_BOOTSTRAP_VERSION` as was the case in previous releases.  To get back the old behaviour, override
+  the `inter.broker.protocol.version` broker configuration option and set the desired version. This config option
+  also controls the metadata storage format when the storage is formatted for the first time.
 
 ## 0.8.1
 

@@ -24,11 +24,7 @@ import java.util.stream.Collectors;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.admin.ScramCredentialInfo;
-import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.clients.admin.TopicDescription;
-import org.apache.kafka.clients.admin.UserScramCredentialAlteration;
-import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.errors.InvalidReplicationFactorException;
@@ -50,7 +46,6 @@ import static org.slf4j.LoggerFactory.getLogger;
 public class Utils {
     private static final Logger log = getLogger(Utils.class);
     private static final String CONSISTENCY_TEST = "__org_kroxylicious_testing_consistencyTest";
-    private static final int SCRAM_ITERATIONS = 4096;
 
     private Utils() {
     }
@@ -165,25 +160,6 @@ public class Utils {
                         }
                         return isQuorate;
                     });
-        }
-    }
-
-    public static void createUsersOnClusterIfNecessary(Map<String, Object> connectionConfig, KafkaClusterConfig clusterConfig) {
-        var users = clusterConfig.getUsers();
-        var saslMechanism = clusterConfig.getSaslMechanism();
-        if (users.isEmpty() || !clusterConfig.isSaslScram()) {
-            return;
-        }
-        var sci = new ScramCredentialInfo(ScramMechanism.fromMechanismName(saslMechanism), SCRAM_ITERATIONS);
-        try (var admin = Admin.create(connectionConfig)) {
-            // We have no reliable to tell if the cluster actually supports Scram. In the KRaft case, the Kafka Broker
-            // needs to be running at least version 3.5 and using the metadata format IBP_3_5_IV2.
-            // As a client, we have no way to observe the metadata format version in use by the Broker.
-            // The error message from alterUserScramCredentials is sufficiently clear if support is not present.
-            admin.alterUserScramCredentials(users.entrySet().stream()
-                    .map(e -> new UserScramCredentialUpsertion(e.getKey(), sci, e.getValue()))
-                    .map(UserScramCredentialAlteration.class::cast)
-                    .toList()).all().toCompletionStage().toCompletableFuture().join();
         }
     }
 

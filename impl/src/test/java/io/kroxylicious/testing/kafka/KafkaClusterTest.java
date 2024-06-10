@@ -19,15 +19,19 @@ import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.server.common.MetadataVersion;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +41,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -50,7 +56,6 @@ import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -359,8 +364,6 @@ class KafkaClusterTest {
                 .jaasClientOption("unsecuredLoginStringClaim_sub", "principal")
                 .jaasServerOption("unsecuredLoginStringClaim_sub", "principal")
                 .build())) {
-            // https://github.com/ozangunalp/kafka-native/issues/181
-            assumeThat(true).isTrue();
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
@@ -449,6 +452,36 @@ class KafkaClusterTest {
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @Test
+    void kraftClusterWithMinBootstrapInterBrokerProtocol() throws Exception {
+        var minVersion = MetadataVersion.MINIMUM_BOOTSTRAP_VERSION.version();
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(true)
+                .brokerConfig(KafkaConfig.InterBrokerProtocolVersionProp(), minVersion)
+                .build())) {
+            cluster.start();
+
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                var nodeId = "0";
+                var cr = new ConfigResource(ConfigResource.Type.BROKER, nodeId);
+                var configs = admin.describeConfigs(List.of(cr)).all().get(5, TimeUnit.SECONDS);
+
+                assertThat(configs).containsKey(cr);
+
+                var bcr = configs.get(cr);
+                assertThat(bcr).isNotNull();
+
+                var ibp = bcr.get(KafkaConfig.InterBrokerProtocolVersionProp());
+                assertThat(ibp)
+                        .isNotNull()
+                        .extracting(ConfigEntry::value)
+                        .asInstanceOf(InstanceOfAssertFactories.STRING)
+                        .startsWith(minVersion);
+            }
         }
     }
 

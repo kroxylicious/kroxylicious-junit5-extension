@@ -43,6 +43,7 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -225,6 +226,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
 
+        if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
+            kafkaContainer.withEnv("SERVER_SCRAM_CREDENTIALS", buildScramUsersEnvVar());
+        }
+
         if (holder.isBroker()) {
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
             kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
@@ -335,13 +340,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             }
             Startables.deepStart(nodes.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-            var anonConnectConfigForCluster = clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)));
             awaitExpectedBrokerCountInClusterViaTopic(
-                    anonConnectConfigForCluster,
+                    clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
-
-            Utils.createUsersOnClusterIfNecessary(anonConnectConfigForCluster, clusterConfig);
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
@@ -829,4 +831,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public @NonNull Admin createAdmin() {
         return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
     }
+
+    @NotNull
+    private String buildScramUsersEnvVar() {
+        return this.clusterConfig.getUsers().entrySet().stream()
+                .map(e -> "%s=[name=%s,password=%s]".formatted(this.clusterConfig.getSaslMechanism(), e.getKey(), e.getValue()))
+                .collect(Collectors.joining(";"));
+    }
+
 }
