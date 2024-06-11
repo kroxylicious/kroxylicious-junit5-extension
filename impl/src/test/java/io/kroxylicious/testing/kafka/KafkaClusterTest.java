@@ -70,9 +70,17 @@ class KafkaClusterTest {
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
     private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
 
-    @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaCluster(boolean kraft) throws Exception {
+    @Test
+    void zookeeperKafkaCluster() throws Exception {
+        kafkaCluster(false);
+    }
+
+    @Test
+    void kraftKafkaCluster() throws Exception {
+        kafkaCluster(true);
+    }
+
+    private void kafkaCluster(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(kraft)

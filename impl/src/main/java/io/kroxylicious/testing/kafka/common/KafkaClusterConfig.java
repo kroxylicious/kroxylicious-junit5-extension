@@ -605,12 +605,8 @@ public class KafkaClusterConfig {
         var jaasOptions = new HashMap<>(jaasClientOptions == null ? Map.of() : jaasClientOptions);
 
         if (isSaslPlain() || isSaslScram()) {
-            if (user != null && !jaasOptions.containsKey("username")) {
-                jaasOptions.put("username", user);
-            }
-            if (password != null && !jaasOptions.containsKey("password")) {
-                jaasOptions.put("password", password);
-            }
+            applyCredential(jaasOptions, "username", user);
+            applyCredential(jaasOptions, "password", password);
         }
 
         var moduleOptions = jaasOptions.entrySet().stream()
@@ -618,6 +614,13 @@ public class KafkaClusterConfig {
                 .collect(Collectors.joining(" "));
 
         kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG, String.format("%s required %s;", lm, moduleOptions));
+    }
+
+    private void applyCredential(HashMap<String, String> jaasOptions, String credentialKey, String credentialValue) {
+        jaasOptions.computeIfAbsent(credentialKey, k -> credentialValue);
+        if (!jaasOptions.containsKey(credentialKey)) {
+            LOGGER.log(System.Logger.Level.WARNING, "No {} value specified for SASL authentication", credentialKey);
+        }
     }
 
     private boolean isSaslPlain() {
