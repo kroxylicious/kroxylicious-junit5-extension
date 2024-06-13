@@ -33,6 +33,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.ScramCredentialInfo;
+import org.apache.kafka.clients.admin.ScramMechanism;
+import org.apache.kafka.clients.admin.UserScramCredentialAlteration;
+import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.server.common.MetadataVersion;
@@ -56,8 +60,6 @@ import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.internal.AdminSource;
 
-import static org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION;
-
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
@@ -65,6 +67,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final PrintStream LOGGING_PRINT_STREAM = LoggingPrintStream.loggingPrintStream(LOGGER, System.Logger.Level.DEBUG);
     private static final int STARTUP_TIMEOUT = 30;
+    private static final int SCRAM_ITERATIONS = 4096;
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;
@@ -126,6 +129,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     private static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, Seq<String> directories) {
         try {
+            // Default the metadata version from the IBP version specified in config in the same way as kafka.tools.StorageTool.
+            var metadataVersion = MetadataVersion.fromVersionString(
+                    config.interBrokerProtocolVersionString() == null ? MetadataVersion.LATEST_PRODUCTION.version() : config.interBrokerProtocolVersionString());
             // in kafka 3.7.0 the MetadataProperties class moved package, we use reflection to enable the extension to work with
             // the old and new class.
             Method buildMetadataProperties = StorageTool.class.getDeclaredMethod("buildMetadataProperties", String.class, KafkaConfig.class);
@@ -134,7 +140,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                     boolean.class);
             // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
             // required to support start/stop.
-            formatCommand.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, MINIMUM_BOOTSTRAP_VERSION, true);
+            formatCommand.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, metadataVersion, true);
         }
         catch (Exception e) {
             throw new RuntimeException("failed to prepare log dirs for KRaft", e);
@@ -207,10 +213,14 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
         });
+        var anonConnectConfigForCluster = clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)));
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
+
+        createUsersOnClusterIfNecessary(anonConnectConfigForCluster, clusterConfig);
+
     }
 
     private void tryToStartServerWithRetry(KafkaClusterConfig.ConfigHolder configHolder, Server server) {
@@ -476,5 +486,22 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     @Override
     public @NonNull Admin createAdmin() {
         return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
+    }
+
+    private static void createUsersOnClusterIfNecessary(Map<String, Object> connectionConfig, KafkaClusterConfig clusterConfig) {
+        var users = clusterConfig.getUsers();
+        var saslMechanism = clusterConfig.getSaslMechanism();
+        if (users.isEmpty() || !clusterConfig.isSaslScram()) {
+            return;
+        }
+        var sci = new ScramCredentialInfo(ScramMechanism.fromMechanismName(saslMechanism), SCRAM_ITERATIONS);
+        try (var admin = Admin.create(connectionConfig)) {
+            // In the KRaft case, the broker needs to be using the metadata format IBP_3_5_IV2. If this is not
+            // the case, alterUserScramCredentials will fail. The error message from Kafka is obvious.
+            admin.alterUserScramCredentials(users.entrySet().stream()
+                    .map(e -> new UserScramCredentialUpsertion(e.getKey(), sci, e.getValue()))
+                    .map(UserScramCredentialAlteration.class::cast)
+                    .toList()).all().toCompletionStage().toCompletableFuture().join();
+        }
     }
 }

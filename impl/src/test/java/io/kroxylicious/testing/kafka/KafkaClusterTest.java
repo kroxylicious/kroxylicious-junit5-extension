@@ -19,14 +19,19 @@ import java.util.function.IntPredicate;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Node;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.server.common.MetadataVersion;
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,6 +41,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -48,6 +55,7 @@ import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -58,16 +66,24 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
 class KafkaClusterTest {
 
-    private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
     private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
 
     @Test
-    void kafkaClusterKraftMode() throws Exception {
+    void zookeeperKafkaCluster() throws Exception {
+        kafkaCluster(false);
+    }
+
+    @Test
+    void kraftKafkaCluster() throws Exception {
+        kafkaCluster(true);
+    }
+
+    private void kafkaCluster(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -80,17 +96,6 @@ class KafkaClusterTest {
                 .testInfo(testInfo)
                 .kraftMode(true)
                 .kraftControllers(3)
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
-    }
-
-    @Test
-    void kafkaClusterZookeeperMode() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .kraftMode(false)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -144,7 +149,7 @@ class KafkaClusterTest {
             var nodes = describeClusterNodes(cluster);
             var brokersExpectedDown = nodes.stream().filter(n -> brokerPredicate.test(n.id())).toList();
 
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
 
             cluster.stopNodes(brokerPredicate, terminationStyle);
 
@@ -155,7 +160,7 @@ class KafkaClusterTest {
             cluster.startNodes(brokerPredicate);
 
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
 
             // ensures that all brokers of the cluster are back in service.
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -172,10 +177,10 @@ class KafkaClusterTest {
             cluster.start();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
 
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
             // starting idempotent
             cluster.startNodes((u) -> true);
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
 
             cluster.stopNodes((u) -> true, null);
             assertThat(cluster.getStoppedBrokers()).hasSize(1);
@@ -186,11 +191,11 @@ class KafkaClusterTest {
 
             cluster.startNodes((u) -> true);
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
 
             // starting idempotent
             cluster.startNodes((u) -> true);
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
         }
     }
 
@@ -204,7 +209,7 @@ class KafkaClusterTest {
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
 
             cluster.stopNodes((n) -> n == 1, null);
             assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
@@ -217,7 +222,7 @@ class KafkaClusterTest {
             assertThat(cluster.getStoppedBrokers()).containsExactlyInAnyOrder(1);
 
             cluster.startNodes((u) -> true);
-            assertThat(cluster.getStoppedBrokers()).hasSize(0);
+            assertThat(cluster.getStoppedBrokers()).isEmpty();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
         }
     }
@@ -253,26 +258,14 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaTwoNodeClusterKraftMode() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaTwoNodeCluster(boolean kraft) throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(true)
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(brokersNum, cluster);
-        }
-    }
-
-    @Test
-    void kafkaTwoNodeClusterZookeeperMode() throws Exception {
-        int brokersNum = 2;
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokersNum(brokersNum)
-                .kraftMode(false)
+                .kraftMode(kraft)
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -336,13 +329,23 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeWithAuth() throws Exception {
+    static Stream<Arguments> kafkaClusterWithUsernamePasswordBasedSaslAuth() {
+        return Stream.of(
+                Arguments.of("PLAIN", true),
+                Arguments.of("PLAIN", false),
+                Arguments.of("SCRAM-SHA-256", true),
+                Arguments.of("SCRAM-SHA-512", true),
+                Arguments.of("SCRAM-SHA-512", false));
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void kafkaClusterWithUsernamePasswordBasedSaslAuth(String mechanism, boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .testInfo(testInfo)
                 .securityProtocol("SASL_PLAINTEXT")
-                .saslMechanism("PLAIN")
+                .saslMechanism(mechanism)
                 .user("guest", "pass")
                 .build())) {
             cluster.start();
@@ -350,28 +353,61 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterZookeeperModeWithAuth() throws Exception {
+    /**
+     * Tests the ability of the client to authenticate using OAuth Bearer.
+     * <br/>
+     * That this test uses Kafka's unsecured OAuth Bearer implementation (which
+     * uses unsigned JWT tokens).  Note that Kafka enables this mechanism by default.
+     * @param kraft kraft mode
+     * @throws Exception exception
+     */
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterWithOAuthBearerAuth(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(kraft)
                 .testInfo(testInfo)
-                .kraftMode(false)
+                .saslMechanism("OAUTHBEARER")
                 .securityProtocol("SASL_PLAINTEXT")
-                .saslMechanism("PLAIN")
-                .user("guest", "pass")
+                .jaasClientOption("unsecuredLoginStringClaim_sub", "principal")
+                .jaasServerOption("unsecuredLoginStringClaim_sub", "principal")
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterWithOAuthBearerAuthFail(boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(kraft)
+                .testInfo(testInfo)
+                .saslMechanism("OAUTHBEARER")
+                .securityProtocol("SASL_PLAINTEXT")
+                .jaasClientOption("unsecuredLoginStringClaim_sub", "principal")
+                .jaasServerOption("unsecuredLoginStringClaim_sub", "principal")
+                .jaasServerOption("unsecuredValidatorRequiredScope", "foo")
+                .build())) {
+            cluster.start();
+
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                assertThatThrownBy(() -> performClusterOperation(admin))
+                        .hasCauseInstanceOf(SaslAuthenticationException.class)
+                        .hasMessageContaining("{\"status\":\"insufficient_scope\", \"scope\":\"[foo]\"}");
+            }
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterSASL_SSL_ClientUsesSSLClientAuth(boolean kraft) throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
@@ -381,14 +417,15 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSSL_ClientUsesSSLClientAuth() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterSSL_ClientUsesSSLClientAuth(boolean kraft) throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -396,31 +433,13 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterZookeeperModeSASL_SSL_ClientUsesSSLClientAuth() throws Exception {
-        createClientCertificate();
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterSSL_ClientNoAuth(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(false)
-                .securityProtocol("SASL_SSL")
-                .saslMechanism("PLAIN")
-                .user("guest", "pass")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
-    }
-
-    @Test
-    void kafkaClusterZookeeperModeSSL_ClientUsesSSLClientAuth() throws Exception {
-        createClientCertificate();
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(false)
+                .kraftMode(kraft)
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -428,38 +447,13 @@ class KafkaClusterTest {
         }
     }
 
-    @Test
-    void kafkaClusterKraftModeSSL_ClientNoAuth() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = { true, false })
+    void kafkaClusterSASL_SSL_ClientNoAuth(boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(true)
-                .securityProtocol("SSL")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
-    }
-
-    @Test
-    void kafkaClusterZookeeperModeSSL_ClientNoAuth() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(false)
-                .securityProtocol("SSL")
-                .build())) {
-            cluster.start();
-            verifyRecordRoundTrip(1, cluster);
-        }
-    }
-
-    @Test
-    void kafkaClusterKraftModeSASL_SSL_ClientNoAuth() throws Exception {
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(true)
+                .kraftMode(kraft)
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "guest")
@@ -470,17 +464,32 @@ class KafkaClusterTest {
     }
 
     @Test
-    void kafkaClusterZookeeperModeSASL_SSL_ClientNoAuth() throws Exception {
+    void kraftClusterWithMinBootstrapInterBrokerProtocol() throws Exception {
+        var minVersion = MetadataVersion.MINIMUM_BOOTSTRAP_VERSION.version();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(false)
-                .securityProtocol("SASL_SSL")
-                .saslMechanism("PLAIN")
-                .user("guest", "guest")
+                .kraftMode(true)
+                .brokerConfig(KafkaConfig.InterBrokerProtocolVersionProp(), minVersion)
                 .build())) {
             cluster.start();
-            verifyRecordRoundTrip(1, cluster);
+
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                var nodeId = "0";
+                var cr = new ConfigResource(ConfigResource.Type.BROKER, nodeId);
+                var configs = admin.describeConfigs(List.of(cr)).all().get(5, TimeUnit.SECONDS);
+
+                assertThat(configs).containsKey(cr);
+
+                var bcr = configs.get(cr);
+                assertThat(bcr).isNotNull();
+
+                var ibp = bcr.get(KafkaConfig.InterBrokerProtocolVersionProp());
+                assertThat(ibp)
+                        .isNotNull()
+                        .extracting(ConfigEntry::value)
+                        .asInstanceOf(InstanceOfAssertFactories.STRING)
+                        .startsWith(minVersion);
+            }
         }
     }
 
@@ -559,6 +568,15 @@ class KafkaClusterTest {
         }
     }
 
+    /**
+     * Pings the cluster in order to assert connectivity. We don't care about the result.
+     * @param admin admin
+     */
+    @SuppressWarnings("java:S1481") // making clear the intent that the result of the operation is unneeded.
+    private void performClusterOperation(Admin admin) {
+        var unused = admin.describeCluster().nodes().toCompletionStage().toCompletableFuture().join();
+    }
+
     @BeforeEach
     void before(TestInfo testInfo) throws IOException {
         this.testInfo = testInfo;
@@ -569,4 +587,5 @@ class KafkaClusterTest {
         this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
         this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@kroxylicious.io", "client", "Dev", "Kroxylicious.ip", null, null, "US");
     }
+
 }
