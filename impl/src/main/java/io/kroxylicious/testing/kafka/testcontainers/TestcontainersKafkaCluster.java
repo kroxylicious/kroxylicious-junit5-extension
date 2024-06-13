@@ -43,7 +43,6 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -832,7 +831,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
     }
 
-    @NotNull
+    @NonNull
     private String buildScramUsersEnvVar() {
         return this.clusterConfig.getUsers().entrySet().stream()
                 .map(e -> "%s=[name=%s,password=%s]".formatted(this.clusterConfig.getSaslMechanism(), e.getKey(), e.getValue()))

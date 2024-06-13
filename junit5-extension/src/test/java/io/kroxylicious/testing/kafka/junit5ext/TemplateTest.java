@@ -19,7 +19,6 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.TestInstance;
@@ -32,6 +31,8 @@ import org.junit.jupiter.api.extension.ParameterResolutionException;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.junit.jupiter.api.extension.support.TypeBasedParameterResolver;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
@@ -238,7 +239,7 @@ class TemplateTest {
                     getTestTemplateInvocationContext("two"));
         }
 
-        @NotNull
+        @NonNull
         private TestTemplateInvocationContext getTestTemplateInvocationContext(String value) {
             return new TestTemplateInvocationContext() {
                 @Override
