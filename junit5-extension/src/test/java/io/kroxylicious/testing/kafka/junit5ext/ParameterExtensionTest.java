@@ -12,11 +12,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.ConfigEntry;
-import org.apache.kafka.clients.admin.ConsumerGroupListing;
-import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.Producer;
@@ -35,13 +31,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
-import io.kroxylicious.testing.kafka.common.BrokerCluster;
-import io.kroxylicious.testing.kafka.common.BrokerConfig;
-import io.kroxylicious.testing.kafka.common.ClientConfig;
-import io.kroxylicious.testing.kafka.common.KRaftCluster;
-import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
-import io.kroxylicious.testing.kafka.common.Tls;
-import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
+import io.kroxylicious.testing.kafka.common.*;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_COMPACT;
@@ -56,7 +46,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(KafkaClusterExtension.class)
@@ -226,40 +215,62 @@ public class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    public void saslPlainAuthenticatingClusterParameter2Users(
-                                                              @BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
-        assertEquals(1, dc.nodes().get().size());
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
-
-        dc = describeCluster(cluster.getKafkaClientConfiguration("bob", "bar"));
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
-
-        var ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("bob", "baz")),
-                "Expect bad password to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
-
-        ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("eve", "quux")),
-                "Expect unknown user to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    public void saslPlainAuth(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    public void saslPlainAuthenticatingClusterParameter1User(
-                                                             @BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
-        assertEquals(1, dc.nodes().get().size());
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
+    public void saslPlainAuthExplicitMechanism(@BrokerCluster @SaslMechanism("PLAIN") @User(user = "alice", password = "foo") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+    }
 
-        var ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("alice", "baz")),
-                "Expect bad password to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    @Test
+    public void saslScramAuth(@BrokerCluster @SaslMechanism("SCRAM-SHA-256") @User(user = "alice", password = "foo") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+    }
 
-        ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("bob", "bar")),
-                "Expect unknown user to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    @Test
+    public void saslAuthWithManyUsers(@BrokerCluster @User(user = "alice", password = "foo") @User(user = "bob", password = "bar") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+        doAuthExpectSucceeds(cluster, "bob", "bar");
+    }
+
+    @Test
+    @SuppressWarnings("deprecated")
+    @Deprecated
+    public void saslPlainAuthDeprecatedAnnotation(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+    }
+
+    @Test
+    @SuppressWarnings({ "deprecated", "java:S4144" })
+    public void saslPlainAuthDeprecatedAnnotationManyUsers(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+        doAuthExpectSucceeds(cluster, "bob", "bar");
+    }
+
+    private void doAuthExpectSucceeds(KafkaCluster cluster, String username, String password) {
+        var config = cluster.getKafkaClientConfiguration(username, password);
+        try (var admin = Admin.create(config)) {
+            var dcr = admin.describeCluster();
+            assertThat(dcr.clusterId())
+                    .succeedsWithin(Duration.ofSeconds(10))
+                    .isEqualTo(cluster.getClusterId());
+        }
+    }
+
+    @Test
+    public void saslPlainAuthFails(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+        var config = cluster.getKafkaClientConfiguration("alicex", "bad");
+        try (var admin = Admin.create(config)) {
+            var dcr = admin.describeCluster();
+            assertThat(dcr.clusterId())
+                    .failsWithin(Duration.ofSeconds(10))
+                    .withThrowableThat()
+                    .havingRootCause()
+                    .isInstanceOf(SaslAuthenticationException.class)
+                    .withMessage("Authentication failed: Invalid username or password");
+        }
     }
 
     @Test

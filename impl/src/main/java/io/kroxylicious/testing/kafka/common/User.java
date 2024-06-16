@@ -5,28 +5,23 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Repeatable;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 
 /**
- * Annotation constraining a {@link KafkaClusterProvisioningStrategy} to use
- * provide a cluster that supports SASL-PLAIN configured with the
- * given users.
- *
- * @deprecated use @{@link User} instead.
+ * Annotation constraining a {@link KafkaClusterProvisioningStrategy} to
+ * provide a cluster with SASL enabled listener with the given user.
+ * <br/>
+ * If a @{@link SaslMechanism} constraint is not also provided, SASL PLAIN
+ * is assumed.
  */
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
-@Repeatable(SaslPlainAuth.List.class)
+@Repeatable(User.List.class)
 @KafkaClusterConstraint
-@Deprecated(since = "0.9.0", forRemoval = true)
-public @interface SaslPlainAuth {
+public @interface User {
 
     String user();
 
@@ -38,8 +33,7 @@ public @interface SaslPlainAuth {
     @Target({ ElementType.FIELD, ElementType.PARAMETER })
     @Retention(RetentionPolicy.RUNTIME)
     @KafkaClusterConstraint
-    @Deprecated(since = "0.9.0", forRemoval = true)
     @interface List {
-        SaslPlainAuth[] value();
+        User[] value();
     }
 }

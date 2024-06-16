@@ -84,7 +84,12 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@BrokerCluster(numBrokers=3)` will use a Kafka cluster with the given number of brokers
 * `@KRaftCluster` will ensure a KRaft-based cluster is used. `@KRaftCluster(numControllers=3)` will use a controller quorum with 3 controllers.
 * `@ZooKeeperCluster` will ensure a ZooKeeper-based Kafka cluster (unsurprisingly this is mutually exclusive with `@KRaftCluster`)
-* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication.
+* `@User` will provide a cluster pre-configured with a user with the specified credentials.  Use of
+   this option requires the client to use SASL authentication.  This annotation is compatible with PLAIN and the
+   SCRAM-SHA mechanisms.  If @SaslMechanism is omitted PLAIN is assumed.
+* `@SaslMechanism` will provide cluster with the external listener configured for the given SASL
+   mechanism.  Use of this option requires the client to use SASL authentication.
+* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication (deprecated - use @User).
 * `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 
 When multiple constraints are provided they will _all_ be satisfied.
@@ -101,6 +106,20 @@ For example:
 @ExtendWith(KafkaClusterExtension.class)
 class MyTest {
     @BrokerConfig(name = "compression.type", value = "zstd") KafkaCluster cluster;
+
+    // ...
+}
+```
+
+## Configuring SASL
+
+To config the Broker to use SASL, use the annotations `@SaslMechanism` to specify the SASL
+mechanism. Use `@User` configure a user and password.  The `@User` annotation  may be repeated
+to define multiple users.
+
+```java
+class MyTest {
+@SaslMechanism("PLAIN") @User(user = "alice", password = "foo") KafkaCluster cluster;
 
     // ...
 }
