@@ -5,6 +5,7 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -18,7 +19,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
 public abstract class AbstractExtensionTest {
     protected DescribeClusterResult describeCluster(Map<String, Object> adminConfig) throws InterruptedException, ExecutionException {
@@ -39,7 +41,9 @@ public abstract class AbstractExtensionTest {
      */
     static DescribeClusterResult assertSameCluster(KafkaCluster cluster, Admin admin) throws ExecutionException, InterruptedException {
         DescribeClusterResult dcr = describeCluster(admin);
-        assertEquals(cluster.getClusterId(), dcr.clusterId().get());
+        assertThat(dcr.clusterId())
+                .succeedsWithin(Duration.ofSeconds(10), STRING)
+                .isEqualTo(cluster.getClusterId());
         return dcr;
     }
 
