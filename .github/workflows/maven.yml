@@ -37,13 +37,49 @@ jobs:
         with:
           java-version: 17
           distribution: 'zulu'
-          cache: 'maven'
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: 'Cache Maven packages'
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
 
       - name: 'Build junit extension with maven tests'
+        if: github.ref_name != 'main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn -B clean verify -Pci
 
+      - name: 'Build junit extension  maven project on main'
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn -B clean verify -Pci org.sonarsource.scanner.maven:sonar-maven-plugin:3.11.0.3922:sonar -Dsonar.projectKey=kroxylicious_kroxylicious-junit5-extension
+
       - name: 'Run tests in containers'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KafkaClusterTest
+
+      - name: Save PR number to file
+        if: github.event_name == 'pull_request' && ${{ matrix.os }} == 'ubuntu-latest'
+        run: echo ${{ github.event.number }} > PR_NUMBER.txt
+
+      - name: Archive PR number
+        if: github.event_name == 'pull_request' && ${{ matrix.os }} == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: PR_NUMBER
+          path: PR_NUMBER.txt
 
       - name: Archive container logs
         uses: actions/upload-artifact@v4
