@@ -8,11 +8,9 @@ package io.kroxylicious.testing.kafka.invm;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
@@ -21,6 +19,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -33,13 +32,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.ScramCredentialInfo;
 import org.apache.kafka.clients.admin.ScramMechanism;
-import org.apache.kafka.clients.admin.UserScramCredentialAlteration;
-import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
+import org.apache.kafka.common.metadata.UserScramCredentialRecord;
+import org.apache.kafka.common.security.scram.internals.ScramCredentialUtils;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
-import org.apache.kafka.server.common.MetadataVersion;
+import org.apache.zookeeper.client.ZKClientConfig;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
@@ -49,8 +47,8 @@ import kafka.server.KafkaRaftServer;
 import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.tools.StorageTool;
+import kafka.zk.AdminZkClient;
 import scala.Option;
-import scala.collection.immutable.Seq;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -60,14 +58,15 @@ import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.internal.AdminSource;
 
+import static kafka.zk.KafkaZkClient.createZkClient;
+
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
 public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AdminSource {
-    private static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
-    private static final PrintStream LOGGING_PRINT_STREAM = LoggingPrintStream.loggingPrintStream(LOGGER, System.Logger.Level.DEBUG);
+    static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final int STARTUP_TIMEOUT = 30;
-    private static final int SCRAM_ITERATIONS = 4096;
+    static final String INVM_KAFKA = "invm-kafka";
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;
@@ -111,39 +110,19 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @NonNull
-    private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c) {
-        KafkaConfig config = buildBrokerConfig(c);
-        Option<String> threadNamePrefix = Option.apply(null);
+    private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c, List<UserScramCredentialRecord> scramUsers) {
+        var config = buildBrokerConfig(c);
+        var threadNamePrefix = Option.<String> apply(null);
 
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
             var clusterId = c.getKafkaKraftClusterId();
-            var directories = StorageTool.configToLogDirectories(config);
-            prepareLogDirsForKraft(clusterId, config, directories);
+            KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramUsers);
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
+            createScramUsersInZookeeper(scramUsers, config);
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
-        }
-    }
-
-    private static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, Seq<String> directories) {
-        try {
-            // Default the metadata version from the IBP version specified in config in the same way as kafka.tools.StorageTool.
-            var metadataVersion = MetadataVersion.fromVersionString(
-                    config.interBrokerProtocolVersionString() == null ? MetadataVersion.LATEST_PRODUCTION.version() : config.interBrokerProtocolVersionString());
-            // in kafka 3.7.0 the MetadataProperties class moved package, we use reflection to enable the extension to work with
-            // the old and new class.
-            Method buildMetadataProperties = StorageTool.class.getDeclaredMethod("buildMetadataProperties", String.class, KafkaConfig.class);
-            Object metaProperties = buildMetadataProperties.invoke(null, clusterId, config);
-            Method formatCommand = StorageTool.class.getDeclaredMethod("formatCommand", PrintStream.class, Seq.class, metaProperties.getClass(), MetadataVersion.class,
-                    boolean.class);
-            // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
-            // required to support start/stop.
-            formatCommand.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, metadataVersion, true);
-        }
-        catch (Exception e) {
-            throw new RuntimeException("failed to prepare log dirs for KRaft", e);
         }
     }
 
@@ -207,20 +186,17 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.isKraftMode() ? clusterConfig.getKraftControllers() : 1);
         }
 
+        var scramUsers = getUserScramCredentialRecords();
         buildAndStartZookeeper();
         clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
-            final Server server = this.buildKafkaServer(configHolder);
+            var server = buildKafkaServer(configHolder, scramUsers);
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
         });
-        var anonConnectConfigForCluster = clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId)));
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
-
-        createUsersOnClusterIfNecessary(anonConnectConfigForCluster, clusterConfig);
-
     }
 
     private void tryToStartServerWithRetry(KafkaClusterConfig.ConfigHolder configHolder, Server server) {
@@ -319,7 +295,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
 
         var configHolder = clusterConfig.generateConfigForSpecificNode(this, newNodeId);
-        final Server server = buildKafkaServer(configHolder);
+        final Server server = buildKafkaServer(configHolder, List.of());
         tryToStartServerWithRetry(configHolder, server);
         servers.put(newNodeId, server);
 
@@ -383,7 +359,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
         kafkaServersToStart.forEach((key, value) -> {
             var configHolder = clusterConfig.generateConfigForSpecificNode(this, key);
-            var replacement = buildKafkaServer(configHolder);
+            var replacement = buildKafkaServer(configHolder, List.of());
             tryToStartServerWithRetry(configHolder, replacement);
             servers.put(key, replacement);
             stoppedServers.remove(key);
@@ -488,20 +464,41 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
     }
 
-    private static void createUsersOnClusterIfNecessary(Map<String, Object> connectionConfig, KafkaClusterConfig clusterConfig) {
-        var users = clusterConfig.getUsers();
-        var saslMechanism = clusterConfig.getSaslMechanism();
-        if (users.isEmpty() || !clusterConfig.isSaslScram()) {
-            return;
+    @NonNull
+    private List<UserScramCredentialRecord> getUserScramCredentialRecords() {
+        if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
+            return clusterConfig.getUsers()
+                    .entrySet()
+                    .stream()
+                    .map(e -> StorageTool.getUserScramCredentialRecord(clusterConfig.getSaslMechanism(), toKafkaScramCredentialsFormat(e.getKey(), e.getValue())))
+                    .toList();
         }
-        var sci = new ScramCredentialInfo(ScramMechanism.fromMechanismName(saslMechanism), SCRAM_ITERATIONS);
-        try (var admin = Admin.create(connectionConfig)) {
-            // In the KRaft case, the broker needs to be using the metadata format IBP_3_5_IV2. If this is not
-            // the case, alterUserScramCredentials will fail. The error message from Kafka is obvious.
-            admin.alterUserScramCredentials(users.entrySet().stream()
-                    .map(e -> new UserScramCredentialUpsertion(e.getKey(), sci, e.getValue()))
-                    .map(UserScramCredentialAlteration.class::cast)
-                    .toList()).all().toCompletionStage().toCompletableFuture().join();
+        else {
+            return List.of();
         }
     }
+
+    @NonNull
+    private String toKafkaScramCredentialsFormat(String key, String value) {
+        return "[name=%s,password=%s]".formatted(key, value);
+    }
+
+    private void createScramUsersInZookeeper(List<UserScramCredentialRecord> parsedCredentials, KafkaConfig config) {
+        if (!parsedCredentials.isEmpty()) {
+            ZKClientConfig zkClientConfig = KafkaServer.zkClientConfigFromKafkaConfig(config, false);
+            try (var zkClient = createZkClient(INVM_KAFKA, Time.SYSTEM, config, zkClientConfig)) {
+                var adminZkClient = new AdminZkClient(zkClient, Option.empty());
+                var userEntityType = "users";
+
+                parsedCredentials.forEach(uscr -> {
+                    var userConfig = adminZkClient.fetchEntityConfig(userEntityType, uscr.name());
+                    var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(uscr));
+
+                    userConfig.setProperty(ScramMechanism.fromType(uscr.mechanism()).mechanismName(), credentialsString);
+                    adminZkClient.changeConfigs(userEntityType, uscr.name(), userConfig, false);
+                });
+            }
+        }
+    }
+
 }
