@@ -200,7 +200,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void saslPlainAuth(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+    void shouldDefaultToSaslPlain(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
@@ -223,7 +223,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     @SuppressWarnings("deprecated")
     @Deprecated
-    void saslPlainAuthDeprecatedAnnotation(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+    void saslPlainAuthDeprecatedAnnotation(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
