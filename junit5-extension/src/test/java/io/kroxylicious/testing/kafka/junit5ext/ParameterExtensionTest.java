@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
 import org.apache.kafka.clients.admin.ConsumerGroupListing;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -75,8 +76,8 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         var resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
 
         var configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-        assertThat(configs.get("compression.type")).extracting(ConfigEntry::value).isEqualTo("zstd");
-        assertThat(configs.get("delete.topic.enable")).extracting(ConfigEntry::value).isEqualTo("false");
+        assertConfigValue(configs, "compression.type", "zstd");
+        assertConfigValue(configs, "delete.topic.enable", "false");
     }
 
     @Test
@@ -309,9 +310,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
 
         var topicConfig = all.get(resourceKey);
         assertThat(topicConfig).isNotNull();
-        assertThat(topicConfig.get(CLEANUP_POLICY_CONFIG))
-                .extracting(ConfigEntry::value)
-                .isEqualTo(CLEANUP_POLICY_COMPACT);
+        assertConfigValue(topicConfig, CLEANUP_POLICY_CONFIG, CLEANUP_POLICY_COMPACT);
     }
 
     @Test
@@ -395,4 +394,10 @@ class ParameterExtensionTest extends AbstractExtensionTest {
                 .asInstanceOf(collection(Node.class)).hasSize(expectedNodes));
     }
 
+    private void assertConfigValue(Config configs, String configName, String expectedValue) {
+        assertThat(configs.get(configName))
+                .isNotNull()
+                .extracting(ConfigEntry::value)
+                .isEqualTo(expectedValue);
+    }
 }
