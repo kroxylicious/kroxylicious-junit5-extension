@@ -46,7 +46,6 @@ import kafka.server.KafkaConfig;
 import kafka.server.KafkaRaftServer;
 import kafka.server.KafkaServer;
 import kafka.server.Server;
-import kafka.tools.StorageTool;
 import kafka.zk.AdminZkClient;
 import scala.Option;
 
@@ -466,21 +465,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @NonNull
     private List<UserScramCredentialRecord> getUserScramCredentialRecords() {
-        if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
-            return clusterConfig.getUsers()
-                    .entrySet()
-                    .stream()
-                    .map(e -> StorageTool.getUserScramCredentialRecord(clusterConfig.getSaslMechanism(), toKafkaScramCredentialsFormat(e.getKey(), e.getValue())))
-                    .toList();
-        }
-        else {
+        if (!clusterConfig.isSaslScram() || clusterConfig.getUsers() == null || clusterConfig.getUsers().isEmpty()) {
             return List.of();
         }
-    }
-
-    @NonNull
-    private String toKafkaScramCredentialsFormat(String key, String value) {
-        return "[name=%s,password=%s]".formatted(key, value);
+        else {
+            return ScramUtils.getScramCredentialRecords(clusterConfig.getSaslMechanism(), clusterConfig.getUsers());
+        }
     }
 
     private void createScramUsersInZookeeper(List<UserScramCredentialRecord> parsedCredentials, KafkaConfig config) {
