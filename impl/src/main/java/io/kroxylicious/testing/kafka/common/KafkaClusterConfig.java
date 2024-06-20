@@ -141,6 +141,7 @@ public class KafkaClusterConfig {
     @Singular
     private final Map<String, String> brokerConfigs;
 
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
             ClusterId.class,
             BrokerCluster.class,
@@ -173,6 +174,7 @@ public class KafkaClusterConfig {
      * @param testInfo information about the test execution context.
      * @return the kafka cluster config
      */
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated annotations
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations, TestInfo testInfo) {
         var builder = builder();
         builder.testInfo(testInfo);
@@ -253,6 +255,7 @@ public class KafkaClusterConfig {
         return Optional.empty();
     }
 
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
     private static Optional<Map<String, String>> processDeprecatedSaslUserAnnotations(Annotation annotation) {
         if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
             return Optional.of(Arrays.stream(saslPlainAuthList.value())

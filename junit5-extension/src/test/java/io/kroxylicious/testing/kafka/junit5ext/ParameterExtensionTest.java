@@ -222,14 +222,13 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    @SuppressWarnings("deprecated")
-    @Deprecated
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
     void saslPlainAuthDeprecatedAnnotation(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    @SuppressWarnings({ "deprecated", "java:S4144" })
+    @SuppressWarnings({ "java:S5738", "java:S4144" }) // silence warnings about the use of deprecated code and the duplicated method content
     void saslPlainAuthDeprecatedAnnotationManyUsers(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
         doAuthExpectSucceeds(cluster, "bob", "bar");
