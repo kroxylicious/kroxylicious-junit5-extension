@@ -26,6 +26,7 @@ import scala.collection.immutable.Seq;
  */
 final class KraftLogDirUtil {
     private static final PrintStream LOGGING_PRINT_STREAM = LoggingPrintStream.loggingPrintStream(InVMKafkaCluster.LOGGER, System.Logger.Level.DEBUG);
+    private static final boolean IGNORE_FORMATTED = true;
 
     private KraftLogDirUtil() {
         throw new IllegalStateException();
@@ -57,7 +58,7 @@ final class KraftLogDirUtil {
                 boolean.class);
         // note ignoreFormatter=true so tolerate a log directory which is already formatted. this is
         // required to support start/stop.
-        formatMethod.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, bootstrapMetadata, metadataVersion, true);
+        formatMethod.invoke(null, LOGGING_PRINT_STREAM, directories, metaProperties, bootstrapMetadata, metadataVersion, IGNORE_FORMATTED);
     }
 
     private static BootstrapMetadata buildBootstrapMetadata(List<UserScramCredentialRecord> scramCredentialRecords, MetadataVersion metadataVersion) {
