@@ -6,12 +6,14 @@
 package io.kroxylicious.testing.kafka.invm;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 
 import org.apache.kafka.common.metadata.UserScramCredentialRecord;
 import org.apache.kafka.common.security.scram.ScramCredential;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ScramUtilsTest {
     @Test
@@ -28,6 +30,21 @@ class ScramUtilsTest {
         assertThat(sc).extracting(ScramCredential::iterations).isEqualTo(iterations);
         assertThat(sc).extracting(ScramCredential::salt).isEqualTo(salt);
         assertThat(sc).extracting(ScramCredential::serverKey).isEqualTo(server);
+    }
 
+    @Test
+    void generateCredentialsRecordsForSingleUser() {
+        var recs = ScramUtils.getScramCredentialRecords("SCRAM-SHA-256", Map.of("alice", "pass"));
+        assertThat(recs)
+                .singleElement()
+                .extracting(UserScramCredentialRecord::name)
+                .isEqualTo("alice");
+    }
+
+    @Test
+    void noneScramMechanismRejected() {
+        var users = Map.<String, String> of();
+        assertThatThrownBy(() -> ScramUtils.getScramCredentialRecords("PLAIN", users))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }
