@@ -283,7 +283,7 @@ public class KafkaClusterConfig {
             return saslUsers;
         }
         else if (deprecatedSaslUsers.isPresent()) {
-            if (DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED.compareAndExchange(false, true)) {
+            if (!DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED.compareAndExchange(false, true)) {
                 LOGGER.log(System.Logger.Level.WARNING, "Use of deprecated SaslPlainAuth annotation, use SaslUser instead.");
             }
 

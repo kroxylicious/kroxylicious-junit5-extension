@@ -17,6 +17,9 @@ import java.util.stream.Collectors;
  * Functions for creating constraint instances without reflecting on annotated members.
  */
 public class ConstraintUtils {
+
+    private static final String VALUE = "value";
+
     private ConstraintUtils() {
 
     }
@@ -38,7 +41,7 @@ public class ConstraintUtils {
      * @return the version
      */
     public static Version version(String value) {
-        return mkAnnotation(Version.class, Map.of("value", value));
+        return mkAnnotation(Version.class, Map.of(VALUE, value));
     }
 
     /**
@@ -49,7 +52,7 @@ public class ConstraintUtils {
      * @return the broker config
      */
     public static BrokerConfig brokerConfig(String name, String value) {
-        return mkAnnotation(BrokerConfig.class, Map.of("name", name, "value", value));
+        return mkAnnotation(BrokerConfig.class, Map.of("name", name, VALUE, value));
     }
 
     /**
@@ -59,9 +62,9 @@ public class ConstraintUtils {
      * @return the broker config list
      */
     public static BrokerConfig.List brokerConfigs(Map<String, String> configs) {
-        return mkAnnotation(BrokerConfig.List.class, Map.of("value",
+        return mkAnnotation(BrokerConfig.List.class, Map.of(VALUE,
                 configs.entrySet().stream()
-                        .map(entry -> mkAnnotation(BrokerConfig.class, Map.of("name", entry.getKey(), "value", entry.getValue())))
+                        .map(entry -> mkAnnotation(BrokerConfig.class, Map.of("name", entry.getKey(), VALUE, entry.getValue())))
                         .toArray(BrokerConfig[]::new)));
     }
 
@@ -72,7 +75,7 @@ public class ConstraintUtils {
      * @return the cluster id
      */
     public static ClusterId clusterId(String clusterId) {
-        return mkAnnotation(ClusterId.class, Map.of("clusterId", clusterId));
+        return mkAnnotation(ClusterId.class, Map.of(VALUE, clusterId));
     }
 
     /**
@@ -98,6 +101,76 @@ public class ConstraintUtils {
         return mkAnnotation(ZooKeeperCluster.class, Map.of());
     }
 
+    /**
+     * Creates a constraint to ensure the user is configured with a particular user.
+     *
+     * @param user     the user
+     * @param password the password
+     * @return the user
+     */
+    public static User user(String user, String password) {
+        return mkAnnotation(User.class, Map.of("user", user, "password", password));
+    }
+
+    /**
+     * Creates a constraint to ensure the broker is configured with a list of users.
+     *
+     * @param users the users (username/password pairs)
+     * @return the user list
+     */
+    public static User.List users(Map<String, String> users) {
+        return mkAnnotation(User.List.class, Map.of(VALUE,
+                users.entrySet().stream()
+                        .map(e -> user(e.getKey(), e.getValue()))
+                        .toArray(User[]::new)));
+    }
+
+    /**
+     * Creates a constraint to ensure the user is configured with a particular user.
+     *
+     * @param user     the user
+     * @param password the password
+     * @return the user
+     */
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
+    public static SaslPlainAuth saslPlainAuth(String user, String password) {
+        return mkAnnotation(SaslPlainAuth.class, Map.of("user", user, "password", password));
+    }
+
+    /**
+     * Creates a constraint to ensure the user is configured with a list of users.
+     *
+     * @param users the users (username/password pairs)
+     * @return the user
+     */
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
+    public static SaslPlainAuth.List saslPlainAuth(Map<String, String> users) {
+        return mkAnnotation(SaslPlainAuth.List.class, Map.of(VALUE,
+                users.entrySet().stream()
+                        .map(e -> saslPlainAuth(e.getKey(), e.getValue()))
+                        .toArray(SaslPlainAuth[]::new)));
+    }
+
+    /**
+     * The SASL mechanism constraint instance
+     *
+     * @param saslMechanism the SASL mechanism name
+     * @return the SASL mechanism
+     */
+    public static SaslMechanism saslMechanism(String saslMechanism) {
+        return mkAnnotation(SaslMechanism.class, Map.of(VALUE, saslMechanism));
+    }
+
+    /**
+     * The Broker cluster TLS instance.
+     *
+     * @return the TLS annotation
+     */
+    public static Tls tls() {
+        return mkAnnotation(Tls.class, Map.of());
+    }
+
+    @SuppressWarnings("unchecked")
     private static <A extends Annotation> A mkAnnotation(Class<A> annoType, Map<String, Object> members) {
         Objects.requireNonNull(members);
         for (String member : members.keySet()) {
@@ -110,7 +183,7 @@ public class ConstraintUtils {
         }
         Objects.requireNonNull(members);
         return (A) Proxy.newProxyInstance(annoType.getClassLoader(), new Class<?>[]{ annoType },
-                new AnnotationProxyInvocationHandler(annoType, members));
+                new AnnotationProxyInvocationHandler<>(annoType, members));
     }
 
     private static class AnnotationProxyInvocationHandler<A extends Annotation> implements InvocationHandler {
