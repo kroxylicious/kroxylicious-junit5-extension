@@ -39,6 +39,8 @@ import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.Listener;
+import io.kroxylicious.testing.kafka.common.Listener.JaasConfig;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.common.SaslMechanism.Principal;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
@@ -81,8 +83,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void consumerConfiguration(
-                               KafkaCluster cluster,
+    void consumerConfiguration(KafkaCluster cluster,
                                Admin admin,
                                @ClientConfig(name = ConsumerConfig.GROUP_ID_CONFIG, value = CONSUMER_GROUP) Consumer<String, String> consumer)
             throws Exception {
@@ -137,8 +138,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void twoAnonClusterParameter(
-                                 @BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
+    void twoAnonClusterParameter(@BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
                                  @BrokerCluster(numBrokers = 2) KafkaCluster cluster2)
             throws Exception {
         assertThat(cluster1.getClusterId()).isNotEqualTo(cluster2.getClusterId());
@@ -148,8 +148,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void twoDefinedClusterParameterAndAdmin(
-                                            @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+    void twoDefinedClusterParameterAndAdmin(@BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
                                             @BrokerCluster(numBrokers = 2) @Name("B") KafkaCluster clusterB,
                                             @Name("B") Admin adminB,
                                             @Name("A") Admin adminA)
@@ -162,8 +161,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void multipleReferencesToTheSameCluster(
-                                            @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+    void multipleReferencesToTheSameCluster(@BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
                                             @Name("A") KafkaCluster clusterARef,
                                             @Name("A") Admin adminA)
             throws Exception {
@@ -175,8 +173,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
 
     // multiple clients connected to the same cluster (e.g. different users)
     @Test
-    void clusterParameterAndTwoAdmin(
-                                     @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
+    void clusterParameterAndTwoAdmin(@BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
                                      @Name("A") Admin admin1,
                                      @Name("A") Admin admin2)
             throws Exception {
@@ -236,8 +233,25 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         doAuthExpectSucceeds(cluster, "bob", "bar");
     }
 
+    @Test
+    void saslOAuthBearerAuth(@BrokerCluster @SaslMechanism("OAUTHBEARER") @Listener(jaasServerConfigs = {
+            @JaasConfig(name = "unsecuredLoginStringClaim_sub", value = "principal") }, jaasClientConfigs = {
+                    @JaasConfig(name = "unsecuredLoginStringClaim_sub", value = "principal") }) KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster);
+    }
+
     private void doAuthExpectSucceeds(KafkaCluster cluster, String username, String password) {
         var config = cluster.getKafkaClientConfiguration(username, password);
+        try (var admin = Admin.create(config)) {
+            var dcr = admin.describeCluster();
+            assertThat(dcr.clusterId())
+                    .succeedsWithin(Duration.ofSeconds(10), STRING)
+                    .isEqualTo(cluster.getClusterId());
+        }
+    }
+
+    private void doAuthExpectSucceeds(KafkaCluster cluster) {
+        var config = cluster.getKafkaClientConfiguration();
         try (var admin = Admin.create(config)) {
             var dcr = admin.describeCluster();
             assertThat(dcr.clusterId())
