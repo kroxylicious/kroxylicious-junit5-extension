@@ -144,7 +144,7 @@ class KafkaClusterConfigTest {
     @Test
     void constraintUserAloneImpliesSaslPlain() {
         // Given
-        var annotations = getAnnotations(ConstraintUtils.user("alice", "secret"));
+        var annotations = getAnnotations(ConstraintUtils.saslMechanism(null, Map.of("alice", "secret")));
 
         // When
         var config = KafkaClusterConfig.fromConstraints(annotations, null);
@@ -159,7 +159,7 @@ class KafkaClusterConfigTest {
     @Test
     void constraintUserWithSaslMechanism() {
         // Given
-        var annotations = getAnnotations(ConstraintUtils.user("alice", "secret"), ConstraintUtils.saslMechanism("SCRAM-SHA-256"));
+        var annotations = getAnnotations(ConstraintUtils.saslMechanism("SCRAM-SHA-256", Map.of("alice", "secret")));
 
         // When
         var config = KafkaClusterConfig.fromConstraints(annotations, null);
@@ -174,7 +174,7 @@ class KafkaClusterConfigTest {
     @Test
     void constraintManyUsers() {
         // Given
-        var annotations = getAnnotations(ConstraintUtils.users(Map.of("alice", "secret", "bob", "secret")));
+        var annotations = getAnnotations(ConstraintUtils.saslMechanism("SCRAM-SHA-256", Map.of("alice", "secret", "bob", "secret")));
 
         // When
         var config = KafkaClusterConfig.fromConstraints(annotations, null);
@@ -215,14 +215,14 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    void constraintUserAndSaslPlainAuthCombinationDisallowed() {
+    void constraintSaslMechanismAndSaslPlainAuthCombinationDisallowed() {
         // Given
-        var annotations = getAnnotations(ConstraintUtils.user("alice", "secret"), ConstraintUtils.saslPlainAuth("bob", "secret"));
+        var annotations = getAnnotations(ConstraintUtils.saslMechanism("PLAIN"), ConstraintUtils.saslPlainAuth("bob", "secret"));
 
         // When/Then
         assertThatThrownBy(() -> KafkaClusterConfig.fromConstraints(annotations, null))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Cannot use deprecated SaslPlainAuth with SaslUser");
+                .hasMessageContaining("Cannot use deprecated SaslPlainAuth with SaslMechanism");
 
     }
 
@@ -336,7 +336,7 @@ class KafkaClusterConfigTest {
     @Test
     void constraintTlsAndSasl() {
         // Given
-        var annotations = getAnnotations(ConstraintUtils.tls(), ConstraintUtils.user("alice", "secret"));
+        var annotations = getAnnotations(ConstraintUtils.tls(), ConstraintUtils.saslMechanism("PLAIN", Map.of("alice", "secret")));
 
         // When
         var config = KafkaClusterConfig.fromConstraints(annotations, null);

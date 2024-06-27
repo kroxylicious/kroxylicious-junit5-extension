@@ -84,11 +84,9 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@BrokerCluster(numBrokers=3)` will use a Kafka cluster with the given number of brokers
 * `@KRaftCluster` will ensure a KRaft-based cluster is used. `@KRaftCluster(numControllers=3)` will use a controller quorum with 3 controllers.
 * `@ZooKeeperCluster` will ensure a ZooKeeper-based Kafka cluster (unsurprisingly this is mutually exclusive with `@KRaftCluster`)
-* `@User` will provide a cluster pre-configured with a user with the specified credentials.  Use of
-   this option requires the client to use SASL authentication.  This annotation is compatible with PLAIN and the
-   SCRAM-SHA mechanisms.  If @SaslMechanism is omitted PLAIN is assumed.
 * `@SaslMechanism` will provide cluster with the external listener configured for the given SASL
-   mechanism.  Use of this option requires the client to use SASL authentication.
+   mechanism.  Use of this option requires the client to use SASL authentication. For PLAIN and SCRAM mechanism a
+   database of principals must be provided.
 * `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication (deprecated - use @User).
 * `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 

@@ -40,9 +40,9 @@ import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
+import io.kroxylicious.testing.kafka.common.SaslMechanism.Principal;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
-import io.kroxylicious.testing.kafka.common.User;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
@@ -201,22 +201,24 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void shouldDefaultToSaslPlain(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+    void shouldDefaultToSaslPlain(@BrokerCluster @SaslMechanism(principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    void saslPlainAuthExplicitMechanism(@BrokerCluster @SaslMechanism("PLAIN") @User(user = "alice", password = "foo") KafkaCluster cluster) {
+    void saslPlainAuthExplicitMechanism(@BrokerCluster @SaslMechanism(value = "PLAIN", principals = {
+            @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    void saslScramAuth(@BrokerCluster @SaslMechanism("SCRAM-SHA-256") @User(user = "alice", password = "foo") KafkaCluster cluster) {
+    void saslScramAuth(@BrokerCluster @SaslMechanism(value = "SCRAM-SHA-256", principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    void saslAuthWithManyUsers(@BrokerCluster @User(user = "alice", password = "foo") @User(user = "bob", password = "bar") KafkaCluster cluster) {
+    void saslAuthWithManyUsers(@BrokerCluster @SaslMechanism(value = "SCRAM-SHA-256", principals = { @Principal(user = "alice", password = "foo"),
+            @Principal(user = "bob", password = "bar") }) KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
         doAuthExpectSucceeds(cluster, "bob", "bar");
     }
@@ -245,7 +247,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void saslPlainAuthFails(@BrokerCluster @User(user = "alice", password = "foo") KafkaCluster cluster) {
+    void saslPlainAuthFails(@BrokerCluster @SaslMechanism(principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
         var config = cluster.getKafkaClientConfiguration("alicex", "bad");
         try (var admin = Admin.create(config)) {
             var dcr = admin.describeCluster();

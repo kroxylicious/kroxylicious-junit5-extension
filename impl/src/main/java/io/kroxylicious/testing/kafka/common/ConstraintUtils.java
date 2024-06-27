@@ -9,6 +9,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -108,30 +109,6 @@ public class ConstraintUtils {
      * @param password the password
      * @return the user
      */
-    public static User user(String user, String password) {
-        return mkAnnotation(User.class, Map.of("user", user, "password", password));
-    }
-
-    /**
-     * Creates a constraint to ensure the broker is configured with a list of users.
-     *
-     * @param users the users (username/password pairs)
-     * @return the user list
-     */
-    public static User.List users(Map<String, String> users) {
-        return mkAnnotation(User.List.class, Map.of(VALUE,
-                users.entrySet().stream()
-                        .map(e -> user(e.getKey(), e.getValue()))
-                        .toArray(User[]::new)));
-    }
-
-    /**
-     * Creates a constraint to ensure the user is configured with a particular user.
-     *
-     * @param user     the user
-     * @param password the password
-     * @return the user
-     */
     @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
     public static SaslPlainAuth saslPlainAuth(String user, String password) {
         return mkAnnotation(SaslPlainAuth.class, Map.of("user", user, "password", password));
@@ -158,7 +135,29 @@ public class ConstraintUtils {
      * @return the SASL mechanism
      */
     public static SaslMechanism saslMechanism(String saslMechanism) {
-        return mkAnnotation(SaslMechanism.class, Map.of(VALUE, saslMechanism));
+        return saslMechanism(saslMechanism, Map.of());
+    }
+
+    /**
+     * The SASL mechanism constraint instance
+     *
+     * @param saslMechanism the SASL mechanism name
+     * @param userPasswordPairs username/password pairs
+     * @return the SASL mechanism
+     */
+    public static SaslMechanism saslMechanism(String saslMechanism, Map<String, String> userPasswordPairs) {
+        var params = new HashMap<String, Object>();
+        if (saslMechanism != null) {
+            params.put(VALUE, saslMechanism);
+        }
+        if (userPasswordPairs != null && !userPasswordPairs.isEmpty()) {
+            var principals = userPasswordPairs.entrySet().stream()
+                    .map(e -> mkAnnotation(SaslMechanism.Principal.class, Map.of("user", e.getKey(), "password", e.getValue())))
+                    .toArray(SaslMechanism.Principal[]::new);
+            params.put("principals", principals);
+        }
+
+        return mkAnnotation(SaslMechanism.class, params);
     }
 
     /**

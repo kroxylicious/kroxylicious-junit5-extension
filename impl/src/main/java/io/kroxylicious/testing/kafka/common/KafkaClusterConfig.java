@@ -149,8 +149,6 @@ public class KafkaClusterConfig {
             BrokerConfig.List.class,
             KRaftCluster.class,
             Tls.class,
-            User.class,
-            User.List.class,
             SaslMechanism.class,
             SaslPlainAuth.class,
             SaslPlainAuth.List.class,
@@ -207,10 +205,10 @@ public class KafkaClusterConfig {
             }
             else if (annotation instanceof SaslMechanism mechanism) {
                 useSasl = true;
-                builder.saslMechanism(mechanism.value());
-            }
-            else if (annotation instanceof User || annotation instanceof User.List) {
-                saslUsers = processSaslUserAnnotations(annotation);
+                builder.saslMechanism(Optional.ofNullable(mechanism.value()).orElse(PLAIN_SASL_MECHANISM_NAME));
+                var principals = Optional.ofNullable(mechanism.principals()).orElse(new SaslMechanism.Principal[]{});
+                saslUsers = Optional.of(Arrays.stream(principals)
+                        .collect(Collectors.toMap(SaslMechanism.Principal::user, SaslMechanism.Principal::password)));
             }
             else if (annotation instanceof SaslPlainAuth || annotation instanceof SaslPlainAuth.List) {
                 deprecatedSaslUsers = processDeprecatedSaslUserAnnotations(annotation);
@@ -223,12 +221,21 @@ public class KafkaClusterConfig {
             }
         }
 
-        var actualUsers = calculateActualUsers(saslUsers, deprecatedSaslUsers);
-        actualUsers.ifPresent(builder::users);
-
-        if (actualUsers.isPresent() && !useSasl) {
-            builder.saslMechanism(PLAIN_SASL_MECHANISM_NAME);
-            useSasl = true;
+        if (deprecatedSaslUsers.isPresent()) {
+            if (!DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED.compareAndExchange(false, true)) {
+                LOGGER.log(System.Logger.Level.WARNING, "Use of deprecated SaslPlainAuth annotation, use SaslUser instead.");
+            }
+            if (useSasl) {
+                throw new IllegalArgumentException("Cannot use deprecated SaslPlainAuth with SaslMechanism.");
+            }
+            else {
+                builder.saslMechanism(PLAIN_SASL_MECHANISM_NAME);
+                deprecatedSaslUsers.ifPresent(builder::users);
+                useSasl = true;
+            }
+        }
+        else if (saslUsers.isPresent()) {
+            saslUsers.ifPresent(builder::users);
         }
 
         builder.securityProtocol(determineSecurityProtocol(useSasl, tls));
@@ -242,17 +249,6 @@ public class KafkaClusterConfig {
         catch (IOException e) {
             throw new UncheckedIOException("Failed to create broker certificate", e);
         }
-    }
-
-    private static Optional<Map<String, String>> processSaslUserAnnotations(Annotation annotation) {
-        if (annotation instanceof User.List saslUserList) {
-            return Optional.of(Arrays.stream(saslUserList.value())
-                    .collect(Collectors.toMap(User::user, User::password)));
-        }
-        else if (annotation instanceof User saslUser) {
-            return Optional.of(Map.of(saslUser.user(), saslUser.password()));
-        }
-        return Optional.empty();
     }
 
     @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
@@ -276,23 +272,6 @@ public class KafkaClusterConfig {
         else if (annotation instanceof BrokerConfig brokerConfig) {
             consumer.accept(brokerConfig.name(), brokerConfig.value());
         }
-    }
-
-    private static Optional<Map<String, String>> calculateActualUsers(Optional<Map<String, String>> saslUsers, Optional<Map<String, String>> deprecatedSaslUsers) {
-        if (saslUsers.isPresent()) {
-            if (deprecatedSaslUsers.isPresent()) {
-                throw new IllegalArgumentException("Cannot use deprecated SaslPlainAuth with SaslUser.");
-            }
-            return saslUsers;
-        }
-        else if (deprecatedSaslUsers.isPresent()) {
-            if (!DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED.compareAndExchange(false, true)) {
-                LOGGER.log(System.Logger.Level.WARNING, "Use of deprecated SaslPlainAuth annotation, use SaslUser instead.");
-            }
-
-            return deprecatedSaslUsers;
-        }
-        return Optional.empty();
     }
 
     private static String determineSecurityProtocol(boolean useSasl, boolean tls) {

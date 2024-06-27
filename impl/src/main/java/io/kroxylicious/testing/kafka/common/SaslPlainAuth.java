@@ -19,7 +19,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
  * provide a cluster that supports SASL-PLAIN configured with the
  * given users.
  *
- * @deprecated use @{@link User} instead.
+ * @deprecated use @{@link SaslMechanism.Principal} instead.
  */
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
