@@ -84,7 +84,10 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@BrokerCluster(numBrokers=3)` will use a Kafka cluster with the given number of brokers
 * `@KRaftCluster` will ensure a KRaft-based cluster is used. `@KRaftCluster(numControllers=3)` will use a controller quorum with 3 controllers.
 * `@ZooKeeperCluster` will ensure a ZooKeeper-based Kafka cluster (unsurprisingly this is mutually exclusive with `@KRaftCluster`)
-* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication.
+* `@SaslMechanism` will provide cluster with the external listener configured for the given SASL
+   mechanism.  Use of this option requires the client to use SASL authentication. For PLAIN and SCRAM mechanism a
+   database of principals must be provided.
+* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication (deprecated - use `@SaslMechanism`).
 * `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 
 When multiple constraints are provided they will _all_ be satisfied.
@@ -101,6 +104,19 @@ For example:
 @ExtendWith(KafkaClusterExtension.class)
 class MyTest {
     @BrokerConfig(name = "compression.type", value = "zstd") KafkaCluster cluster;
+
+    // ...
+}
+```
+
+## Configuring SASL
+
+To config the Broker to use SASL, use the annotations `@SaslMechanism` to specify the SASL
+mechanism and, if required, a database of principals.
+
+```java
+class MyTest {
+@SaslMechanism(value = "PLAIN", principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster;
 
     // ...
 }
