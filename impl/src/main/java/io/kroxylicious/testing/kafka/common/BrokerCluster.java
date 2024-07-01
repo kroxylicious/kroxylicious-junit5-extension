@@ -52,7 +52,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
  *     <dt>{@link SaslMechanism}</dt><dd>will provide cluster with the external listener configured for the given SASL
  *     mechanism.  Use of this option requires the client to use SASL authentication. For PLAIN and SCRAM mechanism a
  *     database of principals must be provided.</dd>
- *     <dt>{@link SaslPlainAuth}</dt><dd>Will configure the cluster for SASL-PLAIN authentication (deprecated)</dd>
+ *     <dt>{@link SaslPlainAuth}</dt><dd>Will configure the cluster for SASL-PLAIN authentication (deprecated) - use {@link SaslMechanism}.</dd>
  * </dl>
  *
  * <p>For example:</p>

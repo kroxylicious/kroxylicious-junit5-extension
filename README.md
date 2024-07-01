@@ -87,7 +87,7 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@SaslMechanism` will provide cluster with the external listener configured for the given SASL
    mechanism.  Use of this option requires the client to use SASL authentication. For PLAIN and SCRAM mechanism a
    database of principals must be provided.
-* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication (deprecated - use @User).
+* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication (deprecated - use `@SaslMechanism`).
 * `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 
 When multiple constraints are provided they will _all_ be satisfied.
@@ -112,12 +112,11 @@ class MyTest {
 ## Configuring SASL
 
 To config the Broker to use SASL, use the annotations `@SaslMechanism` to specify the SASL
-mechanism. Use `@User` configure a user and password.  The `@User` annotation  may be repeated
-to define multiple users.
+mechanism and, if required, a database of principals.
 
 ```java
 class MyTest {
-@SaslMechanism("PLAIN") @User(user = "alice", password = "foo") KafkaCluster cluster;
+@SaslMechanism(value = "PLAIN", principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster;
 
     // ...
 }
