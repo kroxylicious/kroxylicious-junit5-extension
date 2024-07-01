@@ -169,6 +169,34 @@ public class ConstraintUtils {
         return mkAnnotation(Tls.class, Map.of());
     }
 
+    /**
+     * Creates a constraint to ensure the broker is configured with a list jaas config.
+     *
+     * @param jaasServerConfigs  the server jaas config pair
+     * @param jaasClientConfigs the client jaas config pair
+     * @return the jaas config list
+     */
+    public static Listener listener(Map<String, String> jaasServerConfigs, Map<String, String> jaasClientConfigs) {
+        var params = new HashMap<String, Object>();
+        if (jaasServerConfigs != null && !jaasServerConfigs.isEmpty()) {
+            var jaasConfigs = makeJaasConfigs(jaasServerConfigs);
+            params.put("jaasServerConfigs", jaasConfigs);
+        }
+        if (jaasClientConfigs != null && !jaasClientConfigs.isEmpty()) {
+            var jaasConfigs = makeJaasConfigs(jaasClientConfigs);
+            params.put("jaasClientConfigs", jaasConfigs);
+        }
+
+        return mkAnnotation(Listener.class, params);
+    }
+
+    private static Listener.JaasConfig[] makeJaasConfigs(Map<String, String> jaasServerConfig) {
+        var jaasConfigs = jaasServerConfig.entrySet().stream()
+                .map(e -> mkAnnotation(Listener.JaasConfig.class, Map.of("name", e.getKey(), VALUE, e.getValue())))
+                .toArray(Listener.JaasConfig[]::new);
+        return jaasConfigs;
+    }
+
     @SuppressWarnings("unchecked")
     private static <A extends Annotation> A mkAnnotation(Class<A> annoType, Map<String, Object> members) {
         Objects.requireNonNull(members);

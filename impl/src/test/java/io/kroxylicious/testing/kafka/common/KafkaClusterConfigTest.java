@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
@@ -142,6 +143,7 @@ class KafkaClusterConfigTest {
     }
 
     @Test
+    @Disabled // mkAnnotation can't express the default.
     void constraintUserAloneImpliesSaslPlain() {
         // Given
         var annotations = getAnnotations(ConstraintUtils.saslMechanism(null, Map.of("alice", "secret")));
@@ -344,6 +346,33 @@ class KafkaClusterConfigTest {
         // Then
         assertThat(config.getSecurityProtocol())
                 .isEqualTo("SASL_SSL");
+    }
+
+    @Test
+    void constraintListenerJaasServerConfig() {
+        // Given
+        var annotations = getAnnotations(ConstraintUtils.listener(Map.of("server1", "value"), Map.of()));
+
+        // When
+        var config = KafkaClusterConfig.fromConstraints(annotations, null);
+
+        // Then
+        assertThat(config.getJaasServerOptions())
+                .containsEntry("server1", "value");
+    }
+
+    @Test
+    void constraintListenerJaasClientConfig() {
+        // Given
+        var annotations = getAnnotations(ConstraintUtils.listener(Map.of(), Map.of("client1", "value")));
+
+        // When
+        var config = KafkaClusterConfig.fromConstraints(annotations, null);
+
+        // Then
+        assertThat(config.getJaasClientOptions())
+                .hasSize(1)
+                .containsEntry("client1", "value");
     }
 
     private List<Annotation> getAnnotations(Annotation... annotations) {

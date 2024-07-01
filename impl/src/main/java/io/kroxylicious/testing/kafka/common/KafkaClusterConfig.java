@@ -66,13 +66,13 @@ public class KafkaClusterConfig {
     private static final String ONE_CONFIG = Integer.toString(1);
     private static final AtomicBoolean DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED = new AtomicBoolean();
 
-    public static final String BROKER_ROLE = "broker";
-    public static final String CONTROLLER_ROLE = "controller";
+    private static final String BROKER_ROLE = "broker";
+    private static final String CONTROLLER_ROLE = "controller";
 
-    public static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
-    public static final String EXTERNAL_LISTENER_NAME = "EXTERNAL";
-    public static final String INTERNAL_LISTENER_NAME = "INTERNAL";
-    public static final String ANON_LISTENER_NAME = "ANON";
+    private static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
+    private static final String EXTERNAL_LISTENER_NAME = "EXTERNAL";
+    private static final String INTERNAL_LISTENER_NAME = "INTERNAL";
+    private static final String ANON_LISTENER_NAME = "ANON";
 
     private static final String SCRAM_SHA_SASL_MECHANISM_PREFIX = "SCRAM-SHA-";
     private static final String PLAIN_SASL_MECHANISM_NAME = "PLAIN";
@@ -150,6 +150,7 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslMechanism.class,
+            io.kroxylicious.testing.kafka.common.Listener.class,
             SaslPlainAuth.class,
             SaslPlainAuth.List.class,
             ZooKeeperCluster.class,
@@ -209,6 +210,11 @@ public class KafkaClusterConfig {
                 var principals = Optional.ofNullable(mechanism.principals()).orElse(new SaslMechanism.Principal[]{});
                 saslUsers = Optional.of(Arrays.stream(principals)
                         .collect(Collectors.toMap(SaslMechanism.Principal::user, SaslMechanism.Principal::password)));
+                builder.saslMechanism(mechanism.value());
+            }
+            else if (annotation instanceof io.kroxylicious.testing.kafka.common.Listener listener) {
+                processJaasConfig(listener.jaasClientConfigs(), builder::jaasClientOption);
+                processJaasConfig(listener.jaasServerConfigs(), builder::jaasServerOption);
             }
             else if (annotation instanceof SaslPlainAuth || annotation instanceof SaslPlainAuth.List) {
                 deprecatedSaslUsers = processDeprecatedSaslUserAnnotations(annotation);
@@ -240,6 +246,15 @@ public class KafkaClusterConfig {
 
         builder.securityProtocol(determineSecurityProtocol(useSasl, tls));
         return builder.build();
+    }
+
+    private static void processJaasConfig(io.kroxylicious.testing.kafka.common.Listener.JaasConfig[] jaasConfigs, BiConsumer<String, String> consumer) {
+        Optional.ofNullable(jaasConfigs)
+                .ifPresent(configs -> {
+                    Arrays.stream(configs).forEach(config -> {
+                        consumer.accept(config.name(), config.value());
+                    });
+                });
     }
 
     private static void processTls(Consumer<KeytoolCertificateGenerator> consumer) {
