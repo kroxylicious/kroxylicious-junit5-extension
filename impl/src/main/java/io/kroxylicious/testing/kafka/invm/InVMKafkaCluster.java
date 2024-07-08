@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
@@ -47,6 +48,7 @@ import kafka.server.KafkaRaftServer;
 import kafka.server.KafkaServer;
 import kafka.server.Server;
 import kafka.zk.AdminZkClient;
+import kafka.zk.KafkaZkClient;
 import scala.Option;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -479,7 +481,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             try (var zkClient = createZkClient(INVM_KAFKA, Time.SYSTEM, config, zkClientConfig)) {
                 var adminZkClient = new AdminZkClient(zkClient, Option.empty());
                 var userEntityType = "users";
-
+                disableControllerCheck(zkClient);
                 parsedCredentials.forEach(uscr -> {
                     var userConfig = adminZkClient.fetchEntityConfig(userEntityType, uscr.name());
                     var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(uscr));
@@ -491,4 +493,22 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
     }
 
+    //The accessibility hack is tactical for Kafka >=3.7.1 <= 4.0.0
+    //The alternative is copying the code that constructs the ZK client see https://github.com/ozangunalp/kafka-native/pull/195/files as an example. Both options suck,
+    //this is less code, and thus we hope less likely to bit rot.
+    @SuppressWarnings("java:S3011")
+    private static void disableControllerCheck(KafkaZkClient zkClient) {
+        try {
+            final Class<? extends KafkaZkClient> zkClientClass = zkClient.getClass();
+            final Field enableEntityConfigControllerCheck = zkClientClass.getDeclaredField("enableEntityConfigControllerCheck");
+            enableEntityConfigControllerCheck.setAccessible(true);
+            enableEntityConfigControllerCheck.setBoolean(zkClient, false);
+        }
+        catch (NoSuchFieldException ignored) {
+            //presumably we are on kafka <= 3.7.0, so we can move on with life
+        }
+        catch (IllegalArgumentException | IllegalAccessException | SecurityException e) {
+            LOGGER.log(System.Logger.Level.WARNING, "Failed to make enableEntityConfigControllerCheck accessible on %s so we are unlikely to be able to create SCRAM users", zkClient.getClass());
+        }
+    }
 }
