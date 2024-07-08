@@ -482,12 +482,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 var adminZkClient = new AdminZkClient(zkClient, Option.empty());
                 var userEntityType = "users";
                 disableControllerCheck(zkClient);
-                parsedCredentials.forEach(uscr -> {
-                    var userConfig = adminZkClient.fetchEntityConfig(userEntityType, uscr.name());
-                    var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(uscr));
+                parsedCredentials.forEach(credentials -> {
+                    var userConfig = adminZkClient.fetchEntityConfig(userEntityType, credentials.name());
+                    var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(credentials));
 
-                    userConfig.setProperty(ScramMechanism.fromType(uscr.mechanism()).mechanismName(), credentialsString);
-                    adminZkClient.changeConfigs(userEntityType, uscr.name(), userConfig, false);
+                    userConfig.setProperty(ScramMechanism.fromType(credentials.mechanism()).mechanismName(), credentialsString);
+                    adminZkClient.changeConfigs(userEntityType, credentials.name(), userConfig, false);
                 });
             }
         }
