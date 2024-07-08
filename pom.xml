@@ -91,7 +91,7 @@
         <lombok.version>1.18.34</lombok.version>
         <assertj-core.version>3.26.0</assertj-core.version>
         <spotbugs-annotations.version>4.8.6</spotbugs-annotations.version>
-        <zookeeper.version>3.8.3</zookeeper.version>
+        <zookeeper.version>3.8.4</zookeeper.version>
         <log4j.version>2.23.1</log4j.version>
         <awaitility.version>4.2.1</awaitility.version>
         <duct-tape.version>1.0.8</duct-tape.version>
