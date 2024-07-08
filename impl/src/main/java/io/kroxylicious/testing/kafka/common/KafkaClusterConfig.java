@@ -141,7 +141,7 @@ public class KafkaClusterConfig {
     @Singular
     private final Map<String, String> brokerConfigs;
 
-    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
+    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
             ClusterId.class,
             BrokerCluster.class,
