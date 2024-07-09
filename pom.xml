@@ -13,7 +13,7 @@
 
     <groupId>io.kroxylicious.testing</groupId>
     <artifactId>testing-parent</artifactId>
-    <version>0.7.0-SNAPSHOT</version>
+    <version>0.9.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Kroxylicious Testing Parent</name>
@@ -85,24 +85,43 @@
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
 
-        <junit.version>5.10.0</junit.version>
-        <kafka.version>3.6.0</kafka.version>
-        <testcontainers.version>1.19.1</testcontainers.version>
-        <lombok.version>1.18.30</lombok.version>
-        <assertj-core.version>3.24.2</assertj-core.version>
-        <findbugs.annotations.version>3.0.1u2</findbugs.annotations.version>
-        <zookeeper.version>3.8.2</zookeeper.version>
-        <log4j.version>2.20.0</log4j.version>
-        <awaitility.version>4.2.0</awaitility.version>
-        <annotations.version>24.0.1</annotations.version>
+        <junit.version>5.10.3</junit.version>
+        <kafka.version>3.7.1</kafka.version>
+        <testcontainers.version>1.19.8</testcontainers.version>
+        <lombok.version>1.18.34</lombok.version>
+        <assertj-core.version>3.26.0</assertj-core.version>
+        <spotbugs-annotations.version>4.8.6</spotbugs-annotations.version>
+        <zookeeper.version>3.8.4</zookeeper.version>
+        <log4j.version>2.23.1</log4j.version>
+        <awaitility.version>4.2.1</awaitility.version>
         <duct-tape.version>1.0.8</duct-tape.version>
-        <mockito.version>5.6.0</mockito.version>
+        <mockito.version>5.12.0</mockito.version>
+        <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
+        <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+
+        <!-- Required for JDK 21 compatibility, remove dependency management for byte-buddy once assertj bumps to a newer bytebuddy -->
+        <byte-buddy.version>1.14.17</byte-buddy.version>
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.kroxylicious.testing</groupId>
+                <artifactId>testing-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.kroxylicious.testing</groupId>
+                <artifactId>testing-junit5-extension</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.kroxylicious.testing</groupId>
+                <artifactId>testing-impl</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
@@ -128,6 +147,7 @@
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-clients</artifactId>
                 <version>${kafka.version}</version>
+                <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.kafka</groupId>
@@ -148,12 +168,18 @@
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
                 </exclusions>
+                <scope>provided</scope>
             </dependency>
+            <!-- org.apache.kafka.server.common.MetadataVersion.MINIMUM_BOOTSTRAP_VERSION -->
             <dependency>
                 <groupId>org.apache.kafka</groupId>
                 <artifactId>kafka-server-common</artifactId>
                 <version>${kafka.version}</version>
+                <scope>provided</scope>
             </dependency>
+
+
+
             <dependency>
                 <groupId>org.apache.zookeeper</groupId>
                 <artifactId>zookeeper</artifactId>
@@ -172,6 +198,11 @@
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
                 </exclusions>
+                <!-- The user needs to provide this dependency only if they wish to use in-VM kafka with a Zookeeper
+                     controller.  If they are using in-VM kafka in KRaft node, or container kafka with Zookeeper, it is not
+                     required. -->
+                <scope>provided</scope>
+                <optional>true</optional> <!-- MNG-5227 -->
             </dependency>
             <dependency>
                 <groupId>org.awaitility</groupId>
@@ -190,19 +221,14 @@
                 <version>${lombok.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.jetbrains</groupId>
-                <artifactId>annotations</artifactId>
-                <version>${annotations.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.rnorth.duct-tape</groupId>
                 <artifactId>duct-tape</artifactId>
                 <version>${duct-tape.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.google.code.findbugs</groupId>
-                <artifactId>annotations</artifactId>
-                <version>${findbugs.annotations.version}</version>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-annotations</artifactId>
+                <version>${spotbugs-annotations.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
@@ -212,7 +238,18 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+            <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy</artifactId>
+                <version>${byte-buddy.version}</version>
+                <scope>test</scope>
+            </dependency>
 
+            <dependency>
+                <groupId>info.schnatterer.moby-names-generator</groupId>
+                <artifactId>moby-names-generator</artifactId>
+                <version>${moby-names-generator.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -223,7 +260,7 @@
                 <plugin>
                     <groupId>com.mycila</groupId>
                     <artifactId>license-maven-plugin</artifactId>
-                    <version>4.3</version>
+                    <version>4.5</version>
                     <configuration>
                         <strictCheck>true</strictCheck>
                         <licenseSets>
@@ -241,7 +278,7 @@
                 <plugin>
                     <groupId>net.revelc.code.formatter</groupId>
                     <artifactId>formatter-maven-plugin</artifactId>
-                    <version>2.23.0</version>
+                    <version>2.24.1</version>
                     <configuration>
                         <!--suppress MavenModelInspection -->
                         <configFile>${session.executionRootDirectory}/etc/eclipse-formatter-config.xml</configFile>
@@ -250,7 +287,7 @@
                 <plugin>
                     <groupId>net.revelc.code</groupId>
                     <artifactId>impsort-maven-plugin</artifactId>
-                    <version>1.9.0</version>
+                    <version>1.11.0</version>
                     <configuration>
                         <groups>java.,javax.,org.,com.,io.,*,io.kroxylicious</groups>
                         <removeUnused>true</removeUnused>
@@ -269,7 +306,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.11.0</version>
+                    <version>3.13.0</version>
                     <configuration>
                         <parameters>true</parameters>
                     </configuration>
@@ -277,27 +314,27 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-clean-plugin</artifactId>
-                    <version>3.3.1</version>
+                    <version>3.4.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
-                    <version>3.6.0</version>
+                    <version>3.7.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
-                    <version>3.1.1</version>
+                    <version>3.1.2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>3.4.1</version>
+                    <version>3.5.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-failsafe-plugin</artifactId>
-                    <version>3.1.2</version>
+                    <version>3.3.0</version>
                     <configuration>
                         <skipTests>${skipITs}</skipTests>
                     </configuration>
@@ -305,27 +342,27 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-gpg-plugin</artifactId>
-                    <version>3.1.0</version>
+                    <version>3.2.4</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-install-plugin</artifactId>
-                    <version>3.1.1</version>
+                    <version>3.1.2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.3.0</version>
+                    <version>3.4.2</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
-                    <version>3.6.0</version>
+                    <version>3.7.0</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-plugin-plugin</artifactId>
-                    <version>3.9.0</version>
+                    <version>3.13.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -335,7 +372,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-source-plugin</artifactId>
-                    <version>3.3.0</version>
+                    <version>3.3.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -345,7 +382,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
-                    <version>3.1.2</version>
+                    <version>3.3.0</version>
                     <configuration>
                         <skipTests>${skipUTs}</skipTests>
                         <trimStackTrace>false</trimStackTrace>
@@ -401,9 +438,14 @@
                     </configuration>
                 </plugin>
                 <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco-maven-plugin.version}</version>
+                </plugin>
+                <plugin>
                     <groupId>org.codehaus.mojo</groupId>
                     <artifactId>build-helper-maven-plugin</artifactId>
-                    <version>3.4.0</version>
+                    <version>3.6.0</version>
                 </plugin>
             </plugins>
         </pluginManagement>
@@ -531,6 +573,8 @@
                 <activeByDefault>false</activeByDefault>
             </activation>
             <properties>
+                <sonar.organization>kroxylicious</sonar.organization>
+                <sonar.host.url>https://sonarcloud.io</sonar.host.url>
                 <impsort-maven-plugin.goal>check</impsort-maven-plugin.goal>
             </properties>
             <build>
@@ -549,6 +593,29 @@
                             <execution>
                                 <id>format</id>
                                 <phase>none</phase>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>report</id>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                                <configuration>
+                                    <formats>
+                                        <format>XML</format>
+                                    </formats>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
@@ -583,6 +650,10 @@
                                 <configuration>
                                     <!--suppress UnresolvedMavenProperty -->
                                     <keyname>${releaseSigningKey}</keyname>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
                                 </configuration>
                             </execution>
                         </executions>
@@ -590,7 +661,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-deploy-plugin</artifactId>
-                        <version>3.1.1</version>
+                        <version>3.1.2</version>
                         <executions>
                             <execution>
                                 <id>default-deploy</id>

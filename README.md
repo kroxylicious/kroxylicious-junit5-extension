@@ -7,6 +7,7 @@ without having to hard-code exactly _how_ that cluster is provisioned.
 As such it allows you to write very flexible tests that abstract over different kinds of cluster.
 
 ## Dependency
+Current version: ![Maven Central Version](https://img.shields.io/maven-central/v/io.kroxylicious.testing/testing-junit5-extension)
 
 Gradle 
 ```
@@ -16,11 +17,27 @@ testImplementation 'io.kroxylicious.testing:testing-junit5-extension:0.1'
 Maven
 
 ```xml
-<dependency>
-    <groupId>io.kroxylicious.testing</groupId>
-    <artifactId>testing-junit5-extension</artifactId>
-    <version>0.1</version>
-</dependency>
+<dependencies>
+    <dependency>
+        <groupId>io.kroxylicious.testing</groupId>
+        <artifactId>testing-junit5-extension</artifactId>
+        <version>0.1</version>
+    </dependency>
+    <!-- Kafka Broker version you want to use -->
+    <dependency>
+        <groupId>org.apache.kafka</groupId>
+        <artifactId>kafka_2.13</artifactId>
+        <version>${kafka.version}</version> <!-- versions from 3.3.0 have been tested  -->
+        <scope>test</scope>
+    </dependency>
+    <!-- Optional, required if you want to use in-VM kafka in Zookeeper mode. -->
+    <dependency>
+        <groupId>org.apache.zookeeper</groupId>
+        <artifactId>zookeeper</artifactId>
+        <version>${zookeeper.version}</version> <!-- versions from 3.6.3 have been tested -->
+        <scope>test</scope>
+    </dependency>
+</dependencies>
 ```
 
 ## Example
@@ -67,12 +84,81 @@ You can configure different clusters by annotating the `KafkaCluster` field or p
 * `@BrokerCluster(numBrokers=3)` will use a Kafka cluster with the given number of brokers
 * `@KRaftCluster` will ensure a KRaft-based cluster is used. `@KRaftCluster(numControllers=3)` will use a controller quorum with 3 controllers.
 * `@ZooKeeperCluster` will ensure a ZooKeeper-based Kafka cluster (unsurprisingly this is mutually exclusive with `@KRaftCluster`)
-* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication.
+* `@SaslMechanism` will provide cluster with the external listener configured for the given SASL
+   mechanism.  Use of this option requires the client to use SASL authentication. For PLAIN and SCRAM mechanism a
+   database of principals must be provided.
+* `@SaslPlainAuth` will provide cluster with `SASL-PLAIN` authentication (deprecated - use `@SaslMechanism`).
 * `@Version(value="3.3.1")` will provide a container-based cluster with the kafka/zookeeper version indicated
 
 When multiple constraints are provided they will _all_ be satisfied.
 
 The cluster will be provisioned using the fastest available mechanism, because your development inner loop is a precious thing.
+
+## Configuring Kafka Brokers
+
+To configure a kafka broker, apply the `@BrokerConfig` annotation to the `KafkaCluster` type.
+
+For example:
+
+```java
+@ExtendWith(KafkaClusterExtension.class)
+class MyTest {
+    @BrokerConfig(name = "compression.type", value = "zstd") KafkaCluster cluster;
+
+    // ...
+}
+```
+
+## Configuring SASL
+
+To config the Broker to use SASL, use the annotations `@SaslMechanism` to specify the SASL
+mechanism and, if required, a database of principals.
+
+```java
+class MyTest {
+@SaslMechanism(value = "PLAIN", principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster;
+
+    // ...
+}
+```
+
+## Configuring Kafka Clients
+
+To configure kafka clients, apply the `@ClientConfig` annotation.  It can be applied to the following types:
+
+* `Producer`
+* `Consumer`
+* `Admin`
+
+For example:
+
+```java
+@ExtendWith(KafkaClusterExtension.class)
+class MyTest {
+    @ClientConfig(name = "client.id", value = "myclient") Producer<String, String> producer;
+
+    // ...
+}
+```
+
+## Creating Test Topics
+
+The test framework can create topic(s) for the test.  It is
+guaranteed that the test will exist before the test method is invoked.
+
+You can also specify configuration for the topic using the annotation `@TopicConfig`,
+or set its partition count or replication factor with `@TopicPartitions` and `@TopicReplicationFactor`
+respectively.
+
+```java
+@ExtendWith(KafkaClusterExtension.class)
+class MyTest {
+    Topic myTopic;
+    @TopicConfig(name = "cleanup.policy", value = "compact") Topic myTopicWithConfig;
+    // ...
+}
+```
+
 
 ## Node topology
 

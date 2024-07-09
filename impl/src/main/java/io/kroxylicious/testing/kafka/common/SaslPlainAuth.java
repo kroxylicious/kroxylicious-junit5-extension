@@ -18,11 +18,14 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
  * Annotation constraining a {@link KafkaClusterProvisioningStrategy} to use
  * provide a cluster that supports SASL-PLAIN configured with the
  * given users.
+ *
+ * @deprecated use @{@link SaslMechanism.Principal} instead.
  */
 @Target({ ElementType.PARAMETER, ElementType.FIELD })
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(SaslPlainAuth.List.class)
 @KafkaClusterConstraint
+@Deprecated(since = "0.9.0", forRemoval = true)
 public @interface SaslPlainAuth {
 
     String user();
@@ -35,6 +38,7 @@ public @interface SaslPlainAuth {
     @Target({ ElementType.FIELD, ElementType.PARAMETER })
     @Retention(RetentionPolicy.RUNTIME)
     @KafkaClusterConstraint
+    @Deprecated(since = "0.9.0", forRemoval = true)
     @interface List {
         SaslPlainAuth[] value();
     }

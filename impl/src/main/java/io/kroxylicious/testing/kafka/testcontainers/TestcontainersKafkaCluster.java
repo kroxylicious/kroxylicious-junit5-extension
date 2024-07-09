@@ -35,13 +35,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -61,21 +62,26 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
+import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.common.Version;
+import io.kroxylicious.testing.kafka.internal.AdminSource;
 
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
  */
-public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaClusterConfig.KafkaEndpoints {
+public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AdminSource {
 
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     /**
@@ -89,6 +95,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int INTER_BROKER_PORT = 9092;
     private static final int CONTROLLER_PORT = 9091;
     private static final int ZOOKEEPER_PORT = 2181;
+
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
@@ -103,8 +110,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
-    private static DockerImageName DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":latest-snapshot");
-    private static DockerImageName DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":latest-snapshot");
+    private static final DockerImageName LATEST_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO).withTag(Version.LATEST_RELEASE);
+    private static final DockerImageName LATEST_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO).withTag(Version.LATEST_RELEASE);
 
     // This uid needs to match the uid used by the kafka container to execute the kafka process
     private static final String KAFKA_CONTAINER_UID = "1001";
@@ -159,10 +166,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param clusterConfig  the cluster config
      */
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        setDefaultKafkaImage(clusterConfig.getKafkaVersion());
 
-        this.kafkaImage = Optional.ofNullable(kafkaImage).orElse(DEFAULT_KAFKA_IMAGE);
-        this.zookeeperImage = Optional.ofNullable(zookeeperImage).orElse(DEFAULT_ZOOKEEPER_IMAGE);
+        var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(LATEST_KAFKA_IMAGE);
+        var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
+
+        this.kafkaImage = overrideContainerImageTagIfNecessary(actualKafkaImage, clusterConfig.getKafkaVersion());
+        this.zookeeperImage = overrideContainerImageTagIfNecessary(actualZookeeperImage, clusterConfig.getKafkaVersion());
+
         this.clusterConfig = clusterConfig;
 
         this.name = Optional.ofNullable(clusterConfig.getTestInfo())
@@ -191,7 +201,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
     }
 
-    @NotNull
+    @NonNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
         String netAlias = "broker-" + holder.getBrokerNum();
         Properties properties = new Properties();
@@ -215,6 +225,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
 
+        if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
+            kafkaContainer.withEnv("SERVER_SCRAM_CREDENTIALS", buildScramUsersEnvVar());
+        }
+
         if (holder.isBroker()) {
             kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
             kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
@@ -227,16 +241,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return kafkaContainer;
     }
 
-    @NotNull
+    @NonNull
     private String getBrokerLogDirectory(int brokerNum) {
         return KAFKA_CONTAINER_MOUNT_POINT + "/broker-" + brokerNum;
-    }
-
-    private void setDefaultKafkaImage(String kafkaVersion) {
-        String kafkaVersionTag = (kafkaVersion == null || kafkaVersion.equals("latest")) ? "latest" : "latest-kafka-" + kafkaVersion;
-
-        DEFAULT_KAFKA_IMAGE = DockerImageName.parse(QUAY_KAFKA_IMAGE_REPO + ":" + kafkaVersionTag);
-        DEFAULT_ZOOKEEPER_IMAGE = DockerImageName.parse(QUAY_ZOOKEEPER_IMAGE_REPO + ":" + kafkaVersionTag);
     }
 
     private static void copyHostKeyStoreToContainer(KafkaContainer container, Properties properties, String key) {
@@ -277,12 +284,44 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     /**
+     * Overrides the image tag in the container image name.
+     * This knows about the naming conventions used by the ogunalp native image project.
+     *
+     * @param image container image name
+     * @param overrideVersion desired version, which may be null.
+     * @return container image name
+     */
+    private DockerImageName overrideContainerImageTagIfNecessary(@NonNull DockerImageName image, @Nullable String overrideVersion) {
+        if (overrideVersion == null || overrideVersion.equalsIgnoreCase(image.getVersionPart())) {
+            return image;
+        }
+        else if (overrideVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
+            return image.withTag(Version.LATEST_SNAPSHOT);
+        }
+        else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", overrideVersion)) {
+            return image.withTag("latest-kafka-" + overrideVersion);
+        }
+        return image;
+    }
+
+    /**
      * Gets kafka version.
      *
      * @return the kafka version
      */
     public String getKafkaVersion() {
-        return kafkaImage.getVersionPart();
+        var v = kafkaImage.getVersionPart();
+        if (v != null) {
+            if (Version.LATEST_RELEASE.equalsIgnoreCase(v)) {
+                return Version.LATEST_RELEASE;
+            }
+            else if (Version.LATEST_SNAPSHOT.equalsIgnoreCase(v)) {
+                return Version.LATEST_SNAPSHOT;
+            }
+
+            v = v.replaceFirst("^latest-kafka-", "");
+        }
+        return v;
     }
 
     private synchronized Stream<GenericContainer<?>> allContainers() {
@@ -299,6 +338,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 zookeeper.start();
             }
             Startables.deepStart(nodes.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
             awaitExpectedBrokerCountInClusterViaTopic(
                     clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
@@ -784,6 +824,18 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             super.getBinds().add(bind);
             return this;
         }
-
     }
+
+    @Override
+    public @NonNull Admin createAdmin() {
+        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
+    }
+
+    @NonNull
+    private String buildScramUsersEnvVar() {
+        return this.clusterConfig.getUsers().entrySet().stream()
+                .map(e -> "%s=[name=%s,password=%s]".formatted(this.clusterConfig.getSaslMechanism(), e.getKey(), e.getValue()))
+                .collect(Collectors.joining(";"));
+    }
+
 }

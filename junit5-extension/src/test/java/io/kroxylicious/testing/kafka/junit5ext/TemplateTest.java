@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,6 +24,15 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.Extension;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.ParameterContext;
+import org.junit.jupiter.api.extension.ParameterResolutionException;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
+import org.junit.jupiter.api.extension.support.TypeBasedParameterResolver;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
@@ -39,11 +49,11 @@ import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(KafkaClusterExtension.class)
-public class TemplateTest {
+class TemplateTest {
 
+    @SuppressWarnings("unused")
     static Stream<BrokerCluster> clusterSizes() {
         return Stream.of(
                 brokerCluster(1),
@@ -51,26 +61,27 @@ public class TemplateTest {
     }
 
     @TestTemplate
-    public void testMultipleClusterSizes(
-                                         @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
+    void testMultipleClusterSizes(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster)
             throws ExecutionException, InterruptedException {
         try (var admin = Admin.create(cluster.getKafkaClientConfiguration())) {
-            assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
+            assertThat(admin.describeCluster().nodes().get()).hasSize(cluster.getNumOfBrokers());
         }
     }
 
     @TestTemplate
-    public void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
-                                                            Admin admin)
+    void testMultipleClusterSizesWithAdminParameters(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) KafkaCluster cluster,
+                                                     Admin admin)
             throws ExecutionException, InterruptedException {
-        assertEquals(admin.describeCluster().nodes().get().size(), cluster.getNumOfBrokers());
+        assertThat(admin.describeCluster().nodes().get()).hasSize(cluster.getNumOfBrokers());
     }
-
-    static Set<List<Object>> observedCartesianProduct = new HashSet<>();
 
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class CartesianProduct {
+    class CartesianProduct {
+
+        private final Set<List<Object>> observedCartesianProduct = new HashSet<>();
+
+        @SuppressWarnings("unused")
         static Stream<BrokerConfig> compression() {
             return Stream.of(
                     brokerConfig("compression.type", "zstd"),
@@ -78,8 +89,8 @@ public class TemplateTest {
         }
 
         @TestTemplate
-        public void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
-                                         Admin admin)
+        void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
+                                  Admin admin)
                 throws ExecutionException, InterruptedException {
             // Given
             assertSameCluster(cluster, admin);
@@ -101,7 +112,7 @@ public class TemplateTest {
         }
 
         @AfterAll
-        public void afterAll() {
+        void afterAll() {
             // We are basically asserting that the test was invoked with all the expected combinations of parameters
             assertThat(observedCartesianProduct).containsExactlyInAnyOrder(
                     List.of(1, "zstd"),
@@ -111,6 +122,7 @@ public class TemplateTest {
         }
     }
 
+    @SuppressWarnings("unused")
     static Stream<List<Annotation>> tuples() {
         return Stream.of(
                 List.of(brokerCluster(1), kraftCluster(1)),
@@ -118,15 +130,14 @@ public class TemplateTest {
                 List.of(brokerCluster(3), zooKeeperCluster()));
     }
 
-    static Set<List<Integer>> observedTuples = new HashSet<>();
-
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class Tuples {
+    class Tuples {
+        private final Set<List<Integer>> observedTuples = new HashSet<>();
 
         @TestTemplate
-        public void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
-                               Admin admin)
+        void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
+                        Admin admin)
                 throws ExecutionException, InterruptedException {
             int numBrokers = admin.describeCluster().nodes().get().size();
             int numControllers;
@@ -148,17 +159,18 @@ public class TemplateTest {
         }
 
         @AfterAll
-        public void afterAll() {
-            assertEquals(Set.of(
+        void afterAll() {
+            assertThat(observedTuples).isEqualTo(Set.of(
                     List.of(1, 1),
                     List.of(3, 1),
-                    List.of(3, -1)),
-                    observedTuples);
+                    List.of(3, -1)));
         }
     }
 
     private static Stream<Version> versions() {
         return Stream.of(
+                version(Version.LATEST_RELEASE),
+                version(Version.LATEST_SNAPSHOT),
                 version("3.6.0"),
                 version("3.5.1"),
                 version("3.4.0"),
@@ -166,20 +178,89 @@ public class TemplateTest {
                 version("3.1.2"));
     }
 
-    static Set<String> observedVersions = new HashSet<>();
-
     @Nested
     @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-    public class Versions {
+    class Versions {
+
+        private final Set<String> observedVersions = new HashSet<>();
 
         @TestTemplate
-        public void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster) {
+        void testVersions(@DimensionMethodSource(value = "versions", clazz = TemplateTest.class) @KRaftCluster TestcontainersKafkaCluster cluster) {
             observedVersions.add(cluster.getKafkaVersion());
         }
 
         @AfterAll
-        public void afterAll() {
-            assertEquals(versions().map(Version::value).map("latest-kafka-%s"::formatted).collect(Collectors.toSet()), observedVersions);
+        void afterAll() {
+            assertThat(observedVersions).isEqualTo(versions().map(Version::value).collect(Collectors.toSet()));
+        }
+    }
+
+    @Nested
+    @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+    class CooperationWithAnotherTestTemplateInvocationContextProvider {
+        private final AtomicInteger observedInvocations = new AtomicInteger();
+        private final Set<MyTestParam> observedResolvedParams = new HashSet<>();
+
+        @TestTemplate
+        @ExtendWith(MyTestTemplateInvocationContextProvider.class)
+        void invocation(KafkaCluster cluster) {
+            assertThat(cluster).isNotNull();
+            observedInvocations.incrementAndGet();
+        }
+
+        @TestTemplate
+        @ExtendWith(MyTestTemplateInvocationContextProvider.class)
+        void invocationWithResolvedParameter(KafkaCluster cluster, MyTestParam testParam) {
+            assertThat(cluster).isNotNull();
+            observedResolvedParams.add(testParam);
+        }
+
+        @AfterAll
+        void afterAll() {
+            assertThat(observedInvocations).hasValue(2);
+            assertThat(observedResolvedParams).containsExactly(new MyTestParam("one"), new MyTestParam("two"));
+        }
+
+    }
+
+    private record MyTestParam(String value) {
+    }
+
+    private static class MyTestTemplateInvocationContextProvider implements TestTemplateInvocationContextProvider {
+        @Override
+        public boolean supportsTestTemplate(ExtensionContext context) {
+            return true;
+        }
+
+        @Override
+        public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(ExtensionContext context) {
+            return Stream.of(
+                    getTestTemplateInvocationContext("one"),
+                    getTestTemplateInvocationContext("two"));
+        }
+
+        @NonNull
+        private TestTemplateInvocationContext getTestTemplateInvocationContext(String value) {
+            return new TestTemplateInvocationContext() {
+                @Override
+                public String getDisplayName(int invocationIndex) {
+                    return value;
+                }
+
+                @Override
+                public List<Extension> getAdditionalExtensions() {
+                    return List.of(
+                            new TypeBasedParameterResolver<MyTestParam>() {
+
+                                @Override
+                                public MyTestParam resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext)
+                                        throws ParameterResolutionException {
+                                    return new MyTestParam(value);
+                                }
+                            });
+                }
+
+            };
         }
     }
 }

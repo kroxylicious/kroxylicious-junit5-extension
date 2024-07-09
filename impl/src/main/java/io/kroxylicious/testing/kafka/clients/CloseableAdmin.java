@@ -85,6 +85,8 @@ import org.apache.kafka.clients.admin.ExpireDelegationTokenResult;
 import org.apache.kafka.clients.admin.FeatureUpdate;
 import org.apache.kafka.clients.admin.FenceProducersOptions;
 import org.apache.kafka.clients.admin.FenceProducersResult;
+import org.apache.kafka.clients.admin.ListClientMetricsResourcesOptions;
+import org.apache.kafka.clients.admin.ListClientMetricsResourcesResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsOptions;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsSpec;
@@ -119,6 +121,7 @@ import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.TopicPartitionReplica;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.annotation.InterfaceStability;
@@ -659,6 +662,16 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @Override
     public FenceProducersResult fenceProducers(Collection<String> transactionalIds, FenceProducersOptions options) {
         return instance.fenceProducers(transactionalIds, options);
+    }
+
+    @Override
+    public ListClientMetricsResourcesResult listClientMetricsResources(ListClientMetricsResourcesOptions options) {
+        return instance.listClientMetricsResources(options);
+    }
+
+    @Override
+    public Uuid clientInstanceId(Duration timeout) {
+        return instance.clientInstanceId(timeout);
     }
 
     @Override

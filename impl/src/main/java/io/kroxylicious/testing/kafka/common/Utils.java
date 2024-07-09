@@ -55,10 +55,10 @@ public class Utils {
      * have at least one replica elsewhere in the cluster.
      *
      * @param connectionConfig the connection config
-     * @param fromNodeId nodeId being evacuated
-     * @param toNodeId replacement nodeId
-     * @param timeout the timeout
-     * @param timeUnit the time unit
+     * @param fromNodeId       nodeId being evacuated
+     * @param toNodeId         replacement nodeId
+     * @param timeout          the timeout
+     * @param timeUnit         the time unit
      */
     public static void awaitReassignmentOfKafkaInternalTopicsIfNecessary(Map<String, Object> connectionConfig, int fromNodeId, int toNodeId, int timeout,
                                                                          TimeUnit timeUnit) {
@@ -113,9 +113,9 @@ public class Utils {
      * To Verify that all the expected brokers are in the cluster we create a topic with a replication factor = to the expected number of brokers.
      * We then poll describeTopics until
      *
-     * @param connectionConfig the connection config
-     * @param timeout the timeout
-     * @param timeUnit the time unit
+     * @param connectionConfig    the connection config
+     * @param timeout             the timeout
+     * @param timeUnit            the time unit
      * @param expectedBrokerCount the expected broker count
      */
     public static void awaitExpectedBrokerCountInClusterViaTopic(Map<String, Object> connectionConfig, int timeout, TimeUnit timeUnit, Integer expectedBrokerCount) {
@@ -229,14 +229,15 @@ public class Utils {
         var throwable = potentiallyWrapped instanceof CompletionException && potentiallyWrapped.getCause() != null ? potentiallyWrapped.getCause() : potentiallyWrapped;
         boolean retriable = throwable instanceof RetriableException
                 && (throwable.getMessage() == null
-                        || !throwable.getMessage().contains("The AdminClient is not accepting new calls") /* workaround for KAFKA-15507 */ );
+                        || !throwable.getMessage().contains("The AdminClient is not accepting new calls") /* workaround for KAFKA-15507 */);
         return retriable || throwable instanceof InvalidReplicationFactorException
                 || (throwable instanceof TopicExistsException && throwable.getMessage().contains("is marked for deletion"));
     }
 
     /**
      * Factory for {@link Awaitility#await()} preconfigured with defaults.
-     * @param timeout at most timeout
+     *
+     * @param timeout  at most timeout
      * @param timeUnit at most {@link TimeUnit}
      * @return preconfigured factory
      */

@@ -16,7 +16,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.testcontainers.shaded.org.awaitility.Awaitility.await;
+import static org.awaitility.Awaitility.await;
 
 @ExtendWith(KafkaClusterExtension.class)
 class MultipleNodesIntegrationTest {

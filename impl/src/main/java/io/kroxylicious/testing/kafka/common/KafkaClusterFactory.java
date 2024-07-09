@@ -62,6 +62,7 @@ public class KafkaClusterFactory {
         }
 
         var clusterMode = getExecutionMode(clusterConfig);
+        var kafkaVersion = getKafkaVersion(clusterConfig);
         var kraftMode = convertClusterKraftMode(System.getenv().get(TEST_CLUSTER_KRAFT_MODE), true);
         var builder = clusterConfig.toBuilder();
 
@@ -73,7 +74,6 @@ public class KafkaClusterFactory {
             builder.kraftMode(kraftMode);
         }
 
-        var kafkaVersion = System.getenv().getOrDefault(KAFKA_VERSION, "latest");
         builder.kafkaVersion(kafkaVersion);
 
         var actual = builder.build();
@@ -95,6 +95,10 @@ public class KafkaClusterFactory {
     private static KafkaClusterExecutionMode getExecutionMode(KafkaClusterConfig clusterConfig) {
         return KafkaClusterExecutionMode.convertClusterExecutionMode(System.getenv().get(TEST_CLUSTER_EXECUTION_MODE),
                 clusterConfig.getExecMode() == null ? KafkaClusterExecutionMode.IN_VM : clusterConfig.getExecMode());
+    }
+
+    private static String getKafkaVersion(KafkaClusterConfig clusterConfig) {
+        return System.getenv().getOrDefault(KAFKA_VERSION, clusterConfig.getKafkaVersion());
     }
 
     private static boolean convertClusterKraftMode(String mode, boolean defaultMode) {

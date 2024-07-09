@@ -14,7 +14,7 @@
     <parent>
         <groupId>io.kroxylicious.testing</groupId>
         <artifactId>testing-parent</artifactId>
-        <version>0.7.0-SNAPSHOT</version>
+        <version>0.9.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -41,10 +41,6 @@
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_2.13</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka-server-common</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
@@ -91,10 +87,6 @@
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-testkit</artifactId>
             <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains</groupId>
-            <artifactId>annotations</artifactId>
         </dependency>
         <dependency>
             <!-- Note we use System.Logger facade in src/main/java. log4j2 only for the tests -->

@@ -27,6 +27,7 @@ import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.Uuid;
 
 /**
  * Provides a simple wrapper around a Kafka Consumer to redirect `close()`
@@ -210,6 +211,11 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     @Override
     public Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions, Duration timeout) {
         return instance.committed(partitions, timeout);
+    }
+
+    @Override
+    public Uuid clientInstanceId(Duration timeout) {
+        return instance.clientInstanceId(timeout);
     }
 
     @Override

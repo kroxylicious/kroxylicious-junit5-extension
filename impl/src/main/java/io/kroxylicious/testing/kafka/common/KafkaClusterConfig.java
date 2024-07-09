@@ -6,12 +6,14 @@
 package io.kroxylicious.testing.kafka.common;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,9 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -31,9 +36,14 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
 import org.apache.kafka.common.config.internals.BrokerSecurityConfigs;
 import org.apache.kafka.common.security.auth.SecurityProtocol;
-import org.jetbrains.annotations.NotNull;
+import org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule;
+import org.apache.kafka.common.security.plain.PlainLoginModule;
+import org.apache.kafka.common.security.scram.ScramLoginModule;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import kafka.server.KafkaConfig;
 import lombok.Builder;
 import lombok.Getter;
@@ -41,6 +51,8 @@ import lombok.Singular;
 import lombok.ToString;
 
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig.KafkaEndpoints.Listener;
+
+import static java.util.Locale.ROOT;
 
 /**
  * The Kafka cluster config class.
@@ -52,6 +64,8 @@ public class KafkaClusterConfig {
 
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterConfig.class.getName());
     private static final String ONE_CONFIG = Integer.toString(1);
+    private static final AtomicBoolean DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED = new AtomicBoolean();
+
     public static final String BROKER_ROLE = "broker";
     public static final String CONTROLLER_ROLE = "controller";
 
@@ -59,6 +73,12 @@ public class KafkaClusterConfig {
     public static final String EXTERNAL_LISTENER_NAME = "EXTERNAL";
     public static final String INTERNAL_LISTENER_NAME = "INTERNAL";
     public static final String ANON_LISTENER_NAME = "ANON";
+
+    private static final String SCRAM_SHA_SASL_MECHANISM_PREFIX = "SCRAM-SHA-";
+    private static final String PLAIN_SASL_MECHANISM_NAME = "PLAIN";
+    private static final String OAUTHBEARER_SASL_MECHANISM_NAME = "OAUTHBEARER";
+    private static final String SCRAM_256_SASL_MECHANISM_NAME = "SCRAM-SHA-256";
+    private static final String SCRAM_512_SASL_MECHANISM_NAME = "SCRAM-SHA-512";
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -76,15 +96,27 @@ public class KafkaClusterConfig {
 
     /**
      * Kafka version to be used for deploying kafka in container mode, e.g. "3.3.1".
+     * Defaults to the version available on the classpath.
+     * <br/>
+     * The value is only used when execMode is {@link KafkaClusterExecutionMode#CONTAINER}.
      */
     @Builder.Default
-    private String kafkaVersion = "latest";
+    @lombok.NonNull
+    private String kafkaVersion = detectKafkaVersionFromClasspath();
 
     /**
      * name of SASL mechanism to be configured on kafka for the external listener, if null, anonymous communication
      * will be used.
      */
     private final String saslMechanism;
+
+    /**
+     * name of login module that will be used to for client and broker. if null, the login module will be
+     * derived from the saslMechanism.
+     */
+    @Nullable
+    private String loginModule;
+
     private final String securityProtocol;
     @Builder.Default
     private Integer brokersNum = 1;
@@ -101,8 +133,15 @@ public class KafkaClusterConfig {
     private final Map<String, String> users;
 
     @Singular
+    private final Map<String, String> jaasServerOptions;
+
+    @Singular
+    private final Map<String, String> jaasClientOptions;
+
+    @Singular
     private final Map<String, String> brokerConfigs;
 
+    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
             ClusterId.class,
             BrokerCluster.class,
@@ -110,6 +149,7 @@ public class KafkaClusterConfig {
             BrokerConfig.List.class,
             KRaftCluster.class,
             Tls.class,
+            SaslMechanism.class,
             SaslPlainAuth.class,
             SaslPlainAuth.List.class,
             ZooKeeperCluster.class,
@@ -132,63 +172,110 @@ public class KafkaClusterConfig {
      * @param testInfo information about the test execution context.
      * @return the kafka cluster config
      */
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated annotations
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations, TestInfo testInfo) {
         var builder = builder();
         builder.testInfo(testInfo);
         builder.brokersNum(1);
-        boolean sasl = false;
-        boolean tls = false;
+        var tls = false;
+        var useSasl = false;
+        var saslUsers = Optional.<Map<String, String>> empty();
+        var deprecatedSaslUsers = Optional.<Map<String, String>> empty();
+
         for (Annotation annotation : annotations) {
             if (annotation instanceof BrokerCluster brokerCluster) {
                 builder.brokersNum(brokerCluster.numBrokers());
             }
-            if (annotation instanceof KRaftCluster kRaftCluster) {
+            else if (annotation instanceof KRaftCluster kRaftCluster) {
                 builder.kraftMode(true);
                 builder.kraftControllers(kRaftCluster.numControllers());
             }
-            if (annotation instanceof ZooKeeperCluster) {
+            else if (annotation instanceof ZooKeeperCluster) {
                 builder.kraftMode(false);
             }
-            if (annotation instanceof Tls) {
+            else if (annotation instanceof Tls) {
                 tls = true;
-                try {
-                    builder.brokerKeytoolCertificateGenerator(new KeytoolCertificateGenerator());
-                }
-                catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                processTls(builder::brokerKeytoolCertificateGenerator);
             }
-            if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
-                builder.saslMechanism("PLAIN");
-                sasl = true;
-                Map<String, String> users = new HashMap<>();
-                for (var user : saslPlainAuthList.value()) {
-                    users.put(user.user(), user.password());
-                }
-                builder.users(users);
-            }
-            else if (annotation instanceof SaslPlainAuth saslPlainAuth) {
-                builder.saslMechanism("PLAIN");
-                sasl = true;
-                builder.users(Map.of(saslPlainAuth.user(), saslPlainAuth.password()));
-            }
-            if (annotation instanceof ClusterId clusterId) {
+            else if (annotation instanceof ClusterId clusterId) {
                 builder.kafkaKraftClusterId(clusterId.value());
             }
-            if (annotation instanceof Version version) {
+            else if (annotation instanceof Version version) {
                 builder.kafkaVersion(version.value());
             }
-            if (annotation instanceof BrokerConfig.List brokerConfigList) {
-                for (var config : brokerConfigList.value()) {
-                    builder.brokerConfig(config.name(), config.value());
-                }
+            else if (annotation instanceof SaslMechanism mechanism) {
+                useSasl = true;
+                builder.saslMechanism(Optional.ofNullable(mechanism.value()).orElse(PLAIN_SASL_MECHANISM_NAME));
+                var principals = Optional.ofNullable(mechanism.principals()).orElse(new SaslMechanism.Principal[]{});
+                saslUsers = Optional.of(Arrays.stream(principals)
+                        .collect(Collectors.toMap(SaslMechanism.Principal::user, SaslMechanism.Principal::password)));
             }
-            else if (annotation instanceof BrokerConfig brokerConfig) {
-                builder.brokerConfig(brokerConfig.name(), brokerConfig.value());
+            else if (annotation instanceof SaslPlainAuth || annotation instanceof SaslPlainAuth.List) {
+                deprecatedSaslUsers = processDeprecatedSaslUserAnnotations(annotation);
+            }
+            else if (annotation instanceof BrokerConfig || annotation instanceof BrokerConfig.List) {
+                processBrokerConfigs(annotation, builder::brokerConfig);
+            }
+            else {
+                throw new IllegalArgumentException("unexpected constraint annotation " + annotation.getClass());
             }
         }
-        builder.securityProtocol((sasl ? "SASL_" : "") + (tls ? "SSL" : "PLAINTEXT"));
+
+        if (deprecatedSaslUsers.isPresent()) {
+            if (!DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED.compareAndExchange(false, true)) {
+                LOGGER.log(System.Logger.Level.WARNING, "Use of deprecated SaslPlainAuth annotation, use SaslUser instead.");
+            }
+            if (useSasl) {
+                throw new IllegalArgumentException("Cannot use deprecated SaslPlainAuth with SaslMechanism.");
+            }
+            else {
+                builder.saslMechanism(PLAIN_SASL_MECHANISM_NAME);
+                deprecatedSaslUsers.ifPresent(builder::users);
+                useSasl = true;
+            }
+        }
+        else if (saslUsers.isPresent()) {
+            saslUsers.ifPresent(builder::users);
+        }
+
+        builder.securityProtocol(determineSecurityProtocol(useSasl, tls));
         return builder.build();
+    }
+
+    private static void processTls(Consumer<KeytoolCertificateGenerator> consumer) {
+        try {
+            consumer.accept(new KeytoolCertificateGenerator());
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException("Failed to create broker certificate", e);
+        }
+    }
+
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
+    private static Optional<Map<String, String>> processDeprecatedSaslUserAnnotations(Annotation annotation) {
+        if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
+            return Optional.of(Arrays.stream(saslPlainAuthList.value())
+                    .collect(Collectors.toMap(SaslPlainAuth::user, SaslPlainAuth::password)));
+        }
+        else if (annotation instanceof SaslPlainAuth saslPlainAuth) {
+            return Optional.of(Map.of(saslPlainAuth.user(), saslPlainAuth.password()));
+        }
+        return Optional.empty();
+    }
+
+    private static void processBrokerConfigs(Annotation annotation, BiConsumer<String, String> consumer) {
+        if (annotation instanceof BrokerConfig.List brokerConfigList) {
+            for (var config : brokerConfigList.value()) {
+                consumer.accept(config.name(), config.value());
+            }
+        }
+        else if (annotation instanceof BrokerConfig brokerConfig) {
+            consumer.accept(brokerConfig.name(), brokerConfig.value());
+        }
+    }
+
+    private static String determineSecurityProtocol(boolean useSasl, boolean tls) {
+        return (useSasl ? "SASL_" : "") + (tls ? "SSL" : "PLAINTEXT");
     }
 
     /**
@@ -216,7 +303,7 @@ public class KafkaClusterConfig {
      * @param nodeId kafka <code>node.id</code>
      * @return broker configuration.
      */
-    @NotNull
+    @NonNull
     public ConfigHolder generateConfigForSpecificNode(KafkaEndpoints kafkaEndpoints, int nodeId) {
         final var role = determineRole(nodeId);
         Properties nodeConfiguration = new Properties();
@@ -267,13 +354,13 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    @NotNull
+    @NonNull
     private ConfigHolder configureController(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration) {
         return new ConfigHolder(nodeConfiguration, null, null, null,
                 nodeId, kafkaKraftClusterId);
     }
 
-    @NotNull
+    @NonNull
     private ConfigHolder configureBroker(KafkaEndpoints kafkaEndpoints, int nodeId, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
                                          TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties nodeConfiguration) {
         final ConfigHolder configHolder;
@@ -298,7 +385,7 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    @NotNull
+    @NonNull
     private String determineRole(int nodeId) {
         var roles = new ArrayList<String>();
 
@@ -329,7 +416,7 @@ public class KafkaClusterConfig {
                         "US");
                 if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
                     if (securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())) {
-                        server.put("listener.name.EXTERNAL." + BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
+                        server.put("listener.name.%s.%s".formatted(EXTERNAL_LISTENER_NAME.toLowerCase(ROOT), BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG), "required");
                     }
                     else {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
@@ -356,18 +443,39 @@ public class KafkaClusterConfig {
         if (saslMechanism != null) {
             putConfig(server, "sasl.enabled.mechanisms", saslMechanism);
 
-            var saslPairs = new StringBuilder();
+            var lm = Optional.ofNullable(loginModule).orElse(deriveLoginModuleFromSasl(saslMechanism));
+            var serverOptions = Optional.ofNullable(jaasServerOptions).orElse(Map.of()).entrySet().stream();
+            Stream<Map.Entry<String, String>> userOptions = Stream.empty();
+            // Note: Scram users are added to the server at after startup.
+            if (isSaslPlain()) {
+                userOptions = Optional.ofNullable(users).orElse(Map.of()).entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(e -> String.format("user_%s", e.getKey()), Map.Entry::getValue)).entrySet().stream();
+            }
 
-            Optional.ofNullable(users).orElse(Map.of()).forEach((key, value) -> {
-                saslPairs.append(String.format("user_%s", key));
-                saslPairs.append("=");
-                saslPairs.append(value);
-                saslPairs.append(" ");
-            });
+            var moduleOptions = Stream.concat(serverOptions, userOptions)
+                    .map(e -> String.join("=", e.getKey(), e.getValue()))
+                    .collect(Collectors.joining(" "));
 
-            // TODO support other than PLAIN
-            String plainModuleConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required %s;", saslPairs);
-            putConfig(server, String.format("listener.name.%s.plain.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase()), plainModuleConfig);
+            var moduleConfig = String.format("%s required %s;", lm, moduleOptions);
+            var configKey = String.format("listener.name.%s.%s.sasl.jaas.config", EXTERNAL_LISTENER_NAME.toLowerCase(ROOT), saslMechanism.toLowerCase(ROOT));
+
+            putConfig(server, configKey, moduleConfig);
+        }
+    }
+
+    private String deriveLoginModuleFromSasl(String saslMechanism) {
+        switch (saslMechanism.toUpperCase(ROOT)) {
+            case PLAIN_SASL_MECHANISM_NAME -> {
+                return PlainLoginModule.class.getName();
+            }
+            case SCRAM_256_SASL_MECHANISM_NAME, SCRAM_512_SASL_MECHANISM_NAME -> {
+                return ScramLoginModule.class.getName();
+            }
+            case OAUTHBEARER_SASL_MECHANISM_NAME -> {
+                return OAuthBearerLoginModule.class.getName();
+            }
+            default -> throw new IllegalArgumentException("Cannot derive login module from saslMechanism %s".formatted(saslMechanism));
         }
     }
 
@@ -448,9 +556,9 @@ public class KafkaClusterConfig {
      */
     public Map<String, Object> getConnectConfigForCluster(String bootstrapServers) {
         if (saslMechanism != null) {
-            Map<String, String> users = getUsers();
-            if (!users.isEmpty()) {
-                Map.Entry<String, String> first = users.entrySet().iterator().next();
+            var externalUsers = getUsers();
+            if (!externalUsers.isEmpty()) {
+                Map.Entry<String, String> first = externalUsers.entrySet().iterator().next();
                 return getConnectConfigForCluster(bootstrapServers, first.getKey(), first.getValue(), getSecurityProtocol(), getSaslMechanism());
             }
             else {
@@ -489,68 +597,94 @@ public class KafkaClusterConfig {
 
         if (securityProtocol != null) {
             kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, securityProtocol);
-
             if (securityProtocol.contains("SSL")) {
-                String clientTrustStoreFilePath;
-                String clientTrustStorePassword;
-                if (clientKeytoolCertificateGenerator != null) {
-                    if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
-                        // SSL client auth case
-                        kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
-                        kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
-                        kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
-                    }
-                    try {
-                        clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
-                    }
-                    catch (GeneralSecurityException | IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
-                    clientTrustStorePassword = clientKeytoolCertificateGenerator.getPassword();
-                }
-                else {
-                    Path clientTrustStore;
-                    try {
-                        Path certsDirectory = Files.createTempDirectory("kafkaClient");
-                        clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
-                        certsDirectory.toFile().deleteOnExit();
-                        clientTrustStore.toFile().deleteOnExit();
-                        brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
-                                clientTrustStore.toAbsolutePath().toString());
-                    }
-                    catch (GeneralSecurityException | IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                    clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
-                    clientTrustStorePassword = brokerKeytoolCertificateGenerator.getPassword();
-                }
-                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientTrustStoreFilePath);
-                kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientTrustStorePassword);
+                buildSecurityProtocolConfig(kafkaConfig);
             }
         }
 
         if (saslMechanism != null) {
-            if (securityProtocol == null) {
-                kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name());
-            }
-            kafkaConfig.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
-
-            if ("PLAIN".equals(saslMechanism)) {
-                if (user != null && password != null) {
-                    kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG,
-                            String.format("org.apache.kafka.common.security.plain.PlainLoginModule required username=\"%s\" password=\"%s\";",
-                                    user, password));
-                }
-            }
-            else {
-                throw new IllegalStateException(String.format("unsupported SASL mechanism %s", saslMechanism));
-            }
+            buildSaslConnectConfig(kafkaConfig, user, password, securityProtocol, saslMechanism);
         }
 
         kafkaConfig.put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
 
         return kafkaConfig;
+    }
+
+    private void buildSecurityProtocolConfig(Map<String, Object> kafkaConfig) {
+        String clientTrustStoreFilePath;
+        String clientTrustStorePassword;
+        if (clientKeytoolCertificateGenerator != null) {
+            if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
+                // SSL client auth case
+                kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
+                kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
+                kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
+            }
+            try {
+                clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
+            }
+            catch (GeneralSecurityException | IOException e) {
+                throw new RuntimeException(e);
+            }
+            clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
+            clientTrustStorePassword = clientKeytoolCertificateGenerator.getPassword();
+        }
+        else {
+            Path clientTrustStore;
+            try {
+                Path certsDirectory = Files.createTempDirectory("kafkaClient");
+                clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
+                certsDirectory.toFile().deleteOnExit();
+                clientTrustStore.toFile().deleteOnExit();
+                brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
+                        clientTrustStore.toAbsolutePath().toString());
+            }
+            catch (GeneralSecurityException | IOException e) {
+                throw new RuntimeException(e);
+            }
+            clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
+            clientTrustStorePassword = brokerKeytoolCertificateGenerator.getPassword();
+        }
+        kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientTrustStoreFilePath);
+        kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientTrustStorePassword);
+    }
+
+    private void buildSaslConnectConfig(Map<String, Object> kafkaConfig, String user, String password, String securityProtocol, String saslMechanism) {
+        kafkaConfig.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
+
+        var lm = Optional.ofNullable(loginModule).orElse(deriveLoginModuleFromSasl(saslMechanism));
+        if (securityProtocol == null) {
+            kafkaConfig.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, SecurityProtocol.SASL_PLAINTEXT.name());
+        }
+
+        var jaasOptions = new HashMap<>(jaasClientOptions == null ? Map.of() : jaasClientOptions);
+
+        if (isSaslPlain() || isSaslScram()) {
+            applyCredential(jaasOptions, "username", user);
+            applyCredential(jaasOptions, "password", password);
+        }
+
+        var moduleOptions = jaasOptions.entrySet().stream()
+                .map(e -> String.join("=", e.getKey(), e.getValue()))
+                .collect(Collectors.joining(" "));
+
+        kafkaConfig.put(SaslConfigs.SASL_JAAS_CONFIG, String.format("%s required %s;", lm, moduleOptions));
+    }
+
+    private void applyCredential(HashMap<String, String> jaasOptions, String credentialKey, String credentialValue) {
+        jaasOptions.computeIfAbsent(credentialKey, k -> credentialValue);
+        if (!jaasOptions.containsKey(credentialKey)) {
+            LOGGER.log(System.Logger.Level.WARNING, "No {} value specified for SASL authentication", credentialKey);
+        }
+    }
+
+    private boolean isSaslPlain() {
+        return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).equals(PLAIN_SASL_MECHANISM_NAME);
+    }
+
+    public boolean isSaslScram() {
+        return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).startsWith(SCRAM_SHA_SASL_MECHANISM_PREFIX);
     }
 
     /**
@@ -569,6 +703,12 @@ public class KafkaClusterConfig {
      */
     public String clusterId() {
         return isKraftMode() ? kafkaKraftClusterId : null;
+    }
+
+    private static String detectKafkaVersionFromClasspath() {
+        var version = AppInfoParser.getVersion();
+        var appInfoParserUnknown = "unknown"; // Defined by AppInfoParser.DEFAULT_VALUE. Symbol is package-private.
+        return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
     }
 
     /**

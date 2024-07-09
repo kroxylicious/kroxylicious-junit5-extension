@@ -42,14 +42,17 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
  * }
  * }</pre>
  *
- * <p>By default a KRaft cluster with a single broker and colocated controller
+ * <p>By default a KRaft cluster with a single broker and co-located controller
  * will be used using containers.
  * However, the configuration of the cluster
  * can be influenced with a number of other annotations:</p>
  * <dl>
  *     <dt>{@link KRaftCluster}</dt><dd>Allow specifying the number of KRaft controllers</dd>
  *     <dt>{@link ZooKeeperCluster}</dt><dd>Allow specifying that a ZK-based cluster should be used</dd>
- *     <dt>{@link SaslPlainAuth}</dt><dd>Will configure the cluster for SASL-PLAIN authentication</dd>
+ *     <dt>{@link SaslMechanism}</dt><dd>will provide cluster with the external listener configured for the given SASL
+ *     mechanism.  Use of this option requires the client to use SASL authentication. For PLAIN and SCRAM mechanism a
+ *     database of principals must be provided.</dd>
+ *     <dt>{@link SaslPlainAuth}</dt><dd>Will configure the cluster for SASL-PLAIN authentication (deprecated) - use {@link SaslMechanism}.</dd>
  * </dl>
  *
  * <p>For example:</p>
@@ -60,10 +63,7 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
  *     public void testKafkaClusterParameter(
  *             @BrokerCluster(numBrokers = 3)
  *             @KRaftCluster(numControllers = 3)
- *             @SaslPlainAuth({
- *                 @UserPassword(user="alice", password="foo"),
- *                 @UserPassword(user="bob", password="bar")
- *             })
+ *             @SaslMechanism("SCRAM-SHA-256", principals = {@Principal(user="alice", password="foo"), @Principal(user="bob", password="bar")})
  *             KafkaCluster cluster) {
  *         //... your test code using `cluster`
  *     }

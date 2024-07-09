@@ -7,211 +7,398 @@ package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
+import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.ConsumerGroupListing;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicDescription;
+import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.Node;
+import org.apache.kafka.common.TopicPartitionInfo;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
+import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.SaslMechanism;
+import io.kroxylicious.testing.kafka.common.SaslMechanism.Principal;
 import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
+import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_COMPACT;
+import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
+import static org.assertj.core.api.InstanceOfAssertFactories.collection;
+import static org.assertj.core.api.InstanceOfAssertFactories.list;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(KafkaClusterExtension.class)
-public class ParameterExtensionTest extends AbstractExtensionTest {
+class ParameterExtensionTest extends AbstractExtensionTest {
 
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
+    private static final String CONSUMER_GROUP = "mygroup";
+    private static final String TRANSACTIONAL_ID = "mytxn1";
+    private static final String CLIENT_ID = "myclientid";
 
     @Test
-    public void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster.getKafkaClientConfiguration()).nodes().get().size()));
-        var dc = describeCluster(cluster.getKafkaClientConfiguration());
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
-        assertInstanceOf(InVMKafkaCluster.class, cluster);
+    void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster) throws Exception {
+        assertThat(cluster).isInstanceOf(InVMKafkaCluster.class);
+        assertClusterIdAndSize(cluster, 2);
     }
 
     @Test
-    public void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
-                              Admin admin)
-            throws ExecutionException, InterruptedException {
+    void brokerConfigs(@BrokerConfig(name = "compression.type", value = "zstd") @BrokerConfig(name = "delete.topic.enable", value = "false") KafkaCluster clusterWithConfigs,
+                       Admin admin)
+            throws Exception {
         assertSameCluster(clusterWithConfigs, admin);
-        ConfigResource resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
-        Config configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
-        assertEquals("zstd", configs.get("compression.type").value());
-        assertEquals("false", configs.get("delete.topic.enable").value());
+        var resource = new ConfigResource(ConfigResource.Type.BROKER, "0");
+
+        var configs = admin.describeConfigs(List.of(resource)).all().get().get(resource);
+        assertConfigValue(configs, "compression.type", "zstd");
+        assertConfigValue(configs, "delete.topic.enable", "false");
     }
 
     @Test
-    public void clusterAndAdminParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster,
-                                         Admin admin)
-            throws ExecutionException, InterruptedException {
+    void consumerConfiguration(
+                               KafkaCluster cluster,
+                               Admin admin,
+                               @ClientConfig(name = ConsumerConfig.GROUP_ID_CONFIG, value = CONSUMER_GROUP) Consumer<String, String> consumer)
+            throws Exception {
+
+        var topic = createTopic(admin);
+
+        consumer.subscribe(List.of(topic));
+        // start the consumer to create the group
+        consumer.poll(Duration.ofSeconds(1));
+
+        var groups = admin.listConsumerGroups().all().get(5, TimeUnit.SECONDS);
+        assertThat(groups)
+                .singleElement()
+                .extracting(ConsumerGroupListing::groupId).isEqualTo(CONSUMER_GROUP);
+    }
+
+    @Test
+    void producerConfiguration(KafkaCluster cluster,
+                               Admin admin,
+                               @ClientConfig(name = ProducerConfig.TRANSACTIONAL_ID_CONFIG, value = TRANSACTIONAL_ID) Producer<String, String> producer)
+            throws Exception {
+
+        var topic = createTopic(admin);
+
+        producer.initTransactions();
+        producer.beginTransaction();
+        // send a record to start the transaction
+        producer.send(new ProducerRecord<>(topic, "hello world")).get(5, TimeUnit.SECONDS);
+
+        var transactions = admin.describeTransactions(List.of(TRANSACTIONAL_ID)).all().get(5, TimeUnit.SECONDS);
+        assertThat(transactions)
+                .hasSize(1)
+                .containsKey(TRANSACTIONAL_ID);
+    }
+
+    @Test
+    void adminConfiguration(KafkaCluster cluster,
+                            @ClientConfig(name = ConsumerConfig.CLIENT_ID_CONFIG, value = CLIENT_ID) Admin admin) {
+
+        assertThat(admin).isNotNull();
+        // reflection is the best we can do.
+        assertThat(admin).extracting("clientId").isEqualTo(CLIENT_ID);
+    }
+
+    @Test
+    void clusterAndAdminParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster,
+                                  Admin admin)
+            throws Exception {
         assertSameCluster(cluster, admin);
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(admin).nodes().get().size()));
-        assertInstanceOf(InVMKafkaCluster.class, cluster);
+        assertClusterIdAndSize(cluster, 2);
+        assertThat(cluster).isInstanceOf(InVMKafkaCluster.class);
     }
 
     @Test
-    public void twoAnonClusterParameter(
-                                        @BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
-                                        @BrokerCluster(numBrokers = 2) KafkaCluster cluster2)
-            throws ExecutionException, InterruptedException {
-        assertNotEquals(cluster1.getClusterId(), cluster2.getClusterId());
-        var dc1 = describeCluster(cluster1.getKafkaClientConfiguration());
-        assertEquals(cluster1.getClusterId(), dc1.clusterId().get());
-        assertEquals(1, dc1.nodes().get().size());
-        var dc2 = describeCluster(cluster2.getKafkaClientConfiguration());
-        assertEquals(cluster2.getClusterId(), dc2.clusterId().get());
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster2.getKafkaClientConfiguration()).nodes().get().size()));
-    }
+    void twoAnonClusterParameter(
+                                 @BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
+                                 @BrokerCluster(numBrokers = 2) KafkaCluster cluster2)
+            throws Exception {
+        assertThat(cluster1.getClusterId()).isNotEqualTo(cluster2.getClusterId());
 
-    // @Name is not required here because there's no ambiguity
-    @Test
-    public void twoDefinedClusterParameter(
-                                           @BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
-                                           @BrokerCluster(numBrokers = 2) KafkaCluster cluster2)
-            throws ExecutionException, InterruptedException {
-        assertEquals(1, describeCluster(cluster1.getKafkaClientConfiguration()).nodes().get().size());
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(cluster2.getKafkaClientConfiguration()).nodes().get().size()));
+        assertClusterIdAndSize(cluster1, 1);
+        assertClusterIdAndSize(cluster2, 2);
     }
 
     @Test
-    public void twoDefinedClusterParameterAndAdmin(
-                                                   @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
-                                                   @BrokerCluster(numBrokers = 2) @Name("B") KafkaCluster clusterB,
-                                                   @Name("B") Admin adminB,
-                                                   @Name("A") Admin adminA)
-            throws ExecutionException, InterruptedException {
+    void twoDefinedClusterParameterAndAdmin(
+                                            @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+                                            @BrokerCluster(numBrokers = 2) @Name("B") KafkaCluster clusterB,
+                                            @Name("B") Admin adminB,
+                                            @Name("A") Admin adminA)
+            throws Exception {
         assertSameCluster(clusterA, adminA);
-        assertEquals(1, describeCluster(clusterA.getKafkaClientConfiguration()).nodes().get().size());
-        assertEquals(1, describeCluster(adminA).nodes().get().size());
+        assertClusterIdAndSize(clusterA, 1);
+
         assertSameCluster(clusterB, adminB);
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertEquals(2, describeCluster(clusterB.getKafkaClientConfiguration()).nodes().get().size()));
-        assertEquals(2, describeCluster(adminB).nodes().get().size());
+        assertClusterIdAndSize(clusterB, 2);
     }
 
     @Test
-    public void multipleReferencesToTheSameCluster(
-                                                   @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
-                                                   @Name("A") KafkaCluster clusterARef,
-                                                   @Name("A") Admin adminA)
-            throws ExecutionException, InterruptedException {
+    void multipleReferencesToTheSameCluster(
+                                            @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+                                            @Name("A") KafkaCluster clusterARef,
+                                            @Name("A") Admin adminA)
+            throws Exception {
         assertSameCluster(clusterA, adminA);
         assertSameCluster(clusterARef, adminA);
-        assertEquals(1, describeCluster(clusterA.getKafkaClientConfiguration()).nodes().get().size());
-        assertEquals(1, describeCluster(adminA).nodes().get().size());
-        assertSame(clusterA, clusterARef);
+        assertThat(clusterA).isSameAs(clusterARef);
+        assertClusterIdAndSize(clusterA, 1);
     }
 
     // multiple clients connected to the same cluster (e.g. different users)
     @Test
-    public void twoClusterParameterAndTwoAdmin(
-                                               @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
-                                               @Name("A") Admin admin1,
-                                               @Name("A") Admin admin2)
-            throws ExecutionException, InterruptedException {
-        var dc1 = describeCluster(cluster1.getKafkaClientConfiguration());
-        assertEquals(1, dc1.nodes().get().size());
+    void clusterParameterAndTwoAdmin(
+                                     @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
+                                     @Name("A") Admin admin1,
+                                     @Name("A") Admin admin2)
+            throws Exception {
         assertSameCluster(cluster1, admin1);
         assertSameCluster(cluster1, admin2);
-        assertNotSame(admin1, admin2);
+        assertThat(admin1).isNotSameAs(admin2);
     }
 
     @Test
-    public void zkBasedClusterParameter(@BrokerCluster @ZooKeeperCluster KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration());
-        assertEquals(1, dc.nodes().get().size());
-        assertNull(cluster.getClusterId(),
-                "KafkaCluster.getClusterId() should be null for ZK-based clusters");
+    void zkBasedClusterParameter(@BrokerCluster @ZooKeeperCluster KafkaCluster cluster)
+            throws Exception {
+        assertClusterSize(cluster, 1);
+        assertThat(cluster.getClusterId())
+                .withFailMessage("KafkaCluster.getClusterId() should be null for ZK-based clusters")
+                .isNull();
     }
 
     @Test
-    public void kraftBasedClusterParameter(@BrokerCluster @KRaftCluster KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration());
-        assertEquals(1, dc.nodes().get().size());
+    void kraftBasedClusterParameter(@BrokerCluster @KRaftCluster KafkaCluster cluster)
+            throws Exception {
+        assertClusterIdAndSize(cluster, 1);
     }
 
     @Test
-    public void saslPlainAuthenticatingClusterParameter2Users(
-                                                              @BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
-        assertEquals(1, dc.nodes().get().size());
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
-
-        dc = describeCluster(cluster.getKafkaClientConfiguration("bob", "bar"));
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
-
-        var ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("bob", "baz")),
-                "Expect bad password to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
-
-        ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("eve", "quux")),
-                "Expect unknown user to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    void shouldDefaultToSaslPlain(@BrokerCluster @SaslMechanism(principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    public void saslPlainAuthenticatingClusterParameter1User(
-                                                             @BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") KafkaCluster cluster)
-            throws ExecutionException, InterruptedException {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration("alice", "foo"));
-        assertEquals(1, dc.nodes().get().size());
-        assertEquals(cluster.getClusterId(), dc.clusterId().get());
-
-        var ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("alice", "baz")),
-                "Expect bad password to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
-
-        ee = assertThrows(ExecutionException.class, () -> describeCluster(cluster.getKafkaClientConfiguration("bob", "bar")),
-                "Expect unknown user to throw");
-        assertInstanceOf(SaslAuthenticationException.class, ee.getCause());
+    void saslPlainAuthExplicitMechanism(@BrokerCluster @SaslMechanism(value = "PLAIN", principals = {
+            @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
     }
 
     @Test
-    public void tlsClusterParameter(
-                                    @Tls @BrokerCluster(numBrokers = 1) KafkaCluster cluster,
-                                    Admin admin)
-            throws ExecutionException, InterruptedException {
-        String bootstrapServer = cluster.getBootstrapServers();
-        assertFalse(bootstrapServer.contains(","), "expect a single bootstrap server");
+    void saslScramAuth(@BrokerCluster @SaslMechanism(value = "SCRAM-SHA-256", principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+    }
+
+    @Test
+    void saslAuthWithManyUsers(@BrokerCluster @SaslMechanism(value = "SCRAM-SHA-256", principals = { @Principal(user = "alice", password = "foo"),
+            @Principal(user = "bob", password = "bar") }) KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+        doAuthExpectSucceeds(cluster, "bob", "bar");
+    }
+
+    @Test
+    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
+    void saslPlainAuthDeprecatedAnnotation(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+    }
+
+    @Test
+    @SuppressWarnings({ "java:S5738", "java:S4144" }) // silence warnings about the use of deprecated code and the duplicated method content
+    void saslPlainAuthDeprecatedAnnotationManyUsers(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster) {
+        doAuthExpectSucceeds(cluster, "alice", "foo");
+        doAuthExpectSucceeds(cluster, "bob", "bar");
+    }
+
+    private void doAuthExpectSucceeds(KafkaCluster cluster, String username, String password) {
+        var config = cluster.getKafkaClientConfiguration(username, password);
+        try (var admin = Admin.create(config)) {
+            var dcr = admin.describeCluster();
+            assertThat(dcr.clusterId())
+                    .succeedsWithin(Duration.ofSeconds(10), STRING)
+                    .isEqualTo(cluster.getClusterId());
+        }
+    }
+
+    @Test
+    void saslPlainAuthFails(@BrokerCluster @SaslMechanism(principals = { @Principal(user = "alice", password = "foo") }) KafkaCluster cluster) {
+        var config = cluster.getKafkaClientConfiguration("alicex", "bad");
+        try (var admin = Admin.create(config)) {
+            var dcr = admin.describeCluster();
+            assertThat(dcr.clusterId())
+                    .failsWithin(Duration.ofSeconds(10))
+                    .withThrowableThat()
+                    .havingRootCause()
+                    .isInstanceOf(SaslAuthenticationException.class)
+                    .withMessage("Authentication failed: Invalid username or password");
+        }
+    }
+
+    @Test
+    void tlsClusterParameter(
+                             @Tls @BrokerCluster(numBrokers = 1) KafkaCluster cluster,
+                             Admin admin)
+            throws Exception {
+        var bootstrapServer = cluster.getBootstrapServers();
+        assertThat(bootstrapServer)
+                .withFailMessage("expect a single bootstrap server")
+                .doesNotContain(",");
+
         var listenerPattern = Pattern.compile("(?<listenerName>[a-zA-Z]+)://" + Pattern.quote(bootstrapServer));
-        ConfigResource broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
-        Config brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
-        String advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
+        var broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
+        var brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
+        var advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
         // e.g. advertisedListener = "EXTERNAL://localhost:37565,INTERNAL://localhost:35173"
         var matcher = listenerPattern.matcher(advertisedListener);
-        assertTrue(matcher.find(),
-                "Expected '" + advertisedListener + "' to contain a match for " + listenerPattern.pattern());
-        var listenerName = matcher.group("listenerName");
-        String protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
-        assertTrue(protocolMap.contains(listenerName + ":SSL"),
-                "Expected '" + protocolMap + "' to contain " + listenerName + ":SSL");
+        assertThat(matcher.find())
+                .withFailMessage("Expected '" + advertisedListener + "' to contain a match for " + listenerPattern.pattern())
+                .isTrue();
 
+        var listenerName = matcher.group("listenerName");
+        var protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
+        assertThat(protocolMap)
+                .withFailMessage("Expected '" + protocolMap + "' to contain " + listenerName + ":SSL")
+                .contains(listenerName + ":SSL");
     }
 
+    @Test
+    void topic(KafkaCluster cluster,
+               Topic topic,
+               Admin admin)
+            throws Exception {
+
+        assertThat(topic).isNotNull().extracting(Topic::name).isNotNull();
+
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+    }
+
+    @Test
+    void topicConfig(KafkaCluster cluster,
+                     @TopicConfig(name = CLEANUP_POLICY_CONFIG, value = CLEANUP_POLICY_COMPACT) Topic topic,
+                     Admin admin)
+            throws Exception {
+        var resourceKey = new ConfigResource(ConfigResource.Type.TOPIC, topic.name());
+        var all = admin.describeConfigs(List.of(resourceKey)).all().get(5, TimeUnit.SECONDS);
+
+        var topicConfig = all.get(resourceKey);
+        assertThat(topicConfig).isNotNull();
+        assertConfigValue(topicConfig, CLEANUP_POLICY_CONFIG, CLEANUP_POLICY_COMPACT);
+    }
+
+    @Test
+    void topicWithSpecifiedPartitions(KafkaCluster cluster,
+                                      @TopicPartitions(2) Topic topic,
+                                      Admin admin)
+            throws Exception {
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+
+        var topicDescription = result.get(topic.name());
+        assertThat(topicDescription)
+                .extracting(TopicDescription::partitions, list(TopicPartitionInfo.class))
+                .hasSize(2);
+    }
+
+    @Test
+    void topicWithSpecifiedReplicationFactor(@BrokerCluster(numBrokers = 2) KafkaCluster cluster,
+                                             @TopicReplicationFactor(2) Topic topic,
+                                             Admin admin)
+            throws Exception {
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+
+        var topicDescription = result.get(topic.name());
+        assertThat(topicDescription)
+                .extracting(TopicDescription::partitions, list(TopicPartitionInfo.class))
+                .singleElement()
+                .extracting(TopicPartitionInfo::replicas, list(Node.class))
+                .hasSize(2);
+    }
+
+    @Test
+    void topicGetsBrokerDefaults(@BrokerConfig(name = "num.partitions", value = "2") KafkaCluster cluster,
+                                 Topic topic,
+                                 Admin admin)
+            throws Exception {
+
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+
+        var topicDescription = result.get(topic.name());
+        assertThat(topicDescription)
+                .describedAs("expected topic to have default number of partitions")
+                .extracting(TopicDescription::partitions)
+                .asInstanceOf(InstanceOfAssertFactories.LIST)
+                .hasSize(2);
+    }
+
+    @NonNull
+    private String createTopic(Admin admin) throws Exception {
+        var topic = UUID.randomUUID().toString();
+        admin.createTopics(List.of(new NewTopic(topic, 1, (short) 1))).all().get(5, TimeUnit.SECONDS);
+
+        Awaitility.await().atMost(Duration.ofSeconds(5)).until(() -> admin.listTopics().namesToListings().get(),
+                n -> n.containsKey(new NewTopic(topic, 1, (short) 1).name()));
+        return topic;
+    }
+
+    private void assertClusterIdAndSize(KafkaCluster cluster, int expectedNodes) throws Exception {
+        var dc = describeCluster(cluster.getKafkaClientConfiguration());
+        assertThat(dc.clusterId())
+                .succeedsWithin(Duration.ofSeconds(10), STRING)
+                .isEqualTo(cluster.getClusterId());
+
+        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertThat(dc.nodes())
+                .succeedsWithin(Duration.ofSeconds(10))
+                .asInstanceOf(collection(Node.class)).hasSize(expectedNodes));
+    }
+
+    private void assertClusterSize(KafkaCluster cluster, int expectedNodes) throws Exception {
+        var dc = describeCluster(cluster.getKafkaClientConfiguration());
+        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertThat(dc.nodes())
+                .succeedsWithin(Duration.ofSeconds(10))
+                .asInstanceOf(collection(Node.class)).hasSize(expectedNodes));
+    }
+
+    private void assertConfigValue(Config configs, String configName, String expectedValue) {
+        assertThat(configs.get(configName))
+                .isNotNull()
+                .extracting(ConfigEntry::value)
+                .isEqualTo(expectedValue);
+    }
 }
