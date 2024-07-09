@@ -14,6 +14,7 @@ This document gives a detailed breakdown of the various build processes and opti
     * [MacOS X](#macos-x)
     * [Linux](#linux)
     * [Verify that the fix is effective](#verify-that-the-fix-is-effective)
+  * [DCO Signoff](#dco-signoff) 
 <!-- TOC -->
 
 ## Build Prerequisites
@@ -135,3 +136,8 @@ You'll see an API response.  If the service_timeout change is effective, the soc
 will continue for three minutes.  If `socat` terminates after about 10 seconds, the workaround
 has been applied ineffectively.
 
+## DCO Signoff
+
+The project requires that all commits are signed-off, indicating that _you_ certify the changes with the developer
+certificate of origin (DCO) (https://developercertificate.org/). This can be done using `git commit -s` for each commit
+in your pull request. Alternatively, to signoff a bunch of commits you can use `git rebase --signoff _your-branch_`.
