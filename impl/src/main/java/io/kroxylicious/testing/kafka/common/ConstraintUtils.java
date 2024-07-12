@@ -9,6 +9,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -177,12 +178,18 @@ public class ConstraintUtils {
                 annoType.getDeclaredMethod(member);
             }
             catch (NoSuchMethodException e) {
-                throw new RuntimeException(e);
+                throw new IllegalArgumentException("Annotation %s does not have an element %s".formatted(annoType.getName(), member));
             }
         }
-        Objects.requireNonNull(members);
+        var defaults = Arrays.stream(annoType.getDeclaredMethods())
+                .filter(m -> Objects.nonNull(m.getDefaultValue()))
+                .collect(Collectors.toMap(Method::getName, Method::getDefaultValue));
+
+        var annotationValues = new HashMap<>(defaults);
+        annotationValues.putAll(members);
+
         return (A) Proxy.newProxyInstance(annoType.getClassLoader(), new Class<?>[]{ annoType },
-                new AnnotationProxyInvocationHandler<>(annoType, members));
+                new AnnotationProxyInvocationHandler<>(annoType, annotationValues));
     }
 
     private static class AnnotationProxyInvocationHandler<A extends Annotation> implements InvocationHandler {
@@ -201,7 +208,7 @@ public class ConstraintUtils {
         }
 
         @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+        public Object invoke(Object proxy, Method method, Object[] args) {
             switch (method.getName()) {
                 case "annotationType" -> {
                     return annoType;
