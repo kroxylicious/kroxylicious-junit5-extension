@@ -42,8 +42,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import kafka.server.KafkaConfig;
-
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
@@ -469,7 +467,7 @@ class KafkaClusterTest {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(true)
-                .brokerConfig(KafkaConfig.InterBrokerProtocolVersionProp(), minVersion)
+                .brokerConfig("inter.broker.protocol.version", minVersion)
                 .build())) {
             cluster.start();
 
@@ -483,7 +481,7 @@ class KafkaClusterTest {
                 var bcr = configs.get(cr);
                 assertThat(bcr).isNotNull();
 
-                var ibp = bcr.get(KafkaConfig.InterBrokerProtocolVersionProp());
+                var ibp = bcr.get("inter.broker.protocol.version");
                 assertThat(ibp)
                         .isNotNull()
                         .extracting(ConfigEntry::value)
