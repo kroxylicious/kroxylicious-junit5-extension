@@ -44,7 +44,6 @@ import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import kafka.server.KafkaConfig;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Singular;
@@ -506,7 +505,7 @@ public class KafkaClusterConfig {
         putConfig(server, "zookeeper.connect", kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, 0).connectAddress());
         putConfig(server, "zookeeper.sasl.enabled", "false");
         putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
-        putConfig(server, KafkaConfig.ZkSessionTimeoutMsProp(), Long.toString(6000));
+        putConfig(server, "zookeeper.session.timeout.ms", Long.toString(6000));
     }
 
     private void configureKraftNode(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration, TreeMap<String, String> protocolMap,

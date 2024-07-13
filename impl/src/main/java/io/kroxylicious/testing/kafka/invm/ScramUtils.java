@@ -14,6 +14,8 @@ import org.apache.kafka.common.security.scram.internals.ScramMechanism;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.tools.StorageTool;
+import net.sourceforge.argparse4j.inf.Namespace;
+import scala.jdk.javaapi.CollectionConverters;
 
 final class ScramUtils {
 
@@ -31,11 +33,15 @@ final class ScramUtils {
         if (scramMechanism == null) {
             throw new IllegalArgumentException("unexpected scram mechanism " + saslMechanism);
         }
-        return users
+
+        var addScram = users
                 .entrySet()
                 .stream()
-                .map(e -> StorageTool.getUserScramCredentialRecord(scramMechanism.mechanismName(), toKafkaScramCredentialsFormat(e.getKey(), e.getValue())))
+                .map(e -> scramMechanism.mechanismName() + "=" + toKafkaScramCredentialsFormat(e.getKey(), e.getValue()))
                 .toList();
+
+        var n = new Namespace(Map.of("add_scram", addScram));
+        return CollectionConverters.asJava(StorageTool.getUserScramCredentialRecords(n).get());
     }
 
     @NonNull

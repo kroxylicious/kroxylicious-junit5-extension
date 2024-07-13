@@ -64,7 +64,6 @@ import com.github.dockerjava.api.model.Volume;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import kafka.server.KafkaConfig;
 import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -487,7 +486,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             // In the zookeeper case, we may as well wait for the zookeeper session timeout. This serves to prevent a
             // subsequent call to startBroker spinning excessively.
             var config = clusterConfig.getBrokerConfigs(() -> this).findFirst();
-            var zkSessionTimeout = config.map(KafkaClusterConfig.ConfigHolder::getProperties).map(p -> p.getProperty(KafkaConfig.ZkSessionTimeoutMsProp(), "0"))
+            var zkSessionTimeout = config.map(KafkaClusterConfig.ConfigHolder::getProperties).map(p -> p.getProperty("zookeeper.session.timeout.ms", "0"))
                     .map(Long::parseLong);
             zkSessionTimeout.filter(timeout -> timeout > 0).ifPresent(
                     timeOut -> {

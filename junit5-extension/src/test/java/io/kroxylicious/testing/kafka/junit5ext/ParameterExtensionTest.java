@@ -32,7 +32,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
@@ -268,7 +267,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         var listenerPattern = Pattern.compile("(?<listenerName>[a-zA-Z]+)://" + Pattern.quote(bootstrapServer));
         var broker = new ConfigResource(ConfigResource.Type.BROKER, "0");
         var brokerConfigs = admin.describeConfigs(List.of(broker)).all().get().get(broker);
-        var advertisedListener = brokerConfigs.get(KafkaConfig.AdvertisedListenersProp()).value();
+        var advertisedListener = brokerConfigs.get("advertised.listeners").value();
         // e.g. advertisedListener = "EXTERNAL://localhost:37565,INTERNAL://localhost:35173"
         var matcher = listenerPattern.matcher(advertisedListener);
         assertThat(matcher.find())
@@ -276,7 +275,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
                 .isTrue();
 
         var listenerName = matcher.group("listenerName");
-        var protocolMap = brokerConfigs.get(KafkaConfig.ListenerSecurityProtocolMapProp()).value();
+        var protocolMap = brokerConfigs.get("listener.security.protocol.map").value();
         assertThat(protocolMap)
                 .withFailMessage("Expected '" + protocolMap + "' to contain " + listenerName + ":SSL")
                 .contains(listenerName + ":SSL");

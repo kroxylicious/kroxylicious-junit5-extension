@@ -168,7 +168,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         Properties properties = new Properties();
         properties.putAll(c.getProperties());
         var logsDir = getBrokerLogDir(c.getBrokerNum());
-        properties.setProperty(KafkaConfig.LogDirProp(), logsDir.toAbsolutePath().toString());
+        properties.setProperty("log.dir", logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
     }
