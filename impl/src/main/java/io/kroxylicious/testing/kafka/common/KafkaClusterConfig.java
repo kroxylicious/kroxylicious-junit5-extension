@@ -515,7 +515,7 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
 
         var quorumVoters = IntStream.range(0, kraftControllers)
-                .mapToObj(controllerId -> String.format("%d@//%s", controllerId, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, controllerId).connectAddress()))
+                .mapToObj(controllerId -> String.format("%d@%s", controllerId, kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, controllerId).connectAddress()))
                 .collect(Collectors.joining(","));
         putConfig(nodeConfiguration, "controller.quorum.voters", quorumVoters);
         putConfig(nodeConfiguration, "controller.listener.names", CONTROLLER_LISTENER_NAME);

@@ -50,7 +50,9 @@ class KafkaClusterConfigTest {
         assertThat(config.getAnonPort()).isEqualTo(ANON_BASE_PORT);
         assertThat(config.getExternalPort()).isEqualTo(CLIENT_BASE_PORT);
         assertThat(config.getEndpoint()).isEqualTo("localhost:" + CLIENT_BASE_PORT);
-        assertThat(config.getProperties()).containsEntry("node.id", "0");
+        assertThat(config.getProperties())
+                .containsEntry("node.id", "0")
+                .containsEntry("controller.quorum.voters", "0@localhost:" + CONTROLLER_BASE_PORT);
     }
 
     @Test
