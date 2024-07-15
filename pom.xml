@@ -86,7 +86,7 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <junit.version>5.10.3</junit.version>
-        <kafka.version>3.7.1</kafka.version>
+        <kafka.version>3.8.0</kafka.version>
         <testcontainers.version>1.19.8</testcontainers.version>
         <lombok.version>1.18.34</lombok.version>
         <assertj-core.version>3.26.3</assertj-core.version>
@@ -105,6 +105,18 @@
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
     </properties>
 
+    <!-- TEMPORARY - CONSUME STAGED ARTEFACTS FOR 3.8.0 - DO NOT COMMIT TO MAIN -->
+    <repositories>
+        <repository>
+            <id>ApacheKafkaStaging</id>
+            <url>https://repository.apache.org/content/groups/staging/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
+    </repositories>
+
+    
     <dependencyManagement>
         <dependencies>
             <dependency>
