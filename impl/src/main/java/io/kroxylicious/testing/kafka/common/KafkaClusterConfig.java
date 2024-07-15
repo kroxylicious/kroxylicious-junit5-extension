@@ -66,13 +66,13 @@ public class KafkaClusterConfig {
     private static final String ONE_CONFIG = Integer.toString(1);
     private static final AtomicBoolean DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED = new AtomicBoolean();
 
-    public static final String BROKER_ROLE = "broker";
-    public static final String CONTROLLER_ROLE = "controller";
+    private static final String BROKER_ROLE = "broker";
+    private static final String CONTROLLER_ROLE = "controller";
 
-    public static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
-    public static final String EXTERNAL_LISTENER_NAME = "EXTERNAL";
-    public static final String INTERNAL_LISTENER_NAME = "INTERNAL";
-    public static final String ANON_LISTENER_NAME = "ANON";
+    private static final String CONTROLLER_LISTENER_NAME = "CONTROLLER";
+    private static final String EXTERNAL_LISTENER_NAME = "EXTERNAL";
+    private static final String INTERNAL_LISTENER_NAME = "INTERNAL";
+    private static final String ANON_LISTENER_NAME = "ANON";
 
     private static final String SCRAM_SHA_SASL_MECHANISM_PREFIX = "SCRAM-SHA-";
     private static final String PLAIN_SASL_MECHANISM_NAME = "PLAIN";
@@ -172,7 +172,7 @@ public class KafkaClusterConfig {
      * @param testInfo information about the test execution context.
      * @return the kafka cluster config
      */
-    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated annotations
+    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations, TestInfo testInfo) {
         var builder = builder();
         builder.testInfo(testInfo);
@@ -205,7 +205,7 @@ public class KafkaClusterConfig {
             }
             else if (annotation instanceof SaslMechanism mechanism) {
                 useSasl = true;
-                builder.saslMechanism(Optional.ofNullable(mechanism.value()).orElse(PLAIN_SASL_MECHANISM_NAME));
+                builder.saslMechanism(mechanism.value());
                 var principals = Optional.ofNullable(mechanism.principals()).orElse(new SaslMechanism.Principal[]{});
                 saslUsers = Optional.of(Arrays.stream(principals)
                         .collect(Collectors.toMap(SaslMechanism.Principal::user, SaslMechanism.Principal::password)));
@@ -251,7 +251,7 @@ public class KafkaClusterConfig {
         }
     }
 
-    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
+    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
     private static Optional<Map<String, String>> processDeprecatedSaslUserAnnotations(Annotation annotation) {
         if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
             return Optional.of(Arrays.stream(saslPlainAuthList.value())

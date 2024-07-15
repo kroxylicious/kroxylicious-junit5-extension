@@ -142,7 +142,7 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    void constraintUserAloneImpliesSaslPlain() {
+    void saslMechanismValueDefaultsToPlain() {
         // Given
         var annotations = getAnnotations(ConstraintUtils.saslMechanism(null, Map.of("alice", "secret")));
 

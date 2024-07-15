@@ -81,8 +81,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void consumerConfiguration(
-                               KafkaCluster cluster,
+    void consumerConfiguration(KafkaCluster cluster,
                                Admin admin,
                                @ClientConfig(name = ConsumerConfig.GROUP_ID_CONFIG, value = CONSUMER_GROUP) Consumer<String, String> consumer)
             throws Exception {
@@ -137,8 +136,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void twoAnonClusterParameter(
-                                 @BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
+    void twoAnonClusterParameter(@BrokerCluster(numBrokers = 1) KafkaCluster cluster1,
                                  @BrokerCluster(numBrokers = 2) KafkaCluster cluster2)
             throws Exception {
         assertThat(cluster1.getClusterId()).isNotEqualTo(cluster2.getClusterId());
@@ -148,8 +146,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void twoDefinedClusterParameterAndAdmin(
-                                            @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+    void twoDefinedClusterParameterAndAdmin(@BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
                                             @BrokerCluster(numBrokers = 2) @Name("B") KafkaCluster clusterB,
                                             @Name("B") Admin adminB,
                                             @Name("A") Admin adminA)
@@ -162,8 +159,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void multipleReferencesToTheSameCluster(
-                                            @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
+    void multipleReferencesToTheSameCluster(@BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster clusterA,
                                             @Name("A") KafkaCluster clusterARef,
                                             @Name("A") Admin adminA)
             throws Exception {
@@ -175,8 +171,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
 
     // multiple clients connected to the same cluster (e.g. different users)
     @Test
-    void clusterParameterAndTwoAdmin(
-                                     @BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
+    void clusterParameterAndTwoAdmin(@BrokerCluster(numBrokers = 1) @Name("A") KafkaCluster cluster1,
                                      @Name("A") Admin admin1,
                                      @Name("A") Admin admin2)
             throws Exception {
