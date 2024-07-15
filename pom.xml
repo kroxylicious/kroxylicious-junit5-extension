@@ -13,7 +13,7 @@
 
     <groupId>io.kroxylicious.testing</groupId>
     <artifactId>testing-parent</artifactId>
-    <version>0.9.0</version>
+    <version>0.10.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Kroxylicious Testing Parent</name>
