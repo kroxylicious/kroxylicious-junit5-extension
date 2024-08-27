@@ -18,13 +18,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
@@ -75,9 +76,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     /**
      * Map of kafka <code>node.id</code> to {@link Server}.
-     * Protected by lock of {@link InVMKafkaCluster itself.}
      */
-    private final Map<Integer, Server> servers = new HashMap<>();
+    private final ConcurrentMap<Integer, Server> servers = new ConcurrentHashMap<>();
 
     /**
      * Set of kafka <code>node.id</code> that are currently stopped.
