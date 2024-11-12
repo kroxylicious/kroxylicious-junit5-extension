@@ -17,6 +17,8 @@ import java.util.Set;
 import org.apache.kafka.clients.admin.AbortTransactionOptions;
 import org.apache.kafka.clients.admin.AbortTransactionResult;
 import org.apache.kafka.clients.admin.AbortTransactionSpec;
+import org.apache.kafka.clients.admin.AddRaftVoterOptions;
+import org.apache.kafka.clients.admin.AddRaftVoterResult;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AlterClientQuotasOptions;
 import org.apache.kafka.clients.admin.AlterClientQuotasResult;
@@ -104,9 +106,12 @@ import org.apache.kafka.clients.admin.NewPartitionReassignment;
 import org.apache.kafka.clients.admin.NewPartitions;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.RaftVoterEndpoint;
 import org.apache.kafka.clients.admin.RecordsToDelete;
 import org.apache.kafka.clients.admin.RemoveMembersFromConsumerGroupOptions;
 import org.apache.kafka.clients.admin.RemoveMembersFromConsumerGroupResult;
+import org.apache.kafka.clients.admin.RemoveRaftVoterOptions;
+import org.apache.kafka.clients.admin.RemoveRaftVoterResult;
 import org.apache.kafka.clients.admin.RenewDelegationTokenOptions;
 import org.apache.kafka.clients.admin.RenewDelegationTokenResult;
 import org.apache.kafka.clients.admin.UnregisterBrokerOptions;
@@ -672,6 +677,16 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @Override
     public Uuid clientInstanceId(Duration timeout) {
         return instance.clientInstanceId(timeout);
+    }
+
+    @Override
+    public AddRaftVoterResult addRaftVoter(int i, Uuid uuid, Set<RaftVoterEndpoint> set, AddRaftVoterOptions addRaftVoterOptions) {
+        return instance.addRaftVoter(i, uuid, set, addRaftVoterOptions);
+    }
+
+    @Override
+    public RemoveRaftVoterResult removeRaftVoter(int i, Uuid uuid, RemoveRaftVoterOptions removeRaftVoterOptions) {
+        return instance.removeRaftVoter(i, uuid, removeRaftVoterOptions);
     }
 
     @Override
