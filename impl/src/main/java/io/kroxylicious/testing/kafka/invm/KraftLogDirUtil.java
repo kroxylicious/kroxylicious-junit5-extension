@@ -8,7 +8,9 @@ package io.kroxylicious.testing.kafka.invm;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.metadata.UserScramCredentialRecord;
@@ -20,6 +22,7 @@ import org.apache.kafka.server.common.MetadataVersion;
 import kafka.server.KafkaConfig;
 import kafka.tools.StorageTool;
 import scala.collection.immutable.Seq;
+import scala.jdk.javaapi.CollectionConverters;
 
 /**
  * Note that this code is base on code from Kafka's StorageTool.
@@ -33,17 +36,49 @@ final class KraftLogDirUtil {
         throw new IllegalStateException();
     }
 
-    static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, List<UserScramCredentialRecord> scramCredentialRecords) {
-        var directories = StorageTool.configToLogDirectories(config);
+    static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, List<String> scramArguments) {
+        var metadataVersion = Optional.ofNullable(config.interBrokerProtocolVersionString()).map(MetadataVersion::fromVersionString)
+                .orElse(MetadataVersion.LATEST_PRODUCTION);
+        var directoriesScala = StorageTool.configToLogDirectories(config);
+        try {
+            prepareLogDirsForKraftKafka39Plus(clusterId, config, scramArguments, directoriesScala, metadataVersion);
+        }
+        catch (Exception e) {
+            prepareLogDirsForKraftPreKafka39(clusterId, config, directoriesScala, metadataVersion, scramArguments);
+        }
+    }
+
+    private static void prepareLogDirsForKraftKafka39Plus(String clusterId, KafkaConfig config, List<String> scramArguments, Seq<String> directoriesScala,
+                                                          MetadataVersion metadataVersion)
+            throws ClassNotFoundException, InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        // Try Formatter class (introduced Kafka 3.9)
+        var controllerListenerName = CollectionConverters.asJava(config.controllerListenerNames()).stream().findFirst().orElseThrow();
+        var directories = CollectionConverters.asJava(directoriesScala);
+        var formatterClazz = Class.forName("org.apache.kafka.metadata.storage.Formatter");
+        var formatter = formatterClazz.getDeclaredConstructor().newInstance();
+
+        formatterClazz.getMethod("setClusterId", String.class).invoke(formatter, clusterId);
+        formatterClazz.getMethod("setNodeId", int.class).invoke(formatter, config.nodeId());
+        formatterClazz.getMethod("setControllerListenerName", String.class).invoke(formatter, controllerListenerName);
+        formatterClazz.getMethod("setMetadataLogDirectory", String.class).invoke(formatter, config.metadataLogDir());
+        formatterClazz.getMethod("setDirectories", Collection.class).invoke(formatter, directories);
+        formatterClazz.getMethod("setIgnoreFormatted", boolean.class).invoke(formatter, IGNORE_FORMATTED);
+        formatterClazz.getMethod("setScramArguments", List.class).invoke(formatter, scramArguments);
+        formatterClazz.getMethod("setPrintStream", PrintStream.class).invoke(formatter, LOGGING_PRINT_STREAM);
+        formatterClazz.getMethod("setReleaseVersion", MetadataVersion.class).invoke(formatter, metadataVersion);
+
+        formatterClazz.getMethod("run").invoke(formatter);
+    }
+
+    private static void prepareLogDirsForKraftPreKafka39(String clusterId, KafkaConfig config, Seq<String> directories, MetadataVersion metadataVersion,
+                                                         List<String> scramArguments) {
         try {
             // Default the metadata version from the IBP version specified in config in the same way as kafka.tools.StorageTool.
-            var metadataVersion = MetadataVersion.fromVersionString(
-                    config.interBrokerProtocolVersionString() == null ? MetadataVersion.LATEST_PRODUCTION.version() : config.interBrokerProtocolVersionString());
 
             // in kafka 3.7.0 the MetadataProperties class moved package, we use reflection to enable the extension to work with
             // the old and new class.
             var metaProperties = buildMetadataPropertiesReflectively(clusterId, config);
-            var bootstrapMetadata = buildBootstrapMetadata(scramCredentialRecords, metadataVersion);
+            var bootstrapMetadata = buildBootstrapMetadata(metadataVersion, scramArguments);
 
             formatReflectively(metaProperties, directories, bootstrapMetadata, metadataVersion);
         }
@@ -71,12 +106,13 @@ final class KraftLogDirUtil {
         }
     }
 
-    private static BootstrapMetadata buildBootstrapMetadata(List<UserScramCredentialRecord> scramCredentialRecords, MetadataVersion metadataVersion) {
+    private static BootstrapMetadata buildBootstrapMetadata(MetadataVersion metadataVersion, List<String> scramArguments) {
         var metadataRecords = new ArrayList<ApiMessageAndVersion>();
         metadataRecords.add(metadataVersionMessage(metadataVersion));
-        for (var credentialRecord : scramCredentialRecords) {
-            metadataRecords.add(scramMessage(credentialRecord));
-        }
+        metadataRecords.addAll(ScramUtils.getUserScramCredentialRecords(scramArguments)
+                .stream()
+                .map(KraftLogDirUtil::scramMessage)
+                .toList());
         return BootstrapMetadata.fromRecords(metadataRecords, InVMKafkaCluster.INVM_KAFKA);
     }
 
@@ -86,15 +122,15 @@ final class KraftLogDirUtil {
         return buildMetadataProperties.invoke(null, clusterId, config);
     }
 
-    private static ApiMessageAndVersion withVersion(ApiMessage message) {
-        return new ApiMessageAndVersion(message, (short) 0);
-    }
-
     private static ApiMessageAndVersion metadataVersionMessage(MetadataVersion metadataVersion) {
-        return withVersion(new FeatureLevelRecord().setName(MetadataVersion.FEATURE_NAME).setFeatureLevel(metadataVersion.featureLevel()));
+        return wrap(new FeatureLevelRecord().setName(MetadataVersion.FEATURE_NAME).setFeatureLevel(metadataVersion.featureLevel()));
     }
 
     private static ApiMessageAndVersion scramMessage(UserScramCredentialRecord scramRecord) {
-        return withVersion(scramRecord);
+        return wrap(scramRecord);
+    }
+
+    private static ApiMessageAndVersion wrap(ApiMessage message) {
+        return new ApiMessageAndVersion(message, (short) 0);
     }
 }
