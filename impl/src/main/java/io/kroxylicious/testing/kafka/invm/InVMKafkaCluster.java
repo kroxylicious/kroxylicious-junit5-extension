@@ -35,7 +35,6 @@ import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ScramMechanism;
-import org.apache.kafka.common.metadata.UserScramCredentialRecord;
 import org.apache.kafka.common.security.scram.internals.ScramCredentialUtils;
 import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
@@ -111,18 +110,18 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @NonNull
-    private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c, List<UserScramCredentialRecord> scramUsers) {
+    private Server buildKafkaServer(KafkaClusterConfig.ConfigHolder c, List<String> scramArguments) {
         var config = buildBrokerConfig(c);
         var threadNamePrefix = Option.<String> apply(null);
 
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
             var clusterId = c.getKafkaKraftClusterId();
-            KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramUsers);
+            KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramArguments);
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
-            createScramUsersInZookeeper(scramUsers, config);
+            createScramUsersInZookeeper(config, scramArguments);
             return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
         }
     }
@@ -187,10 +186,11 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.isKraftMode() ? clusterConfig.getKraftControllers() : 1);
         }
 
-        var scramUsers = getUserScramCredentialRecords();
+        var scramArguments = buildScramArguments();
+
         buildAndStartZookeeper();
         clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
-            var server = buildKafkaServer(configHolder, scramUsers);
+            var server = buildKafkaServer(configHolder, scramArguments);
             tryToStartServerWithRetry(configHolder, server);
             servers.put(configHolder.getBrokerNum(), server);
         });
@@ -465,24 +465,24 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
     }
 
-    @NonNull
-    private List<UserScramCredentialRecord> getUserScramCredentialRecords() {
+    private List<String> buildScramArguments() {
         if (!clusterConfig.isSaslScram() || clusterConfig.getUsers() == null || clusterConfig.getUsers().isEmpty()) {
             return List.of();
         }
         else {
-            return ScramUtils.getScramCredentialRecords(clusterConfig.getSaslMechanism(), clusterConfig.getUsers());
+            return ScramUtils.toKafkaScramArguments(clusterConfig.getSaslMechanism(), clusterConfig.getUsers());
         }
     }
 
-    private void createScramUsersInZookeeper(List<UserScramCredentialRecord> parsedCredentials, KafkaConfig config) {
-        if (!parsedCredentials.isEmpty()) {
+    private void createScramUsersInZookeeper(KafkaConfig config, List<String> scramArguments) {
+        if (!scramArguments.isEmpty()) {
+            var uscrs = ScramUtils.getUserScramCredentialRecords(scramArguments);
             ZKClientConfig zkClientConfig = KafkaServer.zkClientConfigFromKafkaConfig(config, false);
             try (var zkClient = createZkClient(INVM_KAFKA, Time.SYSTEM, config, zkClientConfig)) {
                 var adminZkClient = new AdminZkClient(zkClient, Option.empty());
                 var userEntityType = "users";
                 disableControllerCheck(zkClient);
-                parsedCredentials.forEach(credentials -> {
+                uscrs.forEach(credentials -> {
                     var userConfig = adminZkClient.fetchEntityConfig(userEntityType, credentials.name());
                     var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(credentials));
 

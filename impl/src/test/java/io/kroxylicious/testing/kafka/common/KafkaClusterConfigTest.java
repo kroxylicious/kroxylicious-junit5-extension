@@ -10,9 +10,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -95,6 +98,65 @@ class KafkaClusterConfigTest {
         for (int nodeId = 1; nodeId < numBrokers; nodeId++) {
             assertNodeIdHasRole(kafkaClusterConfig, nodeId, "broker");
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "3.9.0", "latest" })
+    void shouldAdvertiseControllerListenerInCombinedMode(String version) {
+        // Given
+        kafkaClusterConfigBuilder.brokersNum(1).kafkaVersion(version);
+        var kafkaClusterConfig = kafkaClusterConfigBuilder.build();
+
+        // When
+        var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
+
+        // Then
+        assertThat(config.getProperties())
+                .containsEntry("process.roles", "broker,controller")
+                .hasEntrySatisfying("advertised.listeners", value -> {
+                    assertThat(value)
+                            .asInstanceOf(InstanceOfAssertFactories.STRING)
+                            .contains("CONTROLLER://localhost:10092");
+                });
+    }
+
+    @Test
+    void shouldNotAdvertiseControllerListenerForBrokerNodes() {
+        // Given
+        kafkaClusterConfigBuilder.brokersNum(2).kraftControllers(1);
+        var kafkaClusterConfig = kafkaClusterConfigBuilder.build();
+
+        // When
+        var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 1);
+
+        // Then
+        assertThat(config.getProperties())
+                .containsEntry("process.roles", "broker")
+                .hasEntrySatisfying("advertised.listeners", value -> {
+                    assertThat(value)
+                            .asInstanceOf(InstanceOfAssertFactories.STRING)
+                            .doesNotContain("CONTROLLER://");
+                });
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "3.8.0", "3.7.0" })
+    void shouldNotAdvertiseControllerListenerForOlderKafkaVersions(String version) {
+        // Given
+        kafkaClusterConfigBuilder.brokersNum(1).kafkaVersion(version);
+        var kafkaClusterConfig = kafkaClusterConfigBuilder.build();
+
+        // When
+        var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 1);
+
+        // Then
+        assertThat(config.getProperties())
+                .containsEntry("process.roles", "broker")
+                .hasEntrySatisfying("advertised.listeners", value -> {
+                    assertThat(value)
+                            .asInstanceOf(InstanceOfAssertFactories.STRING)
+                            .doesNotContain("CONTROLLER://localhost:10092");
+                });
     }
 
     @Test

@@ -171,6 +171,9 @@ class TemplateTest {
         return Stream.of(
                 version(Version.LATEST_RELEASE),
                 version(Version.LATEST_SNAPSHOT),
+                version("3.9.0"),
+                version("3.8.0"),
+                version("3.7.0"),
                 version("3.6.0"),
                 version("3.5.1"),
                 version("3.4.0"),

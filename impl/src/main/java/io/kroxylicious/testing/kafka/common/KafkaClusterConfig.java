@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -78,6 +79,7 @@ public class KafkaClusterConfig {
     private static final String OAUTHBEARER_SASL_MECHANISM_NAME = "OAUTHBEARER";
     private static final String SCRAM_256_SASL_MECHANISM_NAME = "SCRAM-SHA-256";
     private static final String SCRAM_512_SASL_MECHANISM_NAME = "SCRAM-SHA-512";
+    private static final Pattern PRE_KAFKA_39 = Pattern.compile("^3\\.[0-8]\\..*$");
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -324,7 +326,7 @@ public class KafkaClusterConfig {
         }
 
         if (isKraftMode()) {
-            configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, earlyStart, role);
+            configureKraftNode(kafkaEndpoints, nodeId, nodeConfiguration, protocolMap, listeners, advertisedListeners, earlyStart, role);
         }
         else {
             configureLegacyNode(kafkaEndpoints, nodeConfiguration);
@@ -334,6 +336,11 @@ public class KafkaClusterConfig {
                 protocolMap.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
         putConfig(nodeConfiguration, "listeners", listeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
         putConfig(nodeConfiguration, "early.start.listeners", earlyStart.stream().map(Object::toString).collect(Collectors.joining(",")));
+        if (!advertisedListeners.isEmpty()) {
+            putConfig(nodeConfiguration, "advertised.listeners",
+                    advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
+
+        }
 
         configureSasl(nodeConfiguration);
 
@@ -362,7 +369,6 @@ public class KafkaClusterConfig {
     @NonNull
     private ConfigHolder configureBroker(KafkaEndpoints kafkaEndpoints, int nodeId, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
                                          TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties nodeConfiguration) {
-        final ConfigHolder configHolder;
         var interBrokerEndpoint = kafkaEndpoints.getEndpointPair(Listener.INTERNAL, nodeId);
         var clientEndpoint = kafkaEndpoints.getEndpointPair(Listener.EXTERNAL, nodeId);
         var anonEndpoint = kafkaEndpoints.getEndpointPair(Listener.ANON, nodeId);
@@ -377,11 +383,8 @@ public class KafkaClusterConfig {
         configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
         configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
         configureTls(clientEndpoint, nodeConfiguration);
-        putConfig(nodeConfiguration, "advertised.listeners",
-                advertisedListeners.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(",")));
-        configHolder = new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
+        return new ConfigHolder(nodeConfiguration, clientEndpoint.getConnect().getPort(), anonEndpoint.getConnect().getPort(),
                 clientEndpoint.connectAddress(), nodeId, kafkaKraftClusterId);
-        return configHolder;
     }
 
     @NonNull
@@ -508,8 +511,12 @@ public class KafkaClusterConfig {
         putConfig(server, "zookeeper.session.timeout.ms", Long.toString(6000));
     }
 
-    private void configureKraftNode(KafkaEndpoints kafkaEndpoints, int nodeId, Properties nodeConfiguration, TreeMap<String, String> protocolMap,
+    private void configureKraftNode(KafkaEndpoints kafkaEndpoints,
+                                    int nodeId,
+                                    Properties nodeConfiguration,
+                                    TreeMap<String, String> protocolMap,
                                     TreeMap<String, String> listeners,
+                                    TreeMap<String, String> advertisedListeners,
                                     TreeSet<String> earlyStart,
                                     String role) {
         putConfig(nodeConfiguration, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
@@ -524,9 +531,11 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "process.roles", role);
         if (role.contains(CONTROLLER_ROLE)) {
             var controllerEndpoint = kafkaEndpoints.getEndpointPair(Listener.CONTROLLER, nodeId);
-            final String bindAddress = controllerEndpoint.getBind().toString();
-            listeners.put(CONTROLLER_LISTENER_NAME, bindAddress);
+            listeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.getBind().toString());
             earlyStart.add(CONTROLLER_LISTENER_NAME);
+            if (!PRE_KAFKA_39.matcher(getKafkaVersion()).matches()) {
+                advertisedListeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.getConnect().toString());
+            }
         }
     }
 
