@@ -274,6 +274,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return buildBrokerList(nodeId -> this.getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
+    @Override
+    public String getBootstrapControllers() {
+        throw new UnsupportedOperationException();
+    }
+
     private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
         return nodes.keySet().stream()
                 .filter(this::isBroker)
@@ -588,6 +593,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @Override
     public Map<String, Object> getKafkaClientConfiguration(String user, String password) {
         return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
+    }
+
+    @Override
+    public Map<String, Object> getControllerAdminClientConfiguration() {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -106,6 +106,13 @@ public interface KafkaCluster extends AutoCloseable {
     String getBootstrapServers();
 
     /**
+     * Gets the bootstrap controllers for this cluster
+     * @return bootstrap controllers
+     * @throws UnsupportedOperationException zookeeper based clusters do not support this operation.
+     */
+    String getBootstrapControllers() throws UnsupportedOperationException;
+
+    /**
      * Gets the cluster id
      * @return The cluster id for KRaft-based clusters, otherwise null;
      */
@@ -132,4 +139,16 @@ public interface KafkaCluster extends AutoCloseable {
      * @return mutable configuration map
      */
     Map<String, Object> getKafkaClientConfiguration(String user, String password);
+
+    /**
+     * Gets the kafka configuration for making connections to the controllers of this cluster as required by the
+     * {@code org.apache.kafka.clients.admin.AdminClient}. Details such the bootstrap and SASL configuration
+     * are provided automatically.
+     * The returned map is guaranteed to be mutable and is unique to the caller.
+     *
+     * @return mutable configuration map
+     * @throws UnsupportedOperationException zookeeper based clusters do not support this operation.
+     */
+    Map<String, Object> getControllerAdminClientConfiguration() throws UnsupportedOperationException;
+
 }

@@ -51,12 +51,14 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -489,6 +491,51 @@ class KafkaClusterTest {
                         .startsWith(minVersion);
             }
         }
+    }
+
+    /**
+     * KIP-919 tests ability to connect to the controller.bootstrap.
+     */
+    @ParameterizedTest
+    @ValueSource(ints = { 1, 2 })
+    void kraftAdminConnectionToControllers(int numControllers) throws Exception {
+        int brokersNum = 1;
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .brokersNum(brokersNum)
+                .kraftControllers(numControllers)
+                .kraftMode(true)
+                .build())) {
+            assumeTrue(cluster instanceof InVMKafkaCluster, "admin client connections to KRaft controllers not yet supported.");
+            cluster.start();
+
+            try (var controllerAdmin = CloseableAdmin.create(cluster.getControllerAdminClientConfiguration())) {
+                var nodes = controllerAdmin.describeCluster().nodes().get(5, TimeUnit.SECONDS);
+                assertThat(nodes).hasSize(numControllers);
+            }
+
+            try (var brokerAdmin = CloseableAdmin.create(cluster.getKafkaClientConfiguration())) {
+                var nodes = brokerAdmin.describeCluster().nodes().get(5, TimeUnit.SECONDS);
+                assertThat(nodes).hasSize(brokersNum);
+            }
+        }
+    }
+
+    @Test
+    void zookeeperDisallowsAdminConnectionToControllers() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(false)
+                .build())) {
+            cluster.start();
+
+            assertThatThrownBy(cluster::getBootstrapControllers)
+                    .isInstanceOf(UnsupportedOperationException.class);
+
+            assertThatThrownBy(cluster::getControllerAdminClientConfiguration)
+                    .isInstanceOf(UnsupportedOperationException.class);
+        }
+
     }
 
     private void verifyRecordRoundTrip(int expected, KafkaCluster cluster) throws Exception {
