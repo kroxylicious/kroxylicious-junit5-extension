@@ -260,6 +260,15 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         return buildBrokerList(nodeId -> getEndpointPair(Listener.EXTERNAL, nodeId));
     }
 
+    @Override
+    public String getBootstrapControllers() {
+        if (!clusterConfig.isKraftMode()) {
+            throw new UnsupportedOperationException("Zookeeper based clusters don't support this operation");
+        }
+
+        return buildBrokerList(nodeId -> getEndpointPair(Listener.CONTROLLER, nodeId));
+    }
+
     private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
         return servers.keySet().stream()
                 .filter(this::isBroker)
@@ -276,6 +285,11 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     @Override
     public Map<String, Object> getKafkaClientConfiguration(String user, String password) {
         return clusterConfig.getConnectConfigForCluster(getBootstrapServers(), user, password);
+    }
+
+    @Override
+    public Map<String, Object> getControllerAdminClientConfiguration() {
+        return clusterConfig.getControllerAdminClientConfigForCluster(getBootstrapControllers());
     }
 
     @Override

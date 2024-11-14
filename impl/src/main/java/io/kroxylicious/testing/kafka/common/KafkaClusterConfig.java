@@ -619,6 +619,12 @@ public class KafkaClusterConfig {
         return kafkaConfig;
     }
 
+    public Map<String, Object> getControllerAdminClientConfigForCluster(String bootstrapControllers) {
+        var kafkaConfig = new HashMap<String, Object>();
+        kafkaConfig.put("bootstrap.controllers", bootstrapControllers);
+        return kafkaConfig;
+    }
+
     private void buildSecurityProtocolConfig(Map<String, Object> kafkaConfig) {
         String clientTrustStoreFilePath;
         String clientTrustStorePassword;
