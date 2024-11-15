@@ -49,11 +49,10 @@ class KafkaClusterConfigTest {
         final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
 
         // Then
-        assertThat(config.getBrokerNum()).isZero();
-        assertThat(config.getAnonPort()).isEqualTo(ANON_BASE_PORT);
-        assertThat(config.getExternalPort()).isEqualTo(CLIENT_BASE_PORT);
-        assertThat(config.getEndpoint()).isEqualTo("localhost:" + CLIENT_BASE_PORT);
-        assertThat(config.getProperties())
+        assertThat(config.brokerNum()).isZero();
+        assertThat(config.anonPort()).isEqualTo(ANON_BASE_PORT);
+        assertThat(config.externalPort()).isEqualTo(CLIENT_BASE_PORT);
+        assertThat(config.properties())
                 .containsEntry("node.id", "0")
                 .containsEntry("controller.quorum.voters", "0@localhost:" + CONTROLLER_BASE_PORT);
     }
@@ -111,7 +110,7 @@ class KafkaClusterConfigTest {
         var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
 
         // Then
-        assertThat(config.getProperties())
+        assertThat(config.properties())
                 .containsEntry("process.roles", "broker,controller")
                 .hasEntrySatisfying("advertised.listeners", value -> {
                     assertThat(value)
@@ -130,7 +129,7 @@ class KafkaClusterConfigTest {
         var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 1);
 
         // Then
-        assertThat(config.getProperties())
+        assertThat(config.properties())
                 .containsEntry("process.roles", "broker")
                 .hasEntrySatisfying("advertised.listeners", value -> {
                     assertThat(value)
@@ -150,7 +149,7 @@ class KafkaClusterConfigTest {
         var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 1);
 
         // Then
-        assertThat(config.getProperties())
+        assertThat(config.properties())
                 .containsEntry("process.roles", "broker")
                 .hasEntrySatisfying("advertised.listeners", value -> {
                     assertThat(value)
@@ -416,20 +415,20 @@ class KafkaClusterConfigTest {
 
     private void assertNodeIdHasRole(KafkaClusterConfig kafkaClusterConfig, int nodeId, String expectedRole) {
         final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, nodeId);
-        assertThat(config.getProperties()).extracting(brokerConfig -> brokerConfig.get("process.roles")).as("nodeId: %s to have process.roles", nodeId).isEqualTo(
+        assertThat(config.properties()).extracting(brokerConfig -> brokerConfig.get("process.roles")).as("nodeId: %s to have process.roles", nodeId).isEqualTo(
                 expectedRole);
     }
 
-    static class EndpointConfig implements KafkaClusterConfig.KafkaEndpoints {
+    static class EndpointConfig implements KafkaListenerSource {
 
         @NonNull
-        private static EndpointPair generateEndpoint(int nodeId, int basePort) {
+        private static KafkaListener generateEndpoint(int nodeId, int basePort) {
             final int port = basePort + nodeId;
-            return new EndpointPair(new Endpoint("0.0.0.0", port), new Endpoint("localhost", port));
+            return new KafkaListener(new KafkaEndpoint("0.0.0.0", port), new KafkaEndpoint("localhost", port), new KafkaEndpoint("localhost", port));
         }
 
         @Override
-        public EndpointPair getEndpointPair(Listener listener, int nodeId) {
+        public KafkaListener getKafkaListener(Listener listener, int nodeId) {
             switch (listener) {
 
                 case EXTERNAL -> {

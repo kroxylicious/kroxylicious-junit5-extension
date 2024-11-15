@@ -5,6 +5,10 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 ## 1.0.0
 
 ## SNAPSHOT
+
+* [##419](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#419): Refactor endpoint creation and allow client connections to be formed to controllers in container mode.
+* [##417](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#417): Bump kafka.version from 3.8.0 to 3.9.0
+
 ## 0.9.1
 
 * [#365](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/365): Bump kafka.version from 3.7.1 to 3.8.0

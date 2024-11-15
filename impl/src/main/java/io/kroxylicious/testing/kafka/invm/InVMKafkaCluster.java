@@ -27,12 +27,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import io.kroxylicious.testing.kafka.common.KafkaListenerSource;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.common.security.scram.internals.ScramCredentialUtils;
@@ -54,6 +54,7 @@ import scala.Option;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
+import io.kroxylicious.testing.kafka.common.KafkaListener;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -64,7 +65,7 @@ import static kafka.zk.KafkaZkClient.createZkClient;
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
  */
-public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AdminSource {
+public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, AdminSource {
     static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final int STARTUP_TIMEOUT = 30;
     static final String INVM_KAFKA = "invm-kafka";
@@ -116,7 +117,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
-            var clusterId = c.getKafkaKraftClusterId();
+            var clusterId = c.kafkaKraftClusterId();
             KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramArguments);
             return instantiateKraftServer(config, threadNamePrefix);
         }
@@ -165,8 +166,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     @NonNull
     private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
-        properties.putAll(c.getProperties());
-        var logsDir = getBrokerLogDir(c.getBrokerNum());
+        properties.putAll(c.properties());
+        var logsDir = getBrokerLogDir(c.brokerNum());
         properties.setProperty("log.dir", logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
@@ -192,12 +193,16 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
             var server = buildKafkaServer(configHolder, scramArguments);
             tryToStartServerWithRetry(configHolder, server);
-            servers.put(configHolder.getBrokerNum(), server);
+            servers.put(configHolder.brokerNum(), server);
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
+    }
+
+    private String buildBrokersListFor(Listener listener) {
+        return buildAdvertisedServers(this::isBroker, listener);
     }
 
     private void tryToStartServerWithRetry(KafkaClusterConfig.ConfigHolder configHolder, Server server) {
@@ -205,18 +210,18 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
                 .until(() -> {
                     // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                     try {
-                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.getBrokerNum(),
-                                configHolder.getProperties().get("process.roles"));
+                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.brokerNum(),
+                                configHolder.properties().get("process.roles"));
                         server.startup();
                         return true;
                     }
                     catch (Throwable t) {
                         LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
                         LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
-                                this.getEndpointPair(Listener.ANON, configHolder.getBrokerNum()).getBind(),
-                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind(),
-                                this.getEndpointPair(Listener.CONTROLLER, configHolder.getBrokerNum()).getBind(),
-                                this.getEndpointPair(Listener.EXTERNAL, configHolder.getBrokerNum()).getBind());
+                                this.getKafkaListener(Listener.ANON, configHolder.brokerNum()).bind(),
+                                this.getKafkaListener(Listener.EXTERNAL, configHolder.brokerNum()).bind(),
+                                this.getKafkaListener(Listener.CONTROLLER, configHolder.brokerNum()).bind(),
+                                this.getKafkaListener(Listener.EXTERNAL, configHolder.brokerNum()).bind());
 
                         server.shutdown();
                         server.awaitShutdown();
@@ -257,7 +262,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildBrokerList(nodeId -> getEndpointPair(Listener.EXTERNAL, nodeId));
+        return buildBrokersListFor(Listener.EXTERNAL);
     }
 
     @Override
@@ -266,14 +271,14 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
             throw new UnsupportedOperationException("Zookeeper based clusters don't support this operation");
         }
 
-        return buildBrokerList(nodeId -> getEndpointPair(Listener.CONTROLLER, nodeId));
+        return buildAdvertisedServers(this::isController, Listener.CONTROLLER);
     }
 
-    private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+    private synchronized String buildAdvertisedServers(Predicate<Integer> nodePredicate, Listener listener) {
         return servers.keySet().stream()
-                .filter(this::isBroker)
-                .map(endpointFunc)
-                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
+                .filter(nodePredicate)
+                .map(nodeId -> getKafkaListener(listener, nodeId))
+                .map(kafkaListener -> kafkaListener.advertised().toString())
                 .collect(Collectors.joining(","));
     }
 
@@ -315,10 +320,10 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         servers.put(newNodeId, server);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
-        return configHolder.getBrokerNum();
+        return configHolder.brokerNum();
     }
 
     @Override
@@ -342,7 +347,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         portsAllocator.deallocate(nodeId);
@@ -464,9 +469,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
     }
 
     @Override
-    public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
+    public synchronized KafkaListener getKafkaListener(Listener listener, int nodeId) {
         var port = portsAllocator.getPort(listener, nodeId);
-        return EndpointPair.builder().bind(new Endpoint("0.0.0.0", port)).connect(new Endpoint("localhost", port)).build();
+        return KafkaListener.build(port, "0.0.0.0", "localhost");
     }
 
     private static void trapKafkaSystemExit() {
@@ -476,7 +481,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaClusterConfig.KafkaE
 
     @Override
     public @NonNull Admin createAdmin() {
-        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
+        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)));
     }
 
     private List<String> buildScramArguments() {
