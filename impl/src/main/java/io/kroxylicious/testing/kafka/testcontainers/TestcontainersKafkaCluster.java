@@ -33,13 +33,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import io.kroxylicious.testing.kafka.common.KafkaListenerSource;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
@@ -69,6 +70,7 @@ import lombok.SneakyThrows;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
+import io.kroxylicious.testing.kafka.common.KafkaListener;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
@@ -80,7 +82,7 @@ import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCoun
 /**
  * Provides an easy way to launch a Kafka cluster with multiple brokers in a container
  */
-public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaClusterConfig.KafkaEndpoints, AdminSource {
+public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaListenerSource, AdminSource {
 
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     /**
@@ -115,6 +117,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     // This uid needs to match the uid used by the kafka container to execute the kafka process
     private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
+    private static final String LOCALHOST = "localhost";
     private final DockerImageName kafkaImage;
     private final DockerImageName zookeeperImage;
     private final KafkaClusterConfig clusterConfig;
@@ -197,15 +200,16 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.getKraftControllers());
         }
 
-        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
+        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.brokerNum(), buildKafkaContainer(holder)));
     }
 
     @NonNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
-        String netAlias = "broker-" + holder.getBrokerNum();
+        var brokerNum = holder.brokerNum();
+        var netAlias = "broker-" + brokerNum;
         Properties properties = new Properties();
-        properties.putAll(holder.getProperties());
-        properties.put("log.dir", getBrokerLogDirectory(holder.getBrokerNum()));
+        properties.putAll(holder.properties());
+        properties.put("log.dir", getBrokerLogDirectory(brokerNum));
         KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
                 .withName(name)
                 .withNetwork(network)
@@ -216,7 +220,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
         kafkaContainer
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
-                .withEnv("SERVER_CLUSTER_ID", holder.getKafkaKraftClusterId())
+                .withEnv("SERVER_CLUSTER_ID", holder.kafkaKraftClusterId())
                 // disables automatic configuration of listeners/roles by kafka-native
                 .withEnv("SERVER_AUTO_CONFIGURE", "false")
                 .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/cnf/server.properties")
@@ -229,8 +233,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         if (holder.isBroker()) {
-            kafkaContainer.addFixedExposedPort(holder.getExternalPort(), CLIENT_PORT);
-            kafkaContainer.addFixedExposedPort(holder.getAnonPort(), ANON_PORT);
+            kafkaContainer.addFixedExposedPort(portsAllocator.getPort(Listener.EXTERNAL, brokerNum), CLIENT_PORT);
+            kafkaContainer.addFixedExposedPort(portsAllocator.getPort(Listener.ANON, brokerNum), ANON_PORT);
+        }
+        if (holder.isController()) {
+            kafkaContainer.addFixedExposedPort(portsAllocator.getPort(Listener.CONTROLLER, brokerNum), CONTROLLER_PORT);
         }
         kafkaContainer.addGenericBind(new Bind(logDirVolumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)));
 
@@ -271,19 +278,26 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public synchronized String getBootstrapServers() {
-        return buildBrokerList(nodeId -> this.getEndpointPair(Listener.EXTERNAL, nodeId));
+        return buildBrokerListFor(Listener.EXTERNAL);
     }
 
     @Override
     public String getBootstrapControllers() {
-        throw new UnsupportedOperationException();
+        if (!clusterConfig.isKraftMode()) {
+            throw new UnsupportedOperationException("Zookeeper based clusters don't support this client connections to controllers.");
+        }
+        return buildAdvertisedServers(this::isController, Listener.CONTROLLER);
     }
 
-    private synchronized String buildBrokerList(Function<Integer, KafkaClusterConfig.KafkaEndpoints.EndpointPair> endpointFunc) {
+    private String buildBrokerListFor(Listener listener) {
+        return buildAdvertisedServers(this::isBroker, listener);
+    }
+
+    private synchronized String buildAdvertisedServers(Predicate<Integer> nodePredicate, Listener listener) {
         return nodes.keySet().stream()
-                .filter(this::isBroker)
-                .map(endpointFunc)
-                .map(KafkaClusterConfig.KafkaEndpoints.EndpointPair::connectAddress)
+                .filter(nodePredicate)
+                .map(nodeId -> getKafkaListener(listener, nodeId))
+                .map(kafkaListener -> kafkaListener.advertised().toString())
                 .collect(Collectors.joining(","));
     }
 
@@ -344,7 +358,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             Startables.deepStart(nodes.values().stream()).get(READY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
             awaitExpectedBrokerCountInClusterViaTopic(
-                    clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))),
+                    clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
         }
@@ -383,13 +397,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             kafkaContainer.stop();
             throw new RuntimeException(e);
         }
-        nodes.put(configHolder.getBrokerNum(), kafkaContainer);
+        nodes.put(configHolder.brokerNum(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
-                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))), 120,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
-        return configHolder.getBrokerNum();
+        return configHolder.brokerNum();
     }
 
     @Override
@@ -413,7 +427,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
 
         Utils.awaitReassignmentOfKafkaInternalTopicsIfNecessary(
-                clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(id -> getEndpointPair(Listener.ANON, id))), nodeId,
+                clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)), nodeId,
                 target.get(), 120, TimeUnit.SECONDS);
 
         portsAllocator.deallocate(nodeId);
@@ -491,7 +505,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             // In the zookeeper case, we may as well wait for the zookeeper session timeout. This serves to prevent a
             // subsequent call to startBroker spinning excessively.
             var config = clusterConfig.getBrokerConfigs(() -> this).findFirst();
-            var zkSessionTimeout = config.map(KafkaClusterConfig.ConfigHolder::getProperties).map(p -> p.getProperty("zookeeper.session.timeout.ms", "0"))
+            var zkSessionTimeout = config.map(KafkaClusterConfig.ConfigHolder::properties).map(p -> p.getProperty("zookeeper.session.timeout.ms", "0"))
                     .map(Long::parseLong);
             zkSessionTimeout.filter(timeout -> timeout > 0).ifPresent(
                     timeOut -> {
@@ -597,42 +611,32 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public Map<String, Object> getControllerAdminClientConfiguration() {
-        throw new UnsupportedOperationException();
+        return clusterConfig.getControllerAdminClientConfigForCluster(getBootstrapControllers());
     }
 
     @Override
-    public synchronized EndpointPair getEndpointPair(Listener listener, int nodeId) {
+    public synchronized KafkaListener getKafkaListener(Listener listener, int nodeId) {
+        var brokerNetHost = String.format("broker-%d", nodeId);
         switch (listener) {
             case EXTERNAL -> {
-                return buildExposedEndpoint(listener, nodeId, CLIENT_PORT);
+                return KafkaListener.build(CLIENT_PORT, WILDCARD_BIND_ADDRESS, brokerNetHost, portsAllocator.getPort(listener, nodeId), LOCALHOST);
             }
             case ANON -> {
-                return buildExposedEndpoint(listener, nodeId, ANON_PORT);
+                return KafkaListener.build(ANON_PORT, WILDCARD_BIND_ADDRESS, brokerNetHost, portsAllocator.getPort(listener, nodeId), LOCALHOST);
             }
             case INTERNAL -> {
-                return EndpointPair.builder().bind(new Endpoint(WILDCARD_BIND_ADDRESS, INTER_BROKER_PORT))
-                        .connect(new Endpoint(String.format("broker-%d", nodeId), INTER_BROKER_PORT)).build();
+                return KafkaListener.build(INTER_BROKER_PORT, WILDCARD_BIND_ADDRESS, brokerNetHost);
             }
             case CONTROLLER -> {
-                EndpointPair result;
                 if (clusterConfig.isKraftMode()) {
-                    result = EndpointPair.builder().bind(new Endpoint(WILDCARD_BIND_ADDRESS, CONTROLLER_PORT))
-                            .connect(new Endpoint(String.format("broker-%d", nodeId), CONTROLLER_PORT)).build();
+                    return KafkaListener.build(CONTROLLER_PORT, WILDCARD_BIND_ADDRESS, brokerNetHost, portsAllocator.getPort(listener, nodeId), LOCALHOST);
                 }
                 else {
-                    result = EndpointPair.builder().bind(new Endpoint(WILDCARD_BIND_ADDRESS, ZOOKEEPER_PORT)).connect(new Endpoint("zookeeper", ZOOKEEPER_PORT)).build();
+                    return KafkaListener.build(ZOOKEEPER_PORT, WILDCARD_BIND_ADDRESS, "zookeeper");
                 }
-                return result;
             }
             default -> throw new IllegalStateException("Unexpected value: " + listener);
         }
-    }
-
-    private EndpointPair buildExposedEndpoint(Listener listener, int nodeId, int bindPort) {
-        return EndpointPair.builder()
-                .bind(new Endpoint(WILDCARD_BIND_ADDRESS, bindPort))
-                .connect(new Endpoint("localhost", portsAllocator.getPort(listener, nodeId)))
-                .build();
     }
 
     private InspectContainerCmd buildInspectionCommandFor(KafkaContainer kc) {
@@ -837,7 +841,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Override
     public @NonNull Admin createAdmin() {
-        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerList(nodeId -> getEndpointPair(Listener.ANON, nodeId))));
+        return CloseableAdmin.create(clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)));
     }
 
     @NonNull

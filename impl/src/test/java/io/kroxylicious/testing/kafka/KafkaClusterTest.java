@@ -51,14 +51,12 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
-import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Test case that simply exercises the ability to control the kafka cluster from the test.
@@ -494,7 +492,7 @@ class KafkaClusterTest {
     }
 
     /**
-     * KIP-919 tests ability to connect to the controller.bootstrap.
+     * KIP-919 tests ability for the Kafka Admin client to connect to the controller.bootstrap.
      */
     @ParameterizedTest
     @ValueSource(ints = { 1, 2 })
@@ -506,7 +504,6 @@ class KafkaClusterTest {
                 .kraftControllers(numControllers)
                 .kraftMode(true)
                 .build())) {
-            assumeTrue(cluster instanceof InVMKafkaCluster, "admin client connections to KRaft controllers not yet supported.");
             cluster.start();
 
             try (var controllerAdmin = CloseableAdmin.create(cluster.getControllerAdminClientConfiguration())) {
