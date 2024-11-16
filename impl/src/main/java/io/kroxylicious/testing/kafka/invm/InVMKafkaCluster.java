@@ -32,7 +32,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import io.kroxylicious.testing.kafka.common.KafkaListenerSource;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.common.security.scram.internals.ScramCredentialUtils;
@@ -54,8 +53,9 @@ import scala.Option;
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
-import io.kroxylicious.testing.kafka.common.KafkaListener;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
+import io.kroxylicious.testing.kafka.common.KafkaListener;
+import io.kroxylicious.testing.kafka.common.KafkaListenerSource;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.internal.AdminSource;

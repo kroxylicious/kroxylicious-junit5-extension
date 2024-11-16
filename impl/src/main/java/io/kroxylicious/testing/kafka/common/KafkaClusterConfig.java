@@ -364,7 +364,7 @@ public class KafkaClusterConfig {
 
     @NonNull
     private ConfigHolder configureController(int nodeId, Properties nodeConfiguration) {
-        return new ConfigHolder(nodeConfiguration, null, null,
+        return new ConfigHolder(nodeConfiguration,
                 nodeId, kafkaKraftClusterId);
     }
 
@@ -385,7 +385,7 @@ public class KafkaClusterConfig {
         configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
         configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
         configureTls(clientEndpoint, nodeConfiguration);
-        return new ConfigHolder(nodeConfiguration, clientEndpoint.advertised().port(), anonEndpoint.advertised().port(),
+        return new ConfigHolder(nodeConfiguration,
                 nodeId, kafkaKraftClusterId);
     }
 
@@ -525,7 +525,8 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
 
         var quorumVoters = IntStream.range(0, kraftControllers)
-                .mapToObj(controllerId -> String.format("%d@%s", controllerId, kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, controllerId).kafkaNet().toString()))
+                .mapToObj(controllerId -> String.format("%d@%s", controllerId,
+                        kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, controllerId).kafkaNet().toString()))
                 .collect(Collectors.joining(","));
         putConfig(nodeConfiguration, "controller.quorum.voters", quorumVoters);
         putConfig(nodeConfiguration, "controller.listener.names", CONTROLLER_LISTENER_NAME);
@@ -739,14 +740,10 @@ public class KafkaClusterConfig {
      * The type Config holder.
      *
      * @param properties          the properties
-     * @param externalPort        the external port
-     * @param anonPort            the anon port
      * @param brokerNum           the broker num
      * @param kafkaKraftClusterId the kafka kraft cluster id
      */
     public record ConfigHolder(Properties properties,
-                               Integer externalPort,
-                               Integer anonPort,
                                int brokerNum,
                                String kafkaKraftClusterId) {
         private String getRoles() {
