@@ -50,11 +50,11 @@ class KafkaClusterConfigTest {
 
         // Then
         assertThat(config.brokerNum()).isZero();
-        assertThat(config.anonPort()).isEqualTo(ANON_BASE_PORT);
-        assertThat(config.externalPort()).isEqualTo(CLIENT_BASE_PORT);
         assertThat(config.properties())
                 .containsEntry("node.id", "0")
-                .containsEntry("controller.quorum.voters", "0@localhost:" + CONTROLLER_BASE_PORT);
+                .containsEntry("controller.quorum.voters", "0@localhost:" + CONTROLLER_BASE_PORT)
+                .containsEntry("listeners", "ANON://0.0.0.0:%d,CONTROLLER://0.0.0.0:%d,EXTERNAL://0.0.0.0:%d,INTERNAL://0.0.0.0:%d".formatted(ANON_BASE_PORT,
+                        CONTROLLER_BASE_PORT, CLIENT_BASE_PORT, INTER_BROKER_BASE_PORT));
     }
 
     @Test
@@ -115,7 +115,7 @@ class KafkaClusterConfigTest {
                 .hasEntrySatisfying("advertised.listeners", value -> {
                     assertThat(value)
                             .asInstanceOf(InstanceOfAssertFactories.STRING)
-                            .contains("CONTROLLER://localhost:10092");
+                            .contains("CONTROLLER://localhost:" + CONTROLLER_BASE_PORT);
                 });
     }
 
@@ -136,6 +136,21 @@ class KafkaClusterConfigTest {
                             .asInstanceOf(InstanceOfAssertFactories.STRING)
                             .doesNotContain("CONTROLLER://");
                 });
+    }
+
+    @Test
+    void shouldGenerateConfigForBrokerWithZookeeperController() {
+        // Given
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(false).brokersNum(1).build();
+
+        // When
+        var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
+
+        // Then
+        assertThat(config.properties())
+                .doesNotContainKey("process.roles")
+                .containsEntry("zookeeper.connect", "localhost:" + CONTROLLER_BASE_PORT);
+
     }
 
     @ParameterizedTest

@@ -12,16 +12,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class KafkaEndpointTest {
     @Test
-    void hostNotNull() {
+    void requiresHostNotNull() {
         assertThatThrownBy(() -> new KafkaEndpoint(null, 1234))
                 .isInstanceOf(NullPointerException.class);
     }
 
     @Test
-    void addressFormatting() {
+    void toStringFormatAddress() {
         var ep = new KafkaEndpoint("foo", 1234);
-        assertThat(ep.toString())
-                .isEqualTo("//foo:1234");
+        assertThat(ep).hasToString("foo:1234");
     }
 
 }

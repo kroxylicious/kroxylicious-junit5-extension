@@ -5,10 +5,9 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-import lombok.Builder;
-
 import java.util.Objects;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * The type Kafka Listener.
@@ -17,7 +16,6 @@ import java.util.Objects;
  * @param kafkaNet   the connect address within the kafka network
  * @param advertised the connect address from the client network
  */
-@Builder
 public record KafkaListener(@NonNull KafkaEndpoint bind, @NonNull KafkaEndpoint kafkaNet, @NonNull KafkaEndpoint advertised) {
 
     public KafkaListener {

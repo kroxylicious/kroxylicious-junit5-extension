@@ -5,10 +5,9 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Objects;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * The type Endpoint.
