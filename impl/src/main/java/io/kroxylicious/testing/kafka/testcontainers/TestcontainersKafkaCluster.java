@@ -514,6 +514,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                             Thread.sleep(timeOut);
                         }
                         catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
                             throw new RuntimeException(e);
                         }
                     });

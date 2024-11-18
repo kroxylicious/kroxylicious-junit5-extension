@@ -335,10 +335,7 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "listener.security.protocol.map", formatListeners(protocolMap, ":"));
         putConfig(nodeConfiguration, "listeners", formatListeners(listeners, "://"));
         putConfig(nodeConfiguration, "early.start.listeners", String.join(",", earlyStart));
-        if (!advertisedListeners.isEmpty()) {
-            putConfig(nodeConfiguration, "advertised.listeners", formatListeners(advertisedListeners, "://"));
-
-        }
+        putConfig(nodeConfiguration, "advertised.listeners", formatListeners(advertisedListeners, "://"));
 
         configureSasl(nodeConfiguration);
 
