@@ -202,6 +202,16 @@ class KafkaClusterConfigTest {
     }
 
     @Test
+    void shouldRejectBadInvalidMechanism() {
+        // Given
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.saslMechanism("FOO").build();
+
+        // When/Then
+        assertThatThrownBy(() -> kafkaClusterConfig.getBrokerConfigs(() -> endpointConfig))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void kafkaVersionDisallowsNulls() {
         assertThatThrownBy(() -> kafkaClusterConfigBuilder.kafkaVersion(null)).isInstanceOf(NullPointerException.class);
     }
