@@ -49,6 +49,8 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.dockerclient.DockerClientProviderStrategy;
+import org.testcontainers.images.ImagePullPolicy;
+import org.testcontainers.images.PullPolicy;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
@@ -118,8 +120,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";
-    private final DockerImageName kafkaImage;
-    private final DockerImageName zookeeperImage;
+    private final PerImagePullPolicy kafkaImage;
     private final KafkaClusterConfig clusterConfig;
     private final String logDirVolumeName = createNamedVolume();
     private final Network network = Network.newNetwork();
@@ -167,13 +168,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param zookeeperImage the zookeeper image
      * @param clusterConfig  the cluster config
      */
+    // suppress `resource` warnings as we manage the lifecycle at a wider scope
+    @SuppressWarnings("resource")
     public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-
         var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(LATEST_KAFKA_IMAGE);
-        var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
-
         this.kafkaImage = overrideContainerImageTagIfNecessary(actualKafkaImage, clusterConfig.getKafkaVersion());
-        this.zookeeperImage = overrideContainerImageTagIfNecessary(actualZookeeperImage, clusterConfig.getKafkaVersion());
 
         this.clusterConfig = clusterConfig;
 
@@ -187,11 +186,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             this.zookeeper = null;
         }
         else {
-            this.zookeeper = new ZookeeperContainer(this.zookeeperImage)
+            var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
+            PerImagePullPolicy zookeeperImage1 = overrideContainerImageTagIfNecessary(actualZookeeperImage, clusterConfig.getKafkaVersion());
+            this.zookeeper = new ZookeeperContainer(zookeeperImage1.dockerImageName)
                     .withName(name)
                     .withNetwork(network)
                     .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                     .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
+                    .withImagePullPolicy(zookeeperImage1.pullPolicy())
                     .withNetworkAliases("zookeeper");
         }
 
@@ -203,6 +205,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.nodeId(), buildKafkaContainer(holder)));
     }
 
+    // @VisibleForTesting
+    PerImagePullPolicy getKafkaImage() {
+        return kafkaImage;
+    }
+
+    // suppress `resource` warnings as we manage the lifecycle at a wider scope
+    @SuppressWarnings("resource")
     @NonNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
         var brokerNum = holder.nodeId();
@@ -210,9 +219,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         Properties properties = new Properties();
         properties.putAll(holder.properties());
         properties.put("log.dir", getBrokerLogDirectory(brokerNum));
-        KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
+        KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage.dockerImageName())
                 .withName(name)
                 .withNetwork(network)
+                .withImagePullPolicy(kafkaImage.pullPolicy())
                 .withNetworkAliases(netAlias);
 
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
@@ -309,17 +319,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @param overrideVersion desired version, which may be null.
      * @return container image name
      */
-    private DockerImageName overrideContainerImageTagIfNecessary(@NonNull DockerImageName image, @Nullable String overrideVersion) {
+    private PerImagePullPolicy overrideContainerImageTagIfNecessary(@NonNull DockerImageName image, @Nullable String overrideVersion) {
         if (overrideVersion == null || overrideVersion.equalsIgnoreCase(image.getVersionPart())) {
-            return image;
+            return new PerImagePullPolicy(image, PullPolicy.defaultPolicy());
         }
         else if (overrideVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
-            return image.withTag(Version.LATEST_SNAPSHOT);
+            return new PerImagePullPolicy(image.withTag(Version.LATEST_SNAPSHOT), PullPolicy.alwaysPull());
         }
         else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", overrideVersion)) {
-            return image.withTag("latest-kafka-" + overrideVersion);
+            return new PerImagePullPolicy(image.withTag("latest-kafka-" + overrideVersion), PullPolicy.alwaysPull());
         }
-        return image;
+        return new PerImagePullPolicy(image, PullPolicy.defaultPolicy());
     }
 
     /**
@@ -328,7 +338,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @return the kafka version
      */
     public String getKafkaVersion() {
-        var v = kafkaImage.getVersionPart();
+        var v = kafkaImage.dockerImageName.getVersionPart();
         if (v != null) {
             if (Version.LATEST_RELEASE.equalsIgnoreCase(v)) {
                 return Version.LATEST_RELEASE;
@@ -852,4 +862,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .collect(Collectors.joining(";"));
     }
 
+    record PerImagePullPolicy(DockerImageName dockerImageName, ImagePullPolicy pullPolicy) {
+    }
 }
