@@ -312,6 +312,18 @@ class KafkaClusterTest {
     }
 
     @Test
+    void removeUnrecognizedBrokerDetected() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .build())) {
+            cluster.start();
+            assertThatThrownBy(() -> cluster.removeBroker(99))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Broker node 99 is not a member of the cluster");
+        }
+    }
+
+    @Test
     void kafkaClusterKraftDisallowsControllerRemoval() throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
@@ -327,7 +339,7 @@ class KafkaClusterTest {
         }
     }
 
-    static Stream<Arguments> kafkaClusterWithUsernamePasswordBasedSaslAuth() {
+    static Stream<Arguments> usernamePasswordBasedSaslAuthConfigs() {
         return Stream.of(
                 Arguments.of("PLAIN", true),
                 Arguments.of("PLAIN", false),
@@ -337,7 +349,7 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @MethodSource
+    @MethodSource("usernamePasswordBasedSaslAuthConfigs")
     void kafkaClusterWithUsernamePasswordBasedSaslAuth(String mechanism, boolean kraft) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .kraftMode(kraft)
@@ -348,6 +360,25 @@ class KafkaClusterTest {
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("usernamePasswordBasedSaslAuthConfigs")
+    void kafkaClusterSaslBasedAuthDetectsWrongPassword(String mechanism, boolean kraft) throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .kraftMode(kraft)
+                .testInfo(testInfo)
+                .securityProtocol("SASL_PLAINTEXT")
+                .saslMechanism(mechanism)
+                .user("guest", "pass")
+                .build())) {
+            cluster.start();
+            try (var admin = CloseableAdmin.create(cluster.getKafkaClientConfiguration("guest", "wrongpassword"))) {
+                assertThatThrownBy(() -> performClusterOperation(admin))
+                        .hasCauseInstanceOf(SaslAuthenticationException.class)
+                        .hasMessageContaining("Authentication failed");
+            }
         }
     }
 
@@ -532,7 +563,17 @@ class KafkaClusterTest {
             assertThatThrownBy(cluster::getControllerAdminClientConfiguration)
                     .isInstanceOf(UnsupportedOperationException.class);
         }
+    }
 
+    @Test
+    void kraftClusterIdAssigned() throws Exception {
+        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+                .testInfo(testInfo)
+                .kraftMode(true)
+                .build())) {
+            cluster.start();
+            assertThat(cluster.getClusterId()).isNotNull().isNotEmpty();
+        }
     }
 
     private void verifyRecordRoundTrip(int expected, KafkaCluster cluster) throws Exception {
