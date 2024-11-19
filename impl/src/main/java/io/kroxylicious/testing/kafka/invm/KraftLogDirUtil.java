@@ -37,8 +37,9 @@ final class KraftLogDirUtil {
     }
 
     static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, List<String> scramArguments) {
+        // Default the metadata version from the IBP version specified in config in the same way as kafka.tools.StorageTool.
         var metadataVersion = Optional.ofNullable(config.interBrokerProtocolVersionString()).map(MetadataVersion::fromVersionString)
-                .orElse(MetadataVersion.LATEST_PRODUCTION);
+                                      .orElse(MetadataVersion.LATEST_PRODUCTION);
         var directoriesScala = StorageTool.configToLogDirectories(config);
         try {
             prepareLogDirsForKraftKafka39Plus(clusterId, config, scramArguments, directoriesScala, metadataVersion);
@@ -57,15 +58,15 @@ final class KraftLogDirUtil {
         var formatterClazz = Class.forName("org.apache.kafka.metadata.storage.Formatter");
         var formatter = formatterClazz.getDeclaredConstructor().newInstance();
 
-        formatterClazz.getMethod("setClusterId", String.class).invoke(formatter, clusterId);
-        formatterClazz.getMethod("setNodeId", int.class).invoke(formatter, config.nodeId());
-        formatterClazz.getMethod("setControllerListenerName", String.class).invoke(formatter, controllerListenerName);
-        formatterClazz.getMethod("setMetadataLogDirectory", String.class).invoke(formatter, config.metadataLogDir());
-        formatterClazz.getMethod("setDirectories", Collection.class).invoke(formatter, directories);
-        formatterClazz.getMethod("setIgnoreFormatted", boolean.class).invoke(formatter, IGNORE_FORMATTED);
-        formatterClazz.getMethod("setScramArguments", List.class).invoke(formatter, scramArguments);
-        formatterClazz.getMethod("setPrintStream", PrintStream.class).invoke(formatter, LOGGING_PRINT_STREAM);
-        formatterClazz.getMethod("setReleaseVersion", MetadataVersion.class).invoke(formatter, metadataVersion);
+        invokeOn(formatter, "setClusterId", clusterId);
+        invokeOn(formatter, "setNodeId", config.nodeId());
+        invokeOn(formatter, "setControllerListenerName", controllerListenerName);
+        invokeOn(formatter, "setMetadataLogDirectory", config.metadataLogDir());
+        invokeOn(formatter, "setDirectories", directories, Collection.class);
+        invokeOn(formatter, "setIgnoreFormatted", IGNORE_FORMATTED);
+        invokeOn(formatter, "setScramArguments", scramArguments, List.class);
+        invokeOn(formatter, "setPrintStream", LOGGING_PRINT_STREAM);
+        invokeOn(formatter, "setReleaseVersion", metadataVersion);
 
         formatterClazz.getMethod("run").invoke(formatter);
     }
@@ -73,7 +74,6 @@ final class KraftLogDirUtil {
     private static void prepareLogDirsForKraftPreKafka39(String clusterId, KafkaConfig config, Seq<String> directories, MetadataVersion metadataVersion,
                                                          List<String> scramArguments) {
         try {
-            // Default the metadata version from the IBP version specified in config in the same way as kafka.tools.StorageTool.
 
             // in kafka 3.7.0 the MetadataProperties class moved package, we use reflection to enable the extension to work with
             // the old and new class.
@@ -133,4 +133,22 @@ final class KraftLogDirUtil {
     private static ApiMessageAndVersion wrap(ApiMessage message) {
         return new ApiMessageAndVersion(message, (short) 0);
     }
+
+    private static void invokeOn(Object instance, String methodName, Object value) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+        invokeOn(instance, methodName, value, value.getClass());
+    }
+
+    private static void invokeOn(Object instance, String methodName, boolean value) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+        invokeOn(instance, methodName, value, Boolean.TYPE);
+    }
+
+    private static void invokeOn(Object instance, String methodName, int value) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+        invokeOn(instance, methodName, value, Integer.TYPE);
+    }
+
+    private static void invokeOn(Object instance, String methodName, Object value, Class<?> valueClass)
+            throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        instance.getClass().getMethod(methodName, valueClass).invoke(instance, value);
+    }
+
 }
