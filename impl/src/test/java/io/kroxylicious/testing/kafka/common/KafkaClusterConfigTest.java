@@ -49,7 +49,7 @@ class KafkaClusterConfigTest {
         final var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 0);
 
         // Then
-        assertThat(config.brokerNum()).isZero();
+        assertThat(config.nodeId()).isZero();
         assertThat(config.properties())
                 .containsEntry("node.id", "0")
                 .containsEntry("controller.quorum.voters", "0@localhost:" + CONTROLLER_BASE_PORT)
