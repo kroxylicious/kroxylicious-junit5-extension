@@ -117,7 +117,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
 
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
-            var clusterId = c.kafkaKraftClusterId();
+            var clusterId = c.kraftClusterId();
             KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramArguments);
             return instantiateKraftServer(config, threadNamePrefix);
         }
@@ -167,7 +167,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
     private KafkaConfig buildBrokerConfig(KafkaClusterConfig.ConfigHolder c) {
         Properties properties = new Properties();
         properties.putAll(c.properties());
-        var logsDir = getBrokerLogDir(c.brokerNum());
+        var logsDir = getBrokerLogDir(c.nodeId());
         properties.setProperty("log.dir", logsDir.toAbsolutePath().toString());
         LOGGER.log(System.Logger.Level.DEBUG, "Generated config {0}", properties);
         return new KafkaConfig(properties);
@@ -193,7 +193,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         clusterConfig.getBrokerConfigs(() -> this).parallel().forEach(configHolder -> {
             var server = buildKafkaServer(configHolder, scramArguments);
             tryToStartServerWithRetry(configHolder, server);
-            servers.put(configHolder.brokerNum(), server);
+            servers.put(configHolder.nodeId(), server);
         });
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)), 120,
@@ -210,7 +210,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
                 .until(() -> {
                     // Hopefully we can remove this once a fix for https://issues.apache.org/jira/browse/KAFKA-14908 actually lands.
                     try {
-                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.brokerNum(),
+                        LOGGER.log(System.Logger.Level.DEBUG, "Attempting to start node: {0} with roles: {1}", configHolder.nodeId(),
                                 configHolder.properties().get("process.roles"));
                         server.startup();
                         return true;
@@ -218,10 +218,10 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
                     catch (Throwable t) {
                         LOGGER.log(System.Logger.Level.WARNING, "failed to start server due to: " + t.getMessage());
                         LOGGER.log(System.Logger.Level.WARNING, "anon: {0}, client: {1}, controller: {2}, interBroker: {3}, ",
-                                this.getKafkaListener(Listener.ANON, configHolder.brokerNum()).bind(),
-                                this.getKafkaListener(Listener.EXTERNAL, configHolder.brokerNum()).bind(),
-                                this.getKafkaListener(Listener.CONTROLLER, configHolder.brokerNum()).bind(),
-                                this.getKafkaListener(Listener.EXTERNAL, configHolder.brokerNum()).bind());
+                                this.getKafkaListener(Listener.ANON, configHolder.nodeId()).bind(),
+                                this.getKafkaListener(Listener.EXTERNAL, configHolder.nodeId()).bind(),
+                                this.getKafkaListener(Listener.CONTROLLER, configHolder.nodeId()).bind(),
+                                this.getKafkaListener(Listener.EXTERNAL, configHolder.nodeId()).bind());
 
                         server.shutdown();
                         server.awaitShutdown();
@@ -323,7 +323,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
-        return configHolder.brokerNum();
+        return configHolder.nodeId();
     }
 
     @Override

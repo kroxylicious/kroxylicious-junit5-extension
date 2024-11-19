@@ -306,7 +306,7 @@ public class KafkaClusterConfig {
      */
     @NonNull
     public ConfigHolder generateConfigForSpecificNode(KafkaListenerSource kafkaListenerSource, int nodeId) {
-        final var role = determineRole(nodeId);
+        var roles = determineRoles(nodeId);
         Properties nodeConfiguration = new Properties();
         nodeConfiguration.putAll(brokerConfigs);
 
@@ -317,19 +317,16 @@ public class KafkaClusterConfig {
         var advertisedListeners = new TreeMap<String, String>();
         var earlyStart = new TreeSet<String>();
 
-        final ConfigHolder configHolder;
-        if (role.contains(BROKER_ROLE)) {
-            configHolder = configureBroker(kafkaListenerSource, nodeId, protocolMap, listeners, advertisedListeners, earlyStart, nodeConfiguration);
-        }
-        else {
-            configHolder = configureController(nodeId, nodeConfiguration);
+        var configHolder = new ConfigHolder(nodeConfiguration, nodeId, kafkaKraftClusterId, roles);
+        if (configHolder.isBroker()) {
+            configureBroker(kafkaListenerSource, configHolder, protocolMap, listeners, advertisedListeners, earlyStart);
         }
 
         if (isKraftMode()) {
-            configureKraftNode(kafkaListenerSource, nodeId, nodeConfiguration, protocolMap, listeners, advertisedListeners, earlyStart, role);
+            configureKraftNode(kafkaListenerSource, configHolder, protocolMap, listeners, advertisedListeners, earlyStart);
         }
         else {
-            configureLegacyNode(kafkaListenerSource, nodeConfiguration);
+            configureLegacyNode(kafkaListenerSource, configHolder);
         }
 
         putConfig(nodeConfiguration, "listener.security.protocol.map", formatListeners(protocolMap, ":"));
@@ -355,19 +352,16 @@ public class KafkaClusterConfig {
         return configHolder;
     }
 
-    private String formatListeners(TreeMap<String, String> listeners, String delimeter) {
-        return listeners.entrySet().stream().map(e -> e.getKey() + delimeter + e.getValue()).collect(Collectors.joining(","));
+    private String formatListeners(Map<String, String> listeners, String listenerNameAddressSeparator) {
+        return listeners.entrySet().stream().map(e -> e.getKey() + listenerNameAddressSeparator + e.getValue()).collect(Collectors.joining(","));
     }
 
     @NonNull
-    private ConfigHolder configureController(int nodeId, Properties nodeConfiguration) {
-        return new ConfigHolder(nodeConfiguration,
-                nodeId, kafkaKraftClusterId);
-    }
-
-    @NonNull
-    private ConfigHolder configureBroker(KafkaListenerSource kafkaListenerSource, int nodeId, TreeMap<String, String> protocolMap, TreeMap<String, String> listeners,
-                                         TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties nodeConfiguration) {
+    private ConfigHolder configureBroker(KafkaListenerSource kafkaListenerSource, ConfigHolder configHolder, TreeMap<String, String> protocolMap,
+                                         TreeMap<String, String> listeners,
+                                         TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart) {
+        var nodeId = configHolder.nodeId();
+        var nodeConfiguration = configHolder.properties();
         var interBrokerEndpoint = kafkaListenerSource.getKafkaListener(Listener.INTERNAL, nodeId);
         var clientEndpoint = kafkaListenerSource.getKafkaListener(Listener.EXTERNAL, nodeId);
         var anonEndpoint = kafkaListenerSource.getKafkaListener(Listener.ANON, nodeId);
@@ -382,12 +376,11 @@ public class KafkaClusterConfig {
         configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
         configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
         configureTls(clientEndpoint, nodeConfiguration);
-        return new ConfigHolder(nodeConfiguration,
-                nodeId, kafkaKraftClusterId);
+        return configHolder;
     }
 
     @NonNull
-    private String determineRole(int nodeId) {
+    private String determineRoles(int nodeId) {
         var roles = new ArrayList<String>();
 
         if (nodeId < brokersNum || isAdditionalNode(nodeId)) {
@@ -503,8 +496,9 @@ public class KafkaClusterConfig {
         advertisedListeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.advertised().toString());
     }
 
-    private static void configureLegacyNode(KafkaListenerSource kafkaListenerSource, Properties server) {
+    private static void configureLegacyNode(KafkaListenerSource kafkaListenerSource, ConfigHolder configHolder) {
         KafkaListener kafkaListener = kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, 0);
+        var server = configHolder.properties();
         putConfig(server, "zookeeper.connect", kafkaListener.kafkaNet().toString());
         putConfig(server, "zookeeper.sasl.enabled", "false");
         putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
@@ -512,26 +506,25 @@ public class KafkaClusterConfig {
     }
 
     private void configureKraftNode(KafkaListenerSource kafkaListenerSource,
-                                    int nodeId,
-                                    Properties nodeConfiguration,
+                                    ConfigHolder configHolder,
                                     TreeMap<String, String> protocolMap,
                                     TreeMap<String, String> listeners,
                                     TreeMap<String, String> advertisedListeners,
-                                    TreeSet<String> earlyStart,
-                                    String role) {
-        putConfig(nodeConfiguration, "node.id", Integer.toString(nodeId)); // Required by Kafka 3.3 onwards.
+                                    TreeSet<String> earlyStart) {
+        var nodeConfiguration = configHolder.properties();
+        putConfig(nodeConfiguration, "node.id", Integer.toString(configHolder.nodeId())); // Required by Kafka 3.3 onwards.
 
         var quorumVoters = IntStream.range(0, kraftControllers)
                 .mapToObj(controllerId -> String.format("%d@%s", controllerId,
-                        kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, controllerId).kafkaNet().toString()))
+                        kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, controllerId).kafkaNet()))
                 .collect(Collectors.joining(","));
         putConfig(nodeConfiguration, "controller.quorum.voters", quorumVoters);
         putConfig(nodeConfiguration, "controller.listener.names", CONTROLLER_LISTENER_NAME);
         protocolMap.put(CONTROLLER_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
 
-        putConfig(nodeConfiguration, "process.roles", role);
-        if (role.contains(CONTROLLER_ROLE)) {
-            var controllerEndpoint = kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, nodeId);
+        putConfig(nodeConfiguration, "process.roles", configHolder.roles());
+        if (configHolder.isController()) {
+            var controllerEndpoint = kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, configHolder.nodeId());
             listeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.bind().toString());
             earlyStart.add(CONTROLLER_LISTENER_NAME);
             if (!PRE_KAFKA_39.matcher(getKafkaVersion()).matches()) {
@@ -736,23 +729,22 @@ public class KafkaClusterConfig {
     /**
      * The type Config holder.
      *
-     * @param properties          the properties
-     * @param brokerNum           the broker num
-     * @param kafkaKraftClusterId the kafka kraft cluster id
+     * @param properties          the properties (mutable)
+     * @param nodeId              the node id
+     * @param kraftClusterId      the kafka kraft cluster id
+     * @param roles               the role(s) of the node, comma separated
      */
     public record ConfigHolder(Properties properties,
-                               int brokerNum,
-                               String kafkaKraftClusterId) {
-        private String getRoles() {
-            return properties.getProperty("process.roles", BROKER_ROLE);
-        }
+                               int nodeId,
+                               String kraftClusterId,
+                               String roles) {
 
         public boolean isBroker() {
-            return getRoles().contains(BROKER_ROLE);
+            return roles.contains(BROKER_ROLE);
         }
 
         public boolean isController() {
-            return getRoles().contains(CONTROLLER_ROLE);
+            return roles.contains(CONTROLLER_ROLE);
         }
     }
 

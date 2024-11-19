@@ -200,12 +200,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             portAllocationSession.allocate(Set.of(Listener.CONTROLLER), 0, clusterConfig.getKraftControllers());
         }
 
-        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.brokerNum(), buildKafkaContainer(holder)));
+        clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.nodeId(), buildKafkaContainer(holder)));
     }
 
     @NonNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
-        var brokerNum = holder.brokerNum();
+        var brokerNum = holder.nodeId();
         var netAlias = "broker-" + brokerNum;
         Properties properties = new Properties();
         properties.putAll(holder.properties());
@@ -220,7 +220,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
         kafkaContainer
                 .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
-                .withEnv("SERVER_CLUSTER_ID", holder.kafkaKraftClusterId())
+                .withEnv("SERVER_CLUSTER_ID", holder.kraftClusterId())
                 // disables automatic configuration of listeners/roles by kafka-native
                 .withEnv("SERVER_AUTO_CONFIGURE", "false")
                 .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/cnf/server.properties")
@@ -397,13 +397,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             kafkaContainer.stop();
             throw new RuntimeException(e);
         }
-        nodes.put(configHolder.brokerNum(), kafkaContainer);
+        nodes.put(configHolder.nodeId(), kafkaContainer);
 
         Utils.awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
-        return configHolder.brokerNum();
+        return configHolder.nodeId();
     }
 
     @Override
