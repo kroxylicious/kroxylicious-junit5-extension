@@ -44,11 +44,14 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.TestInfo;
+import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.dockerclient.DockerClientProviderStrategy;
+import org.testcontainers.images.ImagePullPolicy;
+import org.testcontainers.images.PullPolicy;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
@@ -189,6 +192,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                     .withNetwork(network)
                     .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                     .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
+                    .withImagePullPolicy(determinePullPolicyFromTag(this.zookeeperImage.getVersionPart()))
                     .withNetworkAliases("zookeeper");
         }
 
@@ -200,6 +204,23 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.getBrokerNum(), buildKafkaContainer(holder)));
     }
 
+    private ImagePullPolicy determinePullPolicyFromTag(String versionPart) {
+        var defaultPolicy = PullPolicy.defaultPolicy();
+        if (Version.LATEST_RELEASE.equalsIgnoreCase(versionPart) || Version.LATEST_SNAPSHOT.equalsIgnoreCase(versionPart) || versionPart.toLowerCase().startsWith("latest")) {
+            if (defaultPolicy.getClass().getName().equals("org.testcontainers.images.DefaultPullPolicy")) {
+                return PullPolicy.alwaysPull();
+            }
+            else {
+                // The default pull policy has been overridden (TESTCONTAINERS_PULL_POLICY env var or pull.policy system property),
+                // so let the user wishes prevail
+                return defaultPolicy;
+            }
+        }
+        else {
+            return defaultPolicy;
+        }
+    }
+
     @NonNull
     private KafkaContainer buildKafkaContainer(KafkaClusterConfig.ConfigHolder holder) {
         String netAlias = "broker-" + holder.getBrokerNum();
@@ -209,6 +230,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
                 .withName(name)
                 .withNetwork(network)
+                .withImagePullPolicy(determinePullPolicyFromTag(this.kafkaImage.getVersionPart()))
                 .withNetworkAliases(netAlias);
 
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
