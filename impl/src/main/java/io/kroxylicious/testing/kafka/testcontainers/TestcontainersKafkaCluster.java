@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntPredicate;
+import java.util.function.Supplier;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -43,6 +44,7 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -65,7 +67,6 @@ import com.github.dockerjava.api.model.VersionComponent;
 import com.github.dockerjava.api.model.Volume;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import lombok.SneakyThrows;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -86,7 +87,18 @@ import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCoun
  */
 public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaListenerSource, AdminSource {
 
+    public static final String ZOOKEEPER_IMAGE_TAG = "ZOOKEEPER_IMAGE_TAG";
+    public static final String ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
+    /**
+     * environment variable specifying the kafka image repository.
+     */
+    public static final String KAFKA_IMAGE_REPO = "KAFKA_IMAGE_REPO";
+    /**
+     * environment variable specifying the kafka image repository.
+     */
+    public static final String KAFKA_IMAGE_TAG = "KAFKA_IMAGE_TAG";
+
     /**
      * The constant CLIENT_PORT.
      */
@@ -120,6 +132,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";
+    public static final String MAJOR_MINOR_PATCH = "\\d+(\\.\\d+(\\.\\d+)?)?";
     private final PerImagePullPolicy kafkaImage;
     private final KafkaClusterConfig clusterConfig;
     private final String logDirVolumeName = createNamedVolume();
@@ -144,7 +157,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     static {
         if (!System.getenv().containsKey("TESTCONTAINERS_RYUK_DISABLED")) {
-            LOGGER.log(Level.WARNING,
+            LOGGER.log(
+                    Level.WARNING,
                     "As per https://github.com/containers/podman/issues/7927#issuecomment-731525556 if using podman, set env var TESTCONTAINERS_RYUK_DISABLED=true");
         }
         // Install a shutdown hook to remove any volumes that remain. This is a best effort approach to leaving
@@ -152,27 +166,17 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         Runtime.getRuntime().addShutdownHook(new Thread(() -> Set.copyOf(volumesPendingCleanup).forEach(TestcontainersKafkaCluster::removeNamedVolume)));
     }
 
+    private PerImagePullPolicy zookeeperImage;
+
     /**
      * Instantiates a new Testcontainers kafka cluster.
      *
      * @param clusterConfig the cluster config
      */
-    public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
-        this(null, null, clusterConfig);
-    }
-
-    /**
-     * Instantiates a new Testcontainers kafka cluster.
-     *
-     * @param kafkaImage     the kafka image
-     * @param zookeeperImage the zookeeper image
-     * @param clusterConfig  the cluster config
-     */
     // suppress `resource` warnings as we manage the lifecycle at a wider scope
     @SuppressWarnings("resource")
-    public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
-        var actualKafkaImage = Optional.ofNullable(kafkaImage).orElse(LATEST_KAFKA_IMAGE);
-        this.kafkaImage = overrideContainerImageTagIfNecessary(actualKafkaImage, clusterConfig.getKafkaVersion());
+    public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
+        this.kafkaImage = resolveImage(TestcontainersKafkaCluster::kafkaRegistryResolver, kafkaTagResolver(clusterConfig));
 
         this.clusterConfig = clusterConfig;
 
@@ -186,14 +190,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             this.zookeeper = null;
         }
         else {
-            var actualZookeeperImage = Optional.ofNullable(zookeeperImage).orElse(LATEST_ZOOKEEPER_IMAGE);
-            PerImagePullPolicy zookeeperImage1 = overrideContainerImageTagIfNecessary(actualZookeeperImage, clusterConfig.getKafkaVersion());
-            this.zookeeper = new ZookeeperContainer(zookeeperImage1.dockerImageName)
+            zookeeperImage = resolveImage(TestcontainersKafkaCluster::zookeeperRegistryResolver, () -> Optional.ofNullable(System.getenv().get(ZOOKEEPER_IMAGE_TAG))
+                    .orElse(Version.LATEST_RELEASE));
+            this.zookeeper = new ZookeeperContainer(zookeeperImage.dockerImageName)
                     .withName(name)
                     .withNetwork(network)
                     .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                     .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
-                    .withImagePullPolicy(zookeeperImage1.pullPolicy())
+                    .withImagePullPolicy(zookeeperImage.pullPolicy())
                     .withNetworkAliases("zookeeper");
         }
 
@@ -205,9 +209,30 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         clusterConfig.getBrokerConfigs(() -> this).forEach(holder -> nodes.put(holder.nodeId(), buildKafkaContainer(holder)));
     }
 
+    /**
+     * Instantiates a new Testcontainers kafka cluster.
+     *
+     * @param kafkaImage     <em>IGNORED</em> the kafka image
+     * @param zookeeperImage <em>IGNORED</em> the zookeeper image
+     * @param clusterConfig  the cluster config
+     *
+     * @deprecated please use {@link TestcontainersKafkaCluster#TestcontainersKafkaCluster(KafkaClusterConfig)}
+     * The Image arguments have been replaced by environment variables
+     */
+    @SuppressWarnings("unused")
+    @Deprecated(forRemoval = true)
+    public TestcontainersKafkaCluster(DockerImageName kafkaImage, DockerImageName zookeeperImage, KafkaClusterConfig clusterConfig) {
+        this(clusterConfig);
+    }
+
     // @VisibleForTesting
     PerImagePullPolicy getKafkaImage() {
         return kafkaImage;
+    }
+
+    // @VisibleForTesting
+    PerImagePullPolicy getZookeeperImage() {
+        return zookeeperImage;
     }
 
     // suppress `resource` warnings as we manage the lifecycle at a wider scope
@@ -315,21 +340,40 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * Overrides the image tag in the container image name.
      * This knows about the naming conventions used by the ogunalp native image project.
      *
-     * @param image container image name
-     * @param overrideVersion desired version, which may be null.
      * @return container image name
      */
-    private PerImagePullPolicy overrideContainerImageTagIfNecessary(@NonNull DockerImageName image, @Nullable String overrideVersion) {
-        if (overrideVersion == null || overrideVersion.equalsIgnoreCase(image.getVersionPart())) {
-            return new PerImagePullPolicy(image, PullPolicy.defaultPolicy());
+    private PerImagePullPolicy resolveImage(Supplier<DockerImageName> registryResolver, Supplier<String> tagResolver) {
+        final DockerImageName repositoryRef = registryResolver.get();
+        final String tag = tagResolver.get();
+        if (tag.toLowerCase(Locale.ROOT).startsWith("latest")) {
+            return new PerImagePullPolicy(repositoryRef.withTag(tag), PullPolicy.alwaysPull());
         }
-        else if (overrideVersion.equalsIgnoreCase(Version.LATEST_SNAPSHOT)) {
-            return new PerImagePullPolicy(image.withTag(Version.LATEST_SNAPSHOT), PullPolicy.alwaysPull());
+        else {
+            return new PerImagePullPolicy(repositoryRef.withTag(tag), PullPolicy.defaultPolicy());
         }
-        else if (Pattern.matches("\\d+(\\.\\d+(\\.\\d+)?)?", overrideVersion)) {
-            return new PerImagePullPolicy(image.withTag("latest-kafka-" + overrideVersion), PullPolicy.alwaysPull());
+    }
+
+    private static @NotNull DockerImageName kafkaRegistryResolver() {
+        return DockerImageName.parse(Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_REPO)).orElse(QUAY_KAFKA_IMAGE_REPO));
+    }
+
+    private static @NotNull Supplier<String> kafkaTagResolver(KafkaClusterConfig clusterConfig) {
+        return () -> Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_TAG)).orElse(defaultKafkaVersion(clusterConfig));
+    }
+
+    private static @NotNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
+        String defaultVersion;
+        if (Pattern.matches(MAJOR_MINOR_PATCH, clusterConfig.getKafkaVersion())) {
+            defaultVersion = "latest-kafka-" + clusterConfig.getKafkaVersion();
         }
-        return new PerImagePullPolicy(image, PullPolicy.defaultPolicy());
+        else {
+            defaultVersion = clusterConfig.getKafkaVersion();
+        }
+        return defaultVersion;
+    }
+
+    private static @NotNull DockerImageName zookeeperRegistryResolver() {
+        return DockerImageName.parse(Optional.ofNullable(System.getenv().get(ZOOKEEPER_IMAGE_REPO)).orElse(QUAY_ZOOKEEPER_IMAGE_REPO));
     }
 
     /**

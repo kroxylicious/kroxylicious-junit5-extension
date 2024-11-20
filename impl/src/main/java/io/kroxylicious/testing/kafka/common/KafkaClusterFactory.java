@@ -5,8 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import org.testcontainers.utility.DockerImageName;
-
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
@@ -31,13 +29,13 @@ public class KafkaClusterFactory {
 
     /**
      * environment variable specifying the kafka image repository.
+     * @deprecated use the field from {@link TestcontainersKafkaCluster}
      */
-    public static final String KAFKA_IMAGE_REPO = "KAFKA_IMAGE_REPO";
+    @Deprecated(forRemoval = true)
+    public static final String KAFKA_IMAGE_REPO = TestcontainersKafkaCluster.KAFKA_IMAGE_REPO;
 
-    /**
-     * environment variable specifying the zookeeper image repository.
-     */
-    public static final String ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
+    @Deprecated(forRemoval = true)
+    public static final String ZOOKEEPER_IMAGE_REPO = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_REPO;
 
     /**
      * environment variable specifying kraft mode, true or false.
@@ -83,12 +81,7 @@ public class KafkaClusterFactory {
             return new InVMKafkaCluster(actual);
         }
         else {
-            var kafkaImageRepo = System.getenv().get(KAFKA_IMAGE_REPO);
-            var zookeeperImageRepo = System.getenv().get(ZOOKEEPER_IMAGE_REPO);
-            DockerImageName kafkaImage = (kafkaImageRepo != null) ? DockerImageName.parse(kafkaImageRepo) : null;
-            DockerImageName zookeeperImage = (zookeeperImageRepo != null) ? DockerImageName.parse(zookeeperImageRepo) : null;
-
-            return new TestcontainersKafkaCluster(kafkaImage, zookeeperImage, actual);
+            return new TestcontainersKafkaCluster(actual);
         }
     }
 
