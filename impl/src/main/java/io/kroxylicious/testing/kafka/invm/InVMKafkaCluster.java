@@ -68,7 +68,6 @@ import static kafka.zk.KafkaZkClient.createZkClient;
 public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, AdminSource {
     static final System.Logger LOGGER = System.getLogger(InVMKafkaCluster.class.getName());
     private static final int STARTUP_TIMEOUT = 30;
-    static final String INVM_KAFKA = "invm-kafka";
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;
@@ -497,7 +496,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         if (!scramArguments.isEmpty()) {
             var uscrs = ScramUtils.getUserScramCredentialRecords(scramArguments);
             ZKClientConfig zkClientConfig = KafkaServer.zkClientConfigFromKafkaConfig(config, false);
-            try (var zkClient = createZkClient(INVM_KAFKA, Time.SYSTEM, config, zkClientConfig)) {
+            try (var zkClient = createZkClient("invm-kafka-zookeeper-client", Time.SYSTEM, config, zkClientConfig)) {
                 var adminZkClient = new AdminZkClient(zkClient, Option.empty());
                 var userEntityType = "users";
                 disableControllerCheck(zkClient);
