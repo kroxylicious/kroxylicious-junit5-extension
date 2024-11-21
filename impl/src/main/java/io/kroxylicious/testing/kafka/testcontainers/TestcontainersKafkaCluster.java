@@ -132,7 +132,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";
-    public static final String MAJOR_MINOR_PATCH = "\\d+(\\.\\d+(\\.\\d+)?)?";
+    public static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\d+(\\.\\d+(\\.\\d+)?)?");
     private final PerImagePullPolicy kafkaImage;
     private final KafkaClusterConfig clusterConfig;
     private final String logDirVolumeName = createNamedVolume();
@@ -363,7 +363,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     private static @NotNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
         String defaultVersion;
-        if (Pattern.matches(MAJOR_MINOR_PATCH, clusterConfig.getKafkaVersion())) {
+        if (MAJOR_MINOR_PATCH.matcher(clusterConfig.getKafkaVersion()).matches()) {
             defaultVersion = "latest-kafka-" + clusterConfig.getKafkaVersion();
         }
         else {
