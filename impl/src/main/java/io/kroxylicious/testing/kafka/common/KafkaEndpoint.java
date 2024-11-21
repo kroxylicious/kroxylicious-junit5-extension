@@ -24,9 +24,7 @@ public record KafkaEndpoint(@NonNull String host, int port) {
      * kafka formatted address suitable for use in configuration.
      * @return kafka formatted address suitable for use in configuration.
      */
-    @Override
-    public String toString() {
+    public String address() {
         return host + ":" + port;
     }
-
 }

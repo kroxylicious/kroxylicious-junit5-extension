@@ -297,7 +297,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return nodes.keySet().stream()
                 .filter(nodePredicate)
                 .map(nodeId -> getKafkaListener(listener, nodeId))
-                .map(kafkaListener -> kafkaListener.advertised().toString())
+                .map(kafkaListener -> kafkaListener.advertised().address())
                 .collect(Collectors.joining(","));
     }
 
