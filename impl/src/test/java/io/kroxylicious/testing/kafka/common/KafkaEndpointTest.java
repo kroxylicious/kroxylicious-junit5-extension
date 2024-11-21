@@ -18,9 +18,9 @@ class KafkaEndpointTest {
     }
 
     @Test
-    void toStringFormatAddress() {
+    void addressFormatting() {
         var ep = new KafkaEndpoint("foo", 1234);
-        assertThat(ep).hasToString("foo:1234");
+        assertThat(ep.address()).isEqualTo("foo:1234");
     }
 
 }

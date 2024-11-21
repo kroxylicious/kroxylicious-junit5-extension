@@ -476,8 +476,8 @@ public class KafkaClusterConfig {
     private static void configureInternalListener(TreeMap<String, String> protocolMap, TreeMap<String, String> listeners, KafkaListener interBrokerEndpoint,
                                                   TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart, Properties server) {
         protocolMap.put(INTERNAL_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
-        listeners.put(INTERNAL_LISTENER_NAME, interBrokerEndpoint.bind().toString());
-        advertisedListeners.put(INTERNAL_LISTENER_NAME, interBrokerEndpoint.advertised().toString());
+        listeners.put(INTERNAL_LISTENER_NAME, interBrokerEndpoint.bind().address());
+        advertisedListeners.put(INTERNAL_LISTENER_NAME, interBrokerEndpoint.advertised().address());
         earlyStart.add(INTERNAL_LISTENER_NAME);
         putConfig(server, "inter.broker.listener.name", INTERNAL_LISTENER_NAME);
     }
@@ -485,21 +485,21 @@ public class KafkaClusterConfig {
     private static void configureAnonListener(TreeMap<String, String> protocolMap, TreeMap<String, String> listeners, KafkaListener anonEndpoint,
                                               TreeMap<String, String> advertisedListeners) {
         protocolMap.put(ANON_LISTENER_NAME, SecurityProtocol.PLAINTEXT.name());
-        listeners.put(ANON_LISTENER_NAME, anonEndpoint.bind().toString());
-        advertisedListeners.put(ANON_LISTENER_NAME, anonEndpoint.advertised().toString());
+        listeners.put(ANON_LISTENER_NAME, anonEndpoint.bind().address());
+        advertisedListeners.put(ANON_LISTENER_NAME, anonEndpoint.advertised().address());
     }
 
     private static void configureExternalListener(TreeMap<String, String> protocolMap, String externalListenerTransport, TreeMap<String, String> listeners,
                                                   KafkaListener clientEndpoint, TreeMap<String, String> advertisedListeners) {
         protocolMap.put(EXTERNAL_LISTENER_NAME, externalListenerTransport);
-        listeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.bind().toString());
-        advertisedListeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.advertised().toString());
+        listeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.bind().address());
+        advertisedListeners.put(EXTERNAL_LISTENER_NAME, clientEndpoint.advertised().address());
     }
 
     private static void configureLegacyNode(KafkaListenerSource kafkaListenerSource, ConfigHolder configHolder) {
         KafkaListener kafkaListener = kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, 0);
         var server = configHolder.properties();
-        putConfig(server, "zookeeper.connect", kafkaListener.kafkaNet().toString());
+        putConfig(server, "zookeeper.connect", kafkaListener.kafkaNet().address());
         putConfig(server, "zookeeper.sasl.enabled", "false");
         putConfig(server, "zookeeper.connection.timeout.ms", Long.toString(60000));
         putConfig(server, "zookeeper.session.timeout.ms", Long.toString(6000));
@@ -516,7 +516,7 @@ public class KafkaClusterConfig {
 
         var quorumVoters = IntStream.range(0, kraftControllers)
                 .mapToObj(controllerId -> String.format("%d@%s", controllerId,
-                        kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, controllerId).kafkaNet()))
+                        kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, controllerId).kafkaNet().address()))
                 .collect(Collectors.joining(","));
         putConfig(nodeConfiguration, "controller.quorum.voters", quorumVoters);
         putConfig(nodeConfiguration, "controller.listener.names", CONTROLLER_LISTENER_NAME);
@@ -525,10 +525,10 @@ public class KafkaClusterConfig {
         putConfig(nodeConfiguration, "process.roles", configHolder.roles());
         if (configHolder.isController()) {
             var controllerEndpoint = kafkaListenerSource.getKafkaListener(Listener.CONTROLLER, configHolder.nodeId());
-            listeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.bind().toString());
+            listeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.bind().address());
             earlyStart.add(CONTROLLER_LISTENER_NAME);
             if (!PRE_KAFKA_39.matcher(getKafkaVersion()).matches()) {
-                advertisedListeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.advertised().toString());
+                advertisedListeners.put(CONTROLLER_LISTENER_NAME, controllerEndpoint.advertised().address());
             }
         }
     }
