@@ -362,9 +362,9 @@ public class KafkaClusterConfig {
                                          TreeMap<String, String> advertisedListeners, TreeSet<String> earlyStart) {
         var nodeId = configHolder.nodeId();
         var nodeConfiguration = configHolder.properties();
-        var interBrokerEndpoint = kafkaListenerSource.getKafkaListener(Listener.INTERNAL, nodeId);
-        var clientEndpoint = kafkaListenerSource.getKafkaListener(Listener.EXTERNAL, nodeId);
-        var anonEndpoint = kafkaListenerSource.getKafkaListener(Listener.ANON, nodeId);
+        var interBrokerListener = kafkaListenerSource.getKafkaListener(Listener.INTERNAL, nodeId);
+        var clientListener = kafkaListenerSource.getKafkaListener(Listener.EXTERNAL, nodeId);
+        var anonListener = kafkaListenerSource.getKafkaListener(Listener.ANON, nodeId);
 
         // - EXTERNAL: used for communications to/from consumers/producers optionally with authentication
         // - ANON: used for communications to/from consumers/producers without authentication primarily for the extension to validate the cluster
@@ -372,10 +372,10 @@ public class KafkaClusterConfig {
         // - CONTROLLER: used for inter-broker controller communications (kraft - always no auth)
 
         var externalListenerTransport = securityProtocol == null ? SecurityProtocol.PLAINTEXT.name() : securityProtocol;
-        configureExternalListener(protocolMap, externalListenerTransport, listeners, clientEndpoint, advertisedListeners);
-        configureInternalListener(protocolMap, listeners, interBrokerEndpoint, advertisedListeners, earlyStart, nodeConfiguration);
-        configureAnonListener(protocolMap, listeners, anonEndpoint, advertisedListeners);
-        configureTls(clientEndpoint, nodeConfiguration);
+        configureExternalListener(protocolMap, externalListenerTransport, listeners, clientListener, advertisedListeners);
+        configureInternalListener(protocolMap, listeners, interBrokerListener, advertisedListeners, earlyStart, nodeConfiguration);
+        configureAnonListener(protocolMap, listeners, anonListener, advertisedListeners);
+        configureTls(clientListener, nodeConfiguration);
         return configHolder;
     }
 
@@ -398,13 +398,13 @@ public class KafkaClusterConfig {
         return nodeId >= Math.max(brokersNum, kraftControllers);
     }
 
-    private void configureTls(KafkaListener clientEndpoint, Properties server) {
+    private void configureTls(KafkaListener listener, Properties server) {
         if (securityProtocol != null && securityProtocol.contains("SSL")) {
             if (brokerKeytoolCertificateGenerator == null) {
                 throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
             }
             try {
-                brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", clientEndpoint.advertised().host(), "Dev",
+                brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", listener.advertised().host(), "Dev",
                         "Kroxylicious.io", null,
                         null,
                         "US");
@@ -415,7 +415,7 @@ public class KafkaClusterConfig {
                     else {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
                     }
-                    brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCertFilePath(), clientEndpoint.advertised().host());
+                    brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCertFilePath(), listener.advertised().host());
                     server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreLocation());
                     server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
                     server.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreType());
@@ -544,7 +544,7 @@ public class KafkaClusterConfig {
      * Generates client connection config to connect to the anonymous listeners within the cluster. Thus bypassing all authentication mechanisms.
      *
      * @param bootstrapServers the bootstrap servers
-     * @return the anon kafkaNet config for cluster
+     * @return the anon connect config for cluster
      */
     public Map<String, Object> getAnonConnectConfigForCluster(String bootstrapServers) {
         return getConnectConfigForCluster(bootstrapServers, null, null, null, null);
