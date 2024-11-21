@@ -113,7 +113,7 @@ final class KraftLogDirUtil {
                 .stream()
                 .map(KraftLogDirUtil::scramMessage)
                 .toList());
-        return BootstrapMetadata.fromRecords(metadataRecords, InVMKafkaCluster.INVM_KAFKA);
+        return BootstrapMetadata.fromRecords(metadataRecords, KraftLogDirUtil.class.getName());
     }
 
     private static Object buildMetadataPropertiesReflectively(String clusterId, KafkaConfig config)
