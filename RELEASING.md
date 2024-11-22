@@ -1,4 +1,4 @@
-# Releasing Guide for Kroxylicious
+# Releasing Guide for Kroxylicious Junit5 Extension
 
 This document describes how to release this component.
 
@@ -16,7 +16,7 @@ At a high level, the process is as follows:
 ## Pre-Requisites
 
 You must be a member of the Kroxylicious [release-engineers](https://github.com/orgs/kroxylicious/teams/release-engineers) and have access to [create 
-secrets](https://github.com/kroxylicious/kroxylicious/settings/secrets/actions) within the kroxylicious repository.
+secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) within the kroxylicious repository.
 
 You will need a GPG key, follow this [guide](https://help.ubuntu.com/community/GnuPrivacyGuardHowto#Generating_an_OpenPGP_Key).
 
@@ -77,9 +77,9 @@ project is an obvious choice.
    ```
    The repository url should include `iokroxylioustesting-nn`. You can also browse to it via the [Nexus UI](https://s01.oss.sonatype.org/).
 1. Add a [`<repositories>`](https://maven.apache.org/pom.html#Repositories) that references the staging repository public url to `T`'s POM.
-1. Update `T`'s kroxylicious dependency to refer to the `<RELEASE_VERSION>`.
+1. Update `T`'s kroxylicious-junit5-extension dependency to refer to the `<RELEASE_VERSION>`.
 1. Run `T` build/test cycle but use an alternative cache location to be sure artefacts are being fetched.  Check the build output, you'll see the
-   kroxylicious comes from the staging location.
+   kroxylicious-junit5-extension comes from the staging location.
 ```bash
 MAVEN_OPTS="-Dmaven.repo.local=/tmp/repository" mvn verify
 ```
@@ -88,7 +88,7 @@ The local changes made to `T`'s POM can be reverted.
 
 ### Making the release public
 
-1. Comment on the PR `@kroxylcious-robot promote-release`.
+1. Comment on the PR `@kroxylicious-robot promote-release`.
 1. Let [Kroxylicious Team Developers](https://kroxylicious.slack.com/archives/C04V1K6EAKZ) know the release is finished.
 1. Merge the blog post PR
 1. Post to social media about the release.
@@ -97,13 +97,13 @@ If anything goes wrong, follow the steps in [Failed Releases](#failed-releases)
 
 ### Failed Releases
 
-If the release fails verification, comment on the PR `@kroxylcious-robot drop-release`.
+If the release fails verification, comment on the PR `@kroxylicious-robot drop-release`.
 This will drop the snapshot repository, delete the release notes and close PR.
 
 ### Remove your private key/passphrase
 
 Update the private key/passphrase secrets from the
-[repository secrets](https://github.com/kroxylicious/kroxylicious/settings/secrets/actions) to whitespace.
+[repository secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) to whitespace.
 
 
 
