@@ -1,3 +1,8 @@
+/*
+ * Copyright Kroxylicious Authors.
+ *
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.kroxylicious.testing.kafka.testcontainers;
 
 import java.time.Instant;
@@ -102,7 +107,6 @@ class FloatingTagPullPolicyTest {
                 arguments(named("hours old", Instant.now().truncatedTo(ChronoUnit.HALF_DAYS))),
                 arguments(named("24 hours old", Instant.now().truncatedTo(ChronoUnit.HOURS))),
                 arguments(named("7 days old", Instant.now().truncatedTo(ChronoUnit.DAYS).minus(7, ChronoUnit.DAYS))),
-                arguments(named("6 months old", Instant.now().minus(180, ChronoUnit.DAYS)))
-        );
+                arguments(named("6 months old", Instant.now().minus(180, ChronoUnit.DAYS))));
     }
 }
