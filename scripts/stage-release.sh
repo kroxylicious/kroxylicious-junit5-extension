@@ -109,7 +109,7 @@ updateVersions() {
   local NEW_VERSION=$2
   mvn -q -B versions:set -DnewVersion="${NEW_VERSION}" -DgenerateBackupPoms=false -DprocessAllModules=true
 
-  git add '**/*.yaml' '**/pom.xml' 'pom.xml'
+  git add '**/pom.xml' 'pom.xml'
 }
 
 trap cleanup EXIT
