@@ -109,7 +109,7 @@ jobs:
           echo "MAIN_HEAD=$(git rev-list -n 1 main)" >> $GITHUB_ENV
 
           # Get PR's view of where main ought to be.  This is two commits behind PR's head.
-          echo "PR_MAIN_REF=$(git rev-list -n 1 ${PR_BRANCH}^^)" >> $GITHUB_ENV
+          echo "PR_MAIN_REF=$(git rev-list -n 1 origin/${PR_BRANCH}^^)" >> $GITHUB_ENV
 
       - name: 'Check for PR/main divergence'
         if: ${{ inputs.command == 'promote-release' }}
