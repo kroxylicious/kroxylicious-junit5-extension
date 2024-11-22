@@ -105,6 +105,9 @@ jobs:
 
       - name: 'Get heads'
         run: |
+          # Get PR's ref.
+          echo "PR_REF=$(git rev-list -n 1 origin/${PR_BRANCH})" >> $GITHUB_ENV
+
           # Get main's current head
           echo "MAIN_HEAD=$(git rev-list -n 1 main)" >> $GITHUB_ENV
 
@@ -130,7 +133,7 @@ jobs:
           STATUS=$(gh api \
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
-              /repos/${{ github.repository }}/commits/heads/${PR_BRANCH}/check-runs \
+              /repos/${{ github.repository }}/commits/${PR_REF}/check-runs \
               | jq --exit-status -r '.check_runs[] | select(.name=="build") | .status + "/" + .conclusion')
 
           if [[ ${STATUS} != "completed/success" ]]; then
@@ -169,7 +172,7 @@ jobs:
           gh api --method POST \
                  -H "Accept: application/vnd.github+json" \
                  -H "X-GitHub-Api-Version: 2022-11-28" \
-                 /repos/${{ github.repository }}/statuses/heads/${PR_BRANCH} \
+                 /repos/${{ github.repository }}/statuses/${PR_REF} \
                  -f "state=success" \
                  -f "description=Release to Maven Central is complete" \
                  -f "context=maven-central"
