@@ -83,6 +83,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.junit-pioneer</groupId>
+            <artifactId>junit-pioneer</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.rnorth.duct-tape</groupId>
             <artifactId>duct-tape</artifactId>
         </dependency>
