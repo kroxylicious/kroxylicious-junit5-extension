@@ -132,7 +132,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final String LOCALHOST = "localhost";
     private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\d+(\\.\\d+(\\.\\d+)?)?");
 
-    private final PerImagePullPolicy kafkaImage;
+    private final PullPolicyForImage kafkaImage;
     private final KafkaClusterConfig clusterConfig;
     private final String logDirVolumeName = createNamedVolume();
     private final Network network = Network.newNetwork();
@@ -165,7 +165,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         Runtime.getRuntime().addShutdownHook(new Thread(() -> Set.copyOf(volumesPendingCleanup).forEach(TestcontainersKafkaCluster::removeNamedVolume)));
     }
 
-    private PerImagePullPolicy zookeeperImage;
+    private PullPolicyForImage zookeeperImage;
 
     /**
      * Instantiates a new Testcontainers kafka cluster.
@@ -225,12 +225,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     // @VisibleForTesting
-    PerImagePullPolicy getKafkaImage() {
+    PullPolicyForImage getKafkaImage() {
         return kafkaImage;
     }
 
     // @VisibleForTesting
-    PerImagePullPolicy getZookeeperImage() {
+    PullPolicyForImage getZookeeperImage() {
         return zookeeperImage;
     }
 
@@ -341,14 +341,14 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      *
      * @return container image name
      */
-    private PerImagePullPolicy resolveImage(Supplier<DockerImageName> registryResolver, Supplier<String> tagResolver) {
+    private PullPolicyForImage resolveImage(Supplier<DockerImageName> registryResolver, Supplier<String> tagResolver) {
         final DockerImageName repositoryRef = registryResolver.get();
         final String tag = tagResolver.get();
         if (tag.toLowerCase(Locale.ROOT).startsWith("latest")) {
-            return new PerImagePullPolicy(repositoryRef.withTag(tag), PullPolicy.alwaysPull());
+            return new PullPolicyForImage(repositoryRef.withTag(tag), PullPolicy.alwaysPull());
         }
         else {
-            return new PerImagePullPolicy(repositoryRef.withTag(tag), PullPolicy.defaultPolicy());
+            return new PullPolicyForImage(repositoryRef.withTag(tag), PullPolicy.defaultPolicy());
         }
     }
 
@@ -905,6 +905,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .collect(Collectors.joining(";"));
     }
 
-    record PerImagePullPolicy(DockerImageName dockerImageName, ImagePullPolicy pullPolicy) {
+    record PullPolicyForImage(DockerImageName dockerImageName, ImagePullPolicy pullPolicy) {
     }
 }
