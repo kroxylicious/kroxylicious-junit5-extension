@@ -18,10 +18,13 @@ import org.testcontainers.utility.DockerImageName;
 import io.kroxylicious.testing.kafka.common.Version;
 
 public class FloatingTagPullPolicy extends AbstractImagePullPolicy implements ImagePullPolicy {
-    private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("[\\w]*-?[\\w]*-?(\\d+)(\\.\\d+)?([.]\\d+)?");
+    @SuppressWarnings("java:S5852")
+    private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\w*-?\\w*-?(\\d+)(\\.\\d+)?([.]\\d+)?");
 
     private final ImagePullPolicy defaultPullPolicy;
     private final Duration volatileImagePeriod;
+
+    public static final ImagePullPolicy KAFKA_PULL_POLICY = new FloatingTagPullPolicy();
 
     public FloatingTagPullPolicy() {
         this(PullPolicy.defaultPolicy());

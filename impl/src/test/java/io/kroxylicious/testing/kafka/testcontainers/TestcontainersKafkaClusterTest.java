@@ -7,13 +7,16 @@ package io.kroxylicious.testing.kafka.testcontainers;
 
 import java.util.stream.Stream;
 
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
-import org.testcontainers.images.ImagePullPolicy;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.images.RemoteDockerImage;
+import org.testcontainers.utility.DockerImageName;
 
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Version;
@@ -32,45 +35,16 @@ class TestcontainersKafkaClusterTest {
     }
 
     @Test
-    void shouldAlwaysPullKafkaLatestVersionImage() {
+    void shouldUseFloatingTagPullPolicyForKafkaImage() {
 
         // Given
         KafkaClusterConfig config = clusterConfigBuilder.build();
+
+        // When
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
-            // When
-            final TestcontainersKafkaCluster.PullPolicyForImage kafkaImage = testcontainersKafkaCluster.getKafkaImage();
-
             // Then
-            assertThat(kafkaImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).startsWith("latest-kafka-");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
-                    });
-        }
-    }
-
-    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.KAFKA_IMAGE_TAG, value = "latest-snapshot")
-    @Test
-    void shouldAlwaysPullKafkaLatestImage() {
-
-        // Given
-        KafkaClusterConfig config = clusterConfigBuilder.build();
-        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
-
-            // When
-            final TestcontainersKafkaCluster.PullPolicyForImage kafkaImage = testcontainersKafkaCluster.getKafkaImage();
-
-            // Then
-            assertThat(kafkaImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).isEqualTo("latest-snapshot");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
-                    });
+            assertCustomPullPolicy(testcontainersKafkaCluster);
         }
     }
 
@@ -81,16 +55,14 @@ class TestcontainersKafkaClusterTest {
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
-            final TestcontainersKafkaCluster.PullPolicyForImage kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
 
             // Then
             assertThat(kafkaImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getRegistry()).isEqualTo("docker.io");
-                        assertThat(pullPolicyForImage.dockerImageName().getRepository()).isEqualTo("example/kafka-native");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
+                    .isNotNull()
+                    .satisfies(imageName -> {
+                        assertThat(imageName.getRegistry()).isEqualTo("docker.io");
+                        assertThat(imageName.getRepository()).isEqualTo("example/kafka-native");
                     });
         }
     }
@@ -102,16 +74,14 @@ class TestcontainersKafkaClusterTest {
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
-            final TestcontainersKafkaCluster.PullPolicyForImage kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
 
             // Then
             assertThat(kafkaImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
+                    .isNotNull()
+                    .satisfies(imageName -> {
                         // this works because the classpath will be 3.9.0 or greater so we are forcing a fallback
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).isEqualTo("latest-kafka-3.7.0");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
+                        assertThat(imageName.getVersionPart()).isEqualTo("latest-kafka-3.7.0");
                     });
         }
     }
@@ -123,15 +93,12 @@ class TestcontainersKafkaClusterTest {
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
-            final TestcontainersKafkaCluster.PullPolicyForImage kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
 
             // Then
             assertThat(kafkaImage)
                     .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).isEqualTo("latest-kafka-" + version.value());
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("latest-kafka-" + version.value());
                     });
         }
     }
@@ -143,15 +110,13 @@ class TestcontainersKafkaClusterTest {
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
-            final TestcontainersKafkaCluster.PullPolicyForImage kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
 
             // Then
             assertThat(kafkaImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).isEqualTo(version.value());
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
+                    .isNotNull()
+                    .satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo(version.value());
                     });
         }
     }
@@ -175,43 +140,14 @@ class TestcontainersKafkaClusterTest {
     }
 
     @Test
-    void shouldAlwaysPullZookeeperLatestVersionImage() {
+    void shouldUseCustomPullPolicyForZookeeperImage() {
         // Given
         KafkaClusterConfig config = clusterConfigBuilder.kraftMode(false).build();
+        // When
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
-            // When
-            final TestcontainersKafkaCluster.PullPolicyForImage zookeeperImage = testcontainersKafkaCluster.getZookeeperImage();
-
             // Then
-            assertThat(zookeeperImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).startsWith("latest");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
-                    });
-        }
-    }
-
-    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_TAG, value = "latest-snapshot")
-    @Test
-    void shouldAlwaysPullZookeeperLatestImage() {
-        // Given
-        KafkaClusterConfig config = clusterConfigBuilder.kraftMode(false).build();
-        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
-
-            // When
-            final TestcontainersKafkaCluster.PullPolicyForImage zookeeperImage = testcontainersKafkaCluster.getZookeeperImage();
-
-            // Then
-            assertThat(zookeeperImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).isEqualTo("latest-snapshot");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
-                    });
+            assertCustomPullPolicy(testcontainersKafkaCluster);
         }
     }
 
@@ -222,16 +158,14 @@ class TestcontainersKafkaClusterTest {
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
-            final TestcontainersKafkaCluster.PullPolicyForImage zookeeperImage = testcontainersKafkaCluster.getZookeeperImage();
+            final DockerImageName zookeeperImage = testcontainersKafkaCluster.getZookeeperImage();
 
             // Then
             assertThat(zookeeperImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.dockerImageName().getRegistry()).isEqualTo("docker.io");
-                        assertThat(pullPolicyForImage.dockerImageName().getRepository()).isEqualTo("example/native-zookeeper");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
+                    .isNotNull()
+                    .satisfies(imageName -> {
+                        assertThat(imageName.getRegistry()).isEqualTo("docker.io");
+                        assertThat(imageName.getRepository()).isEqualTo("example/native-zookeeper");
                     });
         }
     }
@@ -243,17 +177,26 @@ class TestcontainersKafkaClusterTest {
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
-            final TestcontainersKafkaCluster.PullPolicyForImage zookeeperImage = testcontainersKafkaCluster.getZookeeperImage();
+            final DockerImageName zookeeperImage = testcontainersKafkaCluster.getZookeeperImage();
 
             // Then
             assertThat(zookeeperImage)
-                    .isNotNull().satisfies(pullPolicyForImage -> {
+                    .isNotNull()
+                    .satisfies(pullPolicyForImage -> {
                         // this works because the classpath will be 3.9.0 or greater so we are forcing a fallback
-                        assertThat(pullPolicyForImage.dockerImageName().getVersionPart()).isEqualTo("latest-zookeeper-3.7.0");
-                        final ImagePullPolicy actualPullPolicy = pullPolicyForImage.pullPolicy();
-                        assertThat(actualPullPolicy).isInstanceOf(ImagePullPolicy.class); // We can't see `AlwaysPullPolicy` as it's not public
-                        assertThat(actualPullPolicy.shouldPull(pullPolicyForImage.dockerImageName())).isTrue();
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("latest-zookeeper-3.7.0");
                     });
         }
+    }
+
+    private static void assertCustomPullPolicy(TestcontainersKafkaCluster testcontainersKafkaCluster) {
+        assertThat(testcontainersKafkaCluster.allContainers())
+                .isNotEmpty()
+                .allSatisfy((GenericContainer<?> container) -> {
+                    assertThat(container).extracting("image")
+                            .asInstanceOf(InstanceOfAssertFactories.type(RemoteDockerImage.class))
+                            .extracting("imagePullPolicy")
+                            .isInstanceOf(FloatingTagPullPolicy.class);
+                });
     }
 }

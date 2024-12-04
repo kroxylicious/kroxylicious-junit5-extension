@@ -52,7 +52,6 @@ import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.dockerclient.DockerClientProviderStrategy;
 import org.testcontainers.images.ImagePullPolicy;
-import org.testcontainers.images.PullPolicy;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
@@ -132,7 +131,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final String LOCALHOST = "localhost";
     private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\d+(\\.\\d+(\\.\\d+)?)?");
 
-    private final PullPolicyForImage kafkaImage;
+    private final DockerImageName kafkaImage;
     private final KafkaClusterConfig clusterConfig;
     private final String logDirVolumeName = createNamedVolume();
     private final Network network = Network.newNetwork();
@@ -165,7 +164,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         Runtime.getRuntime().addShutdownHook(new Thread(() -> Set.copyOf(volumesPendingCleanup).forEach(TestcontainersKafkaCluster::removeNamedVolume)));
     }
 
-    private PullPolicyForImage zookeeperImage;
+    private DockerImageName zookeeperImage;
 
     /**
      * Instantiates a new Testcontainers kafka cluster.
@@ -191,12 +190,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         else {
             zookeeperImage = resolveImage(TestcontainersKafkaCluster::zookeeperRegistryResolver, () -> Optional.ofNullable(System.getenv().get(ZOOKEEPER_IMAGE_TAG))
                     .orElse(Version.LATEST_RELEASE));
-            this.zookeeper = new ZookeeperContainer(zookeeperImage.dockerImageName)
+            this.zookeeper = new ZookeeperContainer(zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
                     .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                     .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
-                    .withImagePullPolicy(zookeeperImage.pullPolicy())
+                    .withImagePullPolicy(FloatingTagPullPolicy.KAFKA_PULL_POLICY)
                     .withNetworkAliases("zookeeper");
         }
 
@@ -225,12 +224,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     // @VisibleForTesting
-    PullPolicyForImage getKafkaImage() {
+    DockerImageName getKafkaImage() {
         return kafkaImage;
     }
 
     // @VisibleForTesting
-    PullPolicyForImage getZookeeperImage() {
+    DockerImageName getZookeeperImage() {
         return zookeeperImage;
     }
 
@@ -243,10 +242,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         Properties properties = new Properties();
         properties.putAll(holder.properties());
         properties.put("log.dir", getBrokerLogDirectory(brokerNum));
-        KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage.dockerImageName())
+        KafkaContainer kafkaContainer = new KafkaContainer(kafkaImage)
                 .withName(name)
                 .withNetwork(network)
-                .withImagePullPolicy(kafkaImage.pullPolicy())
+                .withImagePullPolicy(FloatingTagPullPolicy.KAFKA_PULL_POLICY)
                 .withNetworkAliases(netAlias);
 
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
@@ -341,15 +340,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      *
      * @return container image name
      */
-    private PullPolicyForImage resolveImage(Supplier<DockerImageName> registryResolver, Supplier<String> tagResolver) {
+    private DockerImageName resolveImage(Supplier<DockerImageName> registryResolver, Supplier<String> tagResolver) {
         final DockerImageName repositoryRef = registryResolver.get();
         final String tag = tagResolver.get();
-        if (tag.toLowerCase(Locale.ROOT).startsWith("latest")) {
-            return new PullPolicyForImage(repositoryRef.withTag(tag), PullPolicy.alwaysPull());
-        }
-        else {
-            return new PullPolicyForImage(repositoryRef.withTag(tag), PullPolicy.defaultPolicy());
-        }
+        return repositoryRef.withTag(tag);
     }
 
     private static @NotNull DockerImageName kafkaRegistryResolver() {
@@ -381,7 +375,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
      * @return the kafka version
      */
     public String getKafkaVersion() {
-        var v = kafkaImage.dockerImageName.getVersionPart();
+        var v = kafkaImage.getVersionPart();
         if (v != null) {
             if (Version.LATEST_RELEASE.equalsIgnoreCase(v)) {
                 return Version.LATEST_RELEASE;
@@ -395,7 +389,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return v;
     }
 
-    private synchronized Stream<GenericContainer<?>> allContainers() {
+    // @VisibleForTesting
+    synchronized Stream<GenericContainer<?>> allContainers() {
         return Stream.concat(
                 this.nodes.values().stream(),
                 Stream.ofNullable(this.zookeeper));
