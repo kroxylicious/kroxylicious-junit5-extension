@@ -51,7 +51,6 @@ import org.testcontainers.containers.Network;
 import org.testcontainers.containers.output.OutputFrame;
 import org.testcontainers.containers.startupcheck.OneShotStartupCheckStrategy;
 import org.testcontainers.dockerclient.DockerClientProviderStrategy;
-import org.testcontainers.images.ImagePullPolicy;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.lifecycle.Startable;
 import org.testcontainers.lifecycle.Startables;
@@ -898,8 +897,5 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return this.clusterConfig.getUsers().entrySet().stream()
                 .map(e -> "%s=[name=%s,password=%s]".formatted(this.clusterConfig.getSaslMechanism(), e.getKey(), e.getValue()))
                 .collect(Collectors.joining(";"));
-    }
-
-    record PullPolicyForImage(DockerImageName dockerImageName, ImagePullPolicy pullPolicy) {
     }
 }
