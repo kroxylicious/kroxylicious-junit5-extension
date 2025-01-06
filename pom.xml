@@ -89,7 +89,7 @@
         <kafka.version>3.9.0</kafka.version>
         <testcontainers.version>1.20.4</testcontainers.version>
         <lombok.version>1.18.36</lombok.version>
-        <assertj-core.version>3.27.0</assertj-core.version>
+        <assertj-core.version>3.27.2</assertj-core.version>
         <spotbugs-annotations.version>4.8.6</spotbugs-annotations.version>
         <zookeeper.version>3.8.4</zookeeper.version>
         <log4j.version>2.24.2</log4j.version>
