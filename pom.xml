@@ -93,7 +93,7 @@
         <spotbugs-annotations.version>4.9.1</spotbugs-annotations.version>
         <zookeeper.version>3.8.4</zookeeper.version>
         <log4j.version>2.24.3</log4j.version>
-        <awaitility.version>4.2.2</awaitility.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <duct-tape.version>1.0.8</duct-tape.version>
         <mockito.version>5.15.2</mockito.version>
         <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
