@@ -180,8 +180,8 @@ class TemplateTest {
 
     private static Stream<Version> versions() {
         return Stream.of(
-                version(Version.LATEST_RELEASE),
-                version(Version.LATEST_SNAPSHOT),
+                // version(Version.LATEST_RELEASE), TODO Remove once kafka native support 4.0.0 is available
+                // version(Version.LATEST_SNAPSHOT),
                 version("3.9.0"),
                 version("3.8.0"),
                 version("3.7.0"),

@@ -25,6 +25,7 @@ import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.common.metrics.KafkaMetric;
 
 /**
  * Provides a simple wrapper around a Kafka Producer to redirect `close()`
@@ -89,12 +90,6 @@ public record CloseableProducer<K, V>(Producer<K, V> instance) implements Produc
     }
 
     @Override
-    @Deprecated
-    public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets, String consumerGroupId) throws ProducerFencedException {
-        instance.sendOffsetsToTransaction(offsets, consumerGroupId);
-    }
-
-    @Override
     public void sendOffsetsToTransaction(Map<TopicPartition, OffsetAndMetadata> offsets, ConsumerGroupMetadata groupMetadata) throws ProducerFencedException {
         instance.sendOffsetsToTransaction(offsets, groupMetadata);
     }
@@ -107,6 +102,16 @@ public record CloseableProducer<K, V>(Producer<K, V> instance) implements Produc
     @Override
     public void abortTransaction() throws ProducerFencedException {
         instance.abortTransaction();
+    }
+
+    @Override
+    public void registerMetricForSubscription(KafkaMetric metric) {
+        instance.registerMetricForSubscription(metric);
+    }
+
+    @Override
+    public void unregisterMetricFromSubscription(KafkaMetric metric) {
+        instance.unregisterMetricFromSubscription(metric);
     }
 
     @Override
