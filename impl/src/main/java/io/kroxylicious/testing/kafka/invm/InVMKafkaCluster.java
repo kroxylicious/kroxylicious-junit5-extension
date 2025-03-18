@@ -9,19 +9,14 @@ package io.kroxylicious.testing.kafka.invm;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,10 +39,7 @@ import org.apache.zookeeper.server.ZooKeeperServer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
 import kafka.server.KafkaRaftServer;
-import kafka.server.KafkaServer;
 import kafka.server.Server;
-import kafka.zk.AdminZkClient;
-import kafka.zk.KafkaZkClient;
 import scala.Option;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -59,8 +51,6 @@ import io.kroxylicious.testing.kafka.common.KafkaListenerSource;
 import io.kroxylicious.testing.kafka.common.PortAllocator;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.internal.AdminSource;
-
-import static kafka.zk.KafkaZkClient.createZkClient;
 
 /**
  * Configures and manages an in process (within the JVM) Kafka cluster.
@@ -121,45 +111,47 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
-            createScramUsersInZookeeper(config, scramArguments);
-            return new KafkaServer(config, Time.SYSTEM, threadNamePrefix, false);
+            var kafkaServerClazz = getKafkaServerClazz();
+            createScramUsersInZookeeper(kafkaServerClazz, scramArguments, config);
+            return instantiateKafkaZookeeperServer(kafkaServerClazz, config, threadNamePrefix);
         }
+    }
+
+    @NonNull
+    @SuppressWarnings("unchecked")
+    private Class<Server> getKafkaServerClazz() {
+        try {
+            return (Class<Server>) Class.forName("kafka.server.KafkaServer");
+        }
+        catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Failed to find Kafka Zookeeper Server on classpath", e);
+        }
+    }
+
+    /**
+     * We instantiate the KafkaServer reflectively in order to continue to support older
+     * versions of Kafka that used Zookeeper based controllers.
+     *
+     * @param kafkaServerClazz kafka server class
+     * @param config           kafka config
+     * @param threadNamePrefix thread name prefix to be used by the server
+     */
+    @NonNull
+    private Server instantiateKafkaZookeeperServer(Class<Server> kafkaServerClazz, KafkaConfig config, Option<String> threadNamePrefix) {
+        return ReflectionUtils.construct(kafkaServerClazz, config, Time.SYSTEM, threadNamePrefix, false).orElseThrow();
     }
 
     /**
      * We instantiate the KafkaRaftServer reflectively to support running against versions of kafka
      * older than 3.5.0. This is to enable users to downgrade the broker used for embedded testing rather
      * than forcing them to increase their kafka-clients version to 3.5.0 (broker 3.5.0 requires kafka-clients 3.5.0)
+     * @param config kafka config
+     * @param threadNamePrefix thread name prefix to be used by the server
      */
     @NonNull
     private Server instantiateKraftServer(KafkaConfig config, Option<String> threadNamePrefix) {
-        Object kraftServer = construct(KafkaRaftServer.class, config, Time.SYSTEM)
-                .orElseGet(() -> construct(KafkaRaftServer.class, config, Time.SYSTEM, threadNamePrefix).orElseThrow());
-        return (Server) kraftServer;
-    }
-
-    public Optional<Object> construct(Class<?> clazz, Object... parameters) {
-        Constructor<?>[] declaredConstructors = clazz.getDeclaredConstructors();
-        return Arrays.stream(declaredConstructors)
-                .filter(constructor -> Modifier.isPublic(constructor.getModifiers()))
-                .filter(constructor -> {
-                    if (constructor.getParameterCount() != parameters.length) {
-                        return false;
-                    }
-                    boolean allMatch = true;
-                    Class<?>[] parameterTypes = constructor.getParameterTypes();
-                    for (int i = 0; i < parameters.length; i++) {
-                        allMatch = allMatch && parameterTypes[i].isInstance(parameters[i]);
-                    }
-                    return allMatch;
-                }).findFirst().map(constructor -> {
-                    try {
-                        return constructor.newInstance(parameters);
-                    }
-                    catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+        return ReflectionUtils.construct(KafkaRaftServer.class, config, Time.SYSTEM)
+                .orElseGet(() -> ReflectionUtils.construct(KafkaRaftServer.class, config, Time.SYSTEM, threadNamePrefix).orElseThrow());
     }
 
     @NonNull
@@ -492,22 +484,68 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         }
     }
 
-    private void createScramUsersInZookeeper(KafkaConfig config, List<String> scramArguments) {
+    private void createScramUsersInZookeeper(Class<Server> kafkaServerClazz, List<String> scramArguments, KafkaConfig config) {
         if (!scramArguments.isEmpty()) {
             var uscrs = ScramUtils.getUserScramCredentialRecords(scramArguments);
-            ZKClientConfig zkClientConfig = KafkaServer.zkClientConfigFromKafkaConfig(config, false);
+            ZKClientConfig zkClientConfig = zkClientConfigFromKafkaConfig(kafkaServerClazz, config);
             try (var zkClient = createZkClient("invm-kafka-zookeeper-client", Time.SYSTEM, config, zkClientConfig)) {
-                var adminZkClient = new AdminZkClient(zkClient, Option.empty());
+                var adminZkClientClazz = Class.forName("kafka.zk.AdminZkClient");
+                var adminZkClient = ReflectionUtils.construct(adminZkClientClazz, zkClient, Option.empty()).orElseThrow();
                 var userEntityType = "users";
                 disableControllerCheck(zkClient);
                 uscrs.forEach(credentials -> {
-                    var userConfig = adminZkClient.fetchEntityConfig(userEntityType, credentials.name());
+                    var userConfig = fetchEntityConfig(adminZkClient, userEntityType, credentials.name());
                     var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(credentials));
 
                     userConfig.setProperty(ScramMechanism.fromType(credentials.mechanism()).mechanismName(), credentialsString);
-                    adminZkClient.changeConfigs(userEntityType, credentials.name(), userConfig, false);
+                    changeConfigs(adminZkClient, userEntityType, credentials.name(), userConfig, false);
                 });
             }
+            catch (Exception e) {
+                throw new IllegalStateException("Failed to create scram users", e);
+            }
+        }
+    }
+
+    private void changeConfigs(Object adminZkClient, String userEntityType, String name, Properties userConfig, boolean isUserClientId) {
+        try {
+            var method = adminZkClient.getClass().getMethod("changeConfigs", String.class, String.class, Properties.class, Boolean.TYPE);
+            method.invoke(adminZkClient, userEntityType, name, userConfig, isUserClientId);
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("Failed to invoke changeConfigs while creating scram users", e);
+        }
+    }
+
+    private Properties fetchEntityConfig(Object adminZkClient, String userEntityType, String name) {
+        try {
+            var method = adminZkClient.getClass().getMethod("fetchEntityConfig", String.class, String.class);
+            return (Properties) method.invoke(adminZkClient, userEntityType, name);
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("Failed to invoke fetchEntityConfig while creating scram users", e);
+        }
+
+    }
+
+    private AutoCloseable createZkClient(String name, Time system, KafkaConfig config, ZKClientConfig zkClientConfig) {
+        try {
+            var clazz = Class.forName("kafka.zk.KafkaZkClient");
+            var createZkClientMethod = clazz.getDeclaredMethod("createZkClient", String.class, Time.class, KafkaConfig.class, ZKClientConfig.class);
+            return (AutoCloseable) createZkClientMethod.invoke(null, name, system, config, zkClientConfig);
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("Failed to invoke createZkClient while creating scram users", e);
+        }
+    }
+
+    private ZKClientConfig zkClientConfigFromKafkaConfig(Class<Server> kafkaServerClazz, KafkaConfig config) {
+        try {
+            var zkClientConfigFromKafkaConfigMethod = kafkaServerClazz.getDeclaredMethod("zkClientConfigFromKafkaConfig", KafkaConfig.class, Boolean.TYPE);
+            return (ZKClientConfig) zkClientConfigFromKafkaConfigMethod.invoke(null, config, false);
+        }
+        catch (Exception e) {
+            throw new IllegalStateException("Failed to invoke zkClientConfigFromKafkaConfig", e);
         }
     }
 
@@ -515,9 +553,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
     // The alternative is copying the code that constructs the ZK client see https://github.com/ozangunalp/kafka-native/pull/195/files as an example. Both options suck,
     // this is less code, and thus we hope less likely to bit rot.
     @SuppressWarnings("java:S3011")
-    private static void disableControllerCheck(KafkaZkClient zkClient) {
+    private static void disableControllerCheck(Object zkClient) {
         try {
-            final Class<? extends KafkaZkClient> zkClientClass = zkClient.getClass();
+            final Class<?> zkClientClass = zkClient.getClass();
             final Field enableEntityConfigControllerCheck = zkClientClass.getDeclaredField("enableEntityConfigControllerCheck");
             enableEntityConfigControllerCheck.setAccessible(true);
             enableEntityConfigControllerCheck.setBoolean(zkClient, false);
