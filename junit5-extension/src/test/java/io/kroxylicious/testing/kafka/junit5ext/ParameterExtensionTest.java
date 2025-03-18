@@ -29,6 +29,7 @@ import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -180,6 +181,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
+    @EnabledIf("io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest#zookeeperAvailable")
     void zkBasedClusterParameter(@BrokerCluster @ZooKeeperCluster KafkaCluster cluster)
             throws Exception {
         assertClusterSize(cluster, 1);

@@ -6,6 +6,7 @@
 package io.kroxylicious.testing.kafka.junit5ext;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -52,6 +53,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(KafkaClusterExtension.class)
 class TemplateTest {
+
+    private static final boolean ZOOKEEPER_AVAILABLE = AbstractExtensionTest.zookeeperAvailable();
 
     @SuppressWarnings("unused")
     static Stream<BrokerCluster> clusterSizes() {
@@ -124,10 +127,14 @@ class TemplateTest {
 
     @SuppressWarnings("unused")
     static Stream<List<Annotation>> tuples() {
-        return Stream.of(
+        var tuples = new ArrayList<>(List.of(
                 List.of(brokerCluster(1), kraftCluster(1)),
-                List.of(brokerCluster(3), kraftCluster(1)),
-                List.of(brokerCluster(3), zooKeeperCluster()));
+                List.of(brokerCluster(3), kraftCluster(1))));
+        if (ZOOKEEPER_AVAILABLE) {
+            tuples.add(List.of(brokerCluster(3), zooKeeperCluster()));
+        }
+        return tuples.stream();
+
     }
 
     @Nested
@@ -160,10 +167,13 @@ class TemplateTest {
 
         @AfterAll
         void afterAll() {
-            assertThat(observedTuples).isEqualTo(Set.of(
+            var expected = new HashSet<>(Set.of(
                     List.of(1, 1),
-                    List.of(3, 1),
-                    List.of(3, -1)));
+                    List.of(3, 1)));
+            if (ZOOKEEPER_AVAILABLE) {
+                expected.add(List.of(3, -1));
+            }
+            assertThat(observedTuples).isEqualTo(expected);
         }
     }
 
@@ -266,4 +276,5 @@ class TemplateTest {
             };
         }
     }
+
 }

@@ -10,6 +10,7 @@ import java.net.ConnectException;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -37,10 +38,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.api.TerminationStyle;
@@ -64,24 +68,32 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
 class KafkaClusterTest {
 
+    private static final boolean ZOOKEEPER_AVAILABLE = zookeeperAvailable();
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
     private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
 
-    @Test
-    void zookeeperKafkaCluster() throws Exception {
-        kafkaCluster(false);
+    private enum ControllerType {
+        KRAFT,
+        ZOOKEEPER;
+
+        boolean isKRaft() {
+            return ordinal() == KRAFT.ordinal();
+        }
     }
 
-    @Test
-    void kraftKafkaCluster() throws Exception {
-        kafkaCluster(true);
+    static Stream<Arguments> availableControllerTypes() {
+        var kraft = Arguments.argumentSet("KRaft", ControllerType.KRAFT);
+        var zookeeper = Arguments.argumentSet("zookeeper", ControllerType.ZOOKEEPER);
+        return ZOOKEEPER_AVAILABLE ? Stream.of(kraft, zookeeper) : Stream.of(kraft);
     }
 
-    private void kafkaCluster(boolean kraft) throws Exception {
+    @ParameterizedTest
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaCluster(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(1, cluster);
@@ -101,13 +113,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterAddBroker(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterAddBroker(ControllerType controllerType) throws Exception {
         int brokersNum = 1;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -123,22 +135,25 @@ class KafkaClusterTest {
         }
     }
 
-    public static Stream<Arguments> stopAndStartBrokers() {
-        return Stream.of(
-                Arguments.of(1, true, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
-                Arguments.of(2, true, TerminationStyle.ABRUPT, (IntPredicate) node -> node == 1),
-                Arguments.of(2, true, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
-                Arguments.of(1, true, TerminationStyle.GRACEFUL, (IntPredicate) node -> true),
-                Arguments.of(1, false, TerminationStyle.ABRUPT, (IntPredicate) node -> true));
+    static Stream<Arguments> stopAndStartBrokers() {
+        var arguments = new ArrayList<>(List.of(
+                Arguments.of(1, ControllerType.KRAFT, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
+                Arguments.of(2, ControllerType.KRAFT, TerminationStyle.ABRUPT, (IntPredicate) node -> node == 1),
+                Arguments.of(2, ControllerType.KRAFT, TerminationStyle.ABRUPT, (IntPredicate) node -> true),
+                Arguments.of(1, ControllerType.KRAFT, TerminationStyle.GRACEFUL, (IntPredicate) node -> true)));
+        if (ZOOKEEPER_AVAILABLE) {
+            arguments.add(Arguments.of(1, ControllerType.ZOOKEEPER, TerminationStyle.ABRUPT, (IntPredicate) node -> true));
+        }
+        return arguments.stream();
     }
 
     @ParameterizedTest
-    @MethodSource
-    void stopAndStartBrokers(int brokersNum, boolean kraft, TerminationStyle terminationStyle, IntPredicate brokerPredicate) throws Exception {
+    @MethodSource(value = "stopAndStartBrokers")
+    void stopAndStartBrokers(int brokersNum, ControllerType controllerType, TerminationStyle terminationStyle, IntPredicate brokerPredicate) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -166,11 +181,11 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void stopAndStartIdempotency(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void stopAndStartIdempotency(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(cluster.getNumOfBrokers(), cluster);
@@ -198,11 +213,11 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void stopAndStartIncrementally(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void stopAndStartIncrementally(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .brokersNum(2)
                 .build())) {
             cluster.start();
@@ -226,11 +241,11 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void topicPersistsThroughStopAndStart(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void topicPersistsThroughStopAndStart(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .brokersNum(1)
                 .build())) {
             cluster.start();
@@ -257,13 +272,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaTwoNodeCluster(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaTwoNodeCluster(ControllerType controllerType) throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
             verifyRecordRoundTrip(brokersNum, cluster);
@@ -271,13 +286,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterRemoveBroker(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterRemoveBroker(ControllerType controllerType) throws Exception {
         int brokersNum = 3;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
             assertThat(cluster.getNumOfBrokers()).isEqualTo(brokersNum);
@@ -293,13 +308,13 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterRemoveWithStoppedBrokerDisallowed(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterRemoveWithStoppedBrokerDisallowed(ControllerType controllerType) throws Exception {
         int brokersNum = 2;
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .build())) {
             cluster.start();
 
@@ -315,6 +330,7 @@ class KafkaClusterTest {
     void removeUnrecognizedBrokerDetected() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
+                .kraftMode(true)
                 .build())) {
             cluster.start();
             assertThatThrownBy(() -> cluster.removeBroker(99))
@@ -340,19 +356,24 @@ class KafkaClusterTest {
     }
 
     static Stream<Arguments> usernamePasswordBasedSaslAuthConfigs() {
-        return Stream.of(
-                Arguments.of("PLAIN", true),
-                Arguments.of("PLAIN", false),
-                Arguments.of("SCRAM-SHA-256", true),
-                Arguments.of("SCRAM-SHA-512", true),
-                Arguments.of("SCRAM-SHA-512", false));
+        var arguments = new ArrayList<>(List.of(
+                Arguments.of("PLAIN", ControllerType.KRAFT),
+                Arguments.of("SCRAM-SHA-256", ControllerType.KRAFT),
+                Arguments.of("SCRAM-SHA-512", ControllerType.KRAFT)));
+
+        if (ZOOKEEPER_AVAILABLE) {
+            arguments.addAll(List.of(
+                    Arguments.of("PLAIN", ControllerType.ZOOKEEPER),
+                    Arguments.of("SCRAM-SHA-512", ControllerType.ZOOKEEPER)));
+        }
+        return arguments.stream();
     }
 
     @ParameterizedTest
     @MethodSource("usernamePasswordBasedSaslAuthConfigs")
-    void kafkaClusterWithUsernamePasswordBasedSaslAuth(String mechanism, boolean kraft) throws Exception {
+    void kafkaClusterWithUsernamePasswordBasedSaslAuth(String mechanism, ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .testInfo(testInfo)
                 .securityProtocol("SASL_PLAINTEXT")
                 .saslMechanism(mechanism)
@@ -365,9 +386,9 @@ class KafkaClusterTest {
 
     @ParameterizedTest
     @MethodSource("usernamePasswordBasedSaslAuthConfigs")
-    void kafkaClusterSaslBasedAuthDetectsWrongPassword(String mechanism, boolean kraft) throws Exception {
+    void kafkaClusterSaslBasedAuthDetectsWrongPassword(String mechanism, ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .testInfo(testInfo)
                 .securityProtocol("SASL_PLAINTEXT")
                 .saslMechanism(mechanism)
@@ -387,14 +408,14 @@ class KafkaClusterTest {
      * <br/>
      * That this test uses Kafka's unsecured OAuth Bearer implementation (which
      * uses unsigned JWT tokens).  Note that Kafka enables this mechanism by default.
-     * @param kraft kraft mode
+     * @param controllerType kraft mode
      * @throws Exception exception
      */
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterWithOAuthBearerAuth(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterWithOAuthBearerAuth(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .testInfo(testInfo)
                 .saslMechanism("OAUTHBEARER")
                 .securityProtocol("SASL_PLAINTEXT")
@@ -407,10 +428,10 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterWithOAuthBearerAuthFail(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterWithOAuthBearerAuthFail(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .testInfo(testInfo)
                 .saslMechanism("OAUTHBEARER")
                 .securityProtocol("SASL_PLAINTEXT")
@@ -429,14 +450,14 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterSASL_SSL_ClientUsesSSLClientAuth(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterSASL_SSL_ClientUsesSSLClientAuth(ControllerType controllerType) throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "pass")
@@ -447,14 +468,14 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterSSL_ClientUsesSSLClientAuth(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterSSL_ClientUsesSSLClientAuth(ControllerType controllerType) throws Exception {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
                 .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -463,12 +484,12 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterSSL_ClientNoAuth(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterSSL_ClientNoAuth(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SSL")
                 .build())) {
             cluster.start();
@@ -477,12 +498,12 @@ class KafkaClusterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = { true, false })
-    void kafkaClusterSASL_SSL_ClientNoAuth(boolean kraft) throws Exception {
+    @MethodSource(value = "availableControllerTypes")
+    void kafkaClusterSASL_SSL_ClientNoAuth(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .kraftMode(kraft)
+                .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
                 .user("guest", "guest")
@@ -493,8 +514,10 @@ class KafkaClusterTest {
     }
 
     @Test
+    @EnabledIf("supportsIBPConfigProperty")
     void kraftClusterWithMinBootstrapInterBrokerProtocol() throws Exception {
-        var minVersion = MetadataVersion.MINIMUM_BOOTSTRAP_VERSION.version();
+        var minVersion = MetadataVersion.IBP_3_8_IV0.version();
+        supportsIBPConfigProperty();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .kraftMode(true)
@@ -520,6 +543,10 @@ class KafkaClusterTest {
                         .startsWith(minVersion);
             }
         }
+    }
+
+    private static boolean supportsIBPConfigProperty() {
+        return KafkaConfig.configNames().contains("inter.broker.protocol.version");
     }
 
     /**
@@ -550,6 +577,7 @@ class KafkaClusterTest {
     }
 
     @Test
+    @EnabledIf("zookeeperAvailable")
     void zookeeperDisallowsAdminConnectionToControllers() throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
@@ -669,6 +697,16 @@ class KafkaClusterTest {
     private void createClientCertificate() throws GeneralSecurityException, IOException {
         this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
         this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@kroxylicious.io", "client", "Dev", "Kroxylicious.ip", null, null, "US");
+    }
+
+    public static boolean zookeeperAvailable() {
+        try {
+            Class.forName("kafka.server.KafkaServer");
+            return true;
+        }
+        catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 
 }
