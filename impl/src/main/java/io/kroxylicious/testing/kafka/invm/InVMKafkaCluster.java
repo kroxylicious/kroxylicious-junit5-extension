@@ -508,31 +508,18 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
     }
 
     private void changeConfigs(Object adminZkClient, String userEntityType, String name, Properties userConfig, boolean isUserClientId) {
-        try {
-            var method = adminZkClient.getClass().getMethod("changeConfigs", String.class, String.class, Properties.class, Boolean.TYPE);
-            method.invoke(adminZkClient, userEntityType, name, userConfig, isUserClientId);
-        }
-        catch (Exception e) {
-            throw new IllegalStateException("Failed to invoke changeConfigs while creating scram users", e);
-        }
+        ReflectionUtils.invokeInstanceMethod(adminZkClient, "changeConfigs", userEntityType, name, userConfig, isUserClientId);
     }
 
     private Properties fetchEntityConfig(Object adminZkClient, String userEntityType, String name) {
-        try {
-            var method = adminZkClient.getClass().getMethod("fetchEntityConfig", String.class, String.class);
-            return (Properties) method.invoke(adminZkClient, userEntityType, name);
-        }
-        catch (Exception e) {
-            throw new IllegalStateException("Failed to invoke fetchEntityConfig while creating scram users", e);
-        }
-
+        return ReflectionUtils.invokeInstanceMethod(adminZkClient, "fetchEntityConfig", userEntityType, name);
     }
 
     private AutoCloseable createZkClient(String name, Time system, KafkaConfig config, ZKClientConfig zkClientConfig) {
+
         try {
             var clazz = Class.forName("kafka.zk.KafkaZkClient");
-            var createZkClientMethod = clazz.getDeclaredMethod("createZkClient", String.class, Time.class, KafkaConfig.class, ZKClientConfig.class);
-            return (AutoCloseable) createZkClientMethod.invoke(null, name, system, config, zkClientConfig);
+            return ReflectionUtils.invokeStaticMethod(clazz, "createZkClient", name, system, config, zkClientConfig);
         }
         catch (Exception e) {
             throw new IllegalStateException("Failed to invoke createZkClient while creating scram users", e);
@@ -540,13 +527,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
     }
 
     private ZKClientConfig zkClientConfigFromKafkaConfig(Class<Server> kafkaServerClazz, KafkaConfig config) {
-        try {
-            var zkClientConfigFromKafkaConfigMethod = kafkaServerClazz.getDeclaredMethod("zkClientConfigFromKafkaConfig", KafkaConfig.class, Boolean.TYPE);
-            return (ZKClientConfig) zkClientConfigFromKafkaConfigMethod.invoke(null, config, false);
-        }
-        catch (Exception e) {
-            throw new IllegalStateException("Failed to invoke zkClientConfigFromKafkaConfig", e);
-        }
+        return ReflectionUtils.invokeStaticMethod(kafkaServerClazz, "zkClientConfigFromKafkaConfig", config, false);
     }
 
     // The accessibility hack is tactical for Kafka >=3.7.1 <= 4.0.0
