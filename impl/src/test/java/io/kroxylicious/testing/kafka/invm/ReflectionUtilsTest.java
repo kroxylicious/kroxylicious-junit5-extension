@@ -58,6 +58,22 @@ class ReflectionUtilsTest {
     }
 
     @Test
+    void constructorThrowsCheckedException() {
+        var myException = new Exception("my checked exception");
+        assertThatThrownBy(() -> ReflectionUtils.construct(ThrowingObj.class, myException))
+                .rootCause()
+                .isEqualTo(myException);
+    }
+
+    @Test
+    void constructorThrowsUncheckedException() {
+        var myException = new RuntimeException("my unchecked exception");
+        assertThatThrownBy(() -> ReflectionUtils.construct(ThrowingObj.class, myException))
+                .rootCause()
+                .isEqualTo(myException);
+    }
+
+    @Test
     void invokeInstanceMethodWithNoParameters() {
         var obj = new ObjectArg("foo");
 
@@ -79,6 +95,22 @@ class ReflectionUtilsTest {
 
         var result = ReflectionUtils.invokeInstanceMethod(obj, "myMethodReturningVoid", "oof");
         assertThat(result).isNull();
+    }
+
+    @Test
+    void invokeOverloadedInstanceMethodWithParameters() {
+        var obj = new ObjectWithOverloadedMethod();
+
+        var result = ReflectionUtils.invokeInstanceMethod(obj, "myOverloadedMethod", "arg");
+        assertThat(result).isEqualTo("1arg");
+    }
+
+    @Test
+    void invokeOverloadedInstanceMethodWithoutParameters() {
+        var obj = new ObjectWithOverloadedMethod();
+
+        var result = ReflectionUtils.invokeInstanceMethod(obj, "myOverloadedMethod");
+        assertThat(result).isEqualTo("0arg");
     }
 
     @Test
@@ -117,6 +149,25 @@ class ReflectionUtilsTest {
         assertThatThrownBy(() -> ReflectionUtils.invokeInstanceMethod(obj, "myMethodReturningVoid", null, "foo"))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("Null parameters are not supported (parameter 1 was null).");
+    }
+
+    @Test
+    void invokeThrowsCheckedException() {
+        var thrower = new ThrowingObj();
+        var myException = new Exception("my checked exception");
+
+        assertThatThrownBy(() -> ReflectionUtils.invokeInstanceMethod(thrower, "thrower", myException))
+                .rootCause()
+                .isEqualTo(myException);
+    }
+
+    @Test
+    void invokeThrowsUncheckedException() {
+        var thrower = new ThrowingObj();
+        var myException = new RuntimeException("my unchecked exception");
+        assertThatThrownBy(() -> ReflectionUtils.invokeInstanceMethod(thrower, "thrower", myException))
+                .rootCause()
+                .isEqualTo(myException);
     }
 
     // These classes are used reflectively by the tests.
@@ -165,4 +216,33 @@ class ReflectionUtilsTest {
             return new StringBuilder(arg).reverse().toString();
         }
     }
+
+    static class ObjectWithOverloadedMethod {
+
+        public String myOverloadedMethod(String arg) {
+            return "1arg";
+        }
+
+        public String myOverloadedMethod() {
+            return "0arg";
+        }
+
+        public static String staticReverseMe(String arg) {
+            return new StringBuilder(arg).reverse().toString();
+        }
+    }
+
+    static class ThrowingObj {
+        public ThrowingObj() {
+        }
+
+        public ThrowingObj(Exception e) throws Exception {
+            throw e;
+        }
+
+        public void thrower(Exception e) throws Exception {
+            throw e;
+        }
+    }
+
 }

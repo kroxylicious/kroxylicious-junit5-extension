@@ -97,7 +97,6 @@ class ReflectionUtils {
         }
         boolean allMatch = true;
         for (int i = 0; i < parameters.length; i++) {
-            // What about nulls?
             allMatch = allMatch && (methodParameterTypes[i].isAssignableFrom(parameters[i].getClass())
                     || (methodParameterTypes[i].isPrimitive() && primitiveToBox.get(methodParameterTypes[i]).isAssignableFrom(parameters[i].getClass())));
         }
