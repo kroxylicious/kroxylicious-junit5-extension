@@ -45,7 +45,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import kafka.Kafka;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -57,9 +56,11 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -558,18 +559,34 @@ class KafkaClusterTest {
     }
 
     /**
+     * KIP-919 (3.7.0) added the ability for admin clients to connect to KRaft controllers
+     * but this only worked when client and broker were on the same network.
+     * KAFKA-16781 (3.9.0) allowed the client and broker to be on a different network by extended advertised listeners
+     * to support controllers too. This affects our testing. In container mode, client and broker run on separate networks,
+     * so we can only test this feature when running 3.9.0 or higher.  In in-VM, mode we just need Kafka 3.7 or higher.
+     */
+    private static boolean supportsAdminConnectionToControllers(KafkaCluster cluster, KafkaClusterConfig config) {
+        return config.getKafkaVersion().matches("^(3\\.[789]\\..*|4\\..*)$") &&
+                (cluster instanceof InVMKafkaCluster ||
+                        config.getKafkaVersion().matches("^(3\\.9\\..*|4\\..*)$"));
+    }
+
+    /**
      * KIP-919 tests ability for the Kafka Admin client to connect to the controller.bootstrap.
      */
     @ParameterizedTest
     @ValueSource(ints = { 1, 2 })
     void kraftAdminConnectionToControllers(int numControllers) throws Exception {
         int brokersNum = 1;
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+        KafkaClusterConfig config = KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
                 .kraftControllers(numControllers)
                 .kraftMode(true)
-                .build())) {
+                .build();
+
+        try (var cluster = KafkaClusterFactory.create(config)) {
+            assumeThat(supportsAdminConnectionToControllers(cluster, config)).isTrue();
             cluster.start();
 
             try (var controllerAdmin = CloseableAdmin.create(cluster.getControllerAdminClientConfiguration())) {
