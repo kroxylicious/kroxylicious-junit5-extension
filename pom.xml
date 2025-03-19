@@ -102,6 +102,7 @@
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
         <junit-pioneer.version>2.3.0</junit-pioneer.version>
+        <argLine/> <!-- default to empty so it is available for replacement without jacoco -->
     </properties>
 
     <dependencyManagement>
@@ -386,6 +387,7 @@
                         <argLine>
                             --add-opens java.base/java.util=ALL-UNNAMED
                             --add-opens java.base/java.lang=ALL-UNNAMED
+                            @{argLine}
                         </argLine>
                     </configuration>
                 </plugin>
