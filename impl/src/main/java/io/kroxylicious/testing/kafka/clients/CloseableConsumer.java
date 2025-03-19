@@ -23,11 +23,13 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.clients.consumer.OffsetAndTimestamp;
 import org.apache.kafka.clients.consumer.OffsetCommitCallback;
+import org.apache.kafka.clients.consumer.SubscriptionPattern;
 import org.apache.kafka.common.Metric;
 import org.apache.kafka.common.MetricName;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
+import org.apache.kafka.common.metrics.KafkaMetric;
 
 /**
  * Provides a simple wrapper around a Kafka Consumer to redirect `close()`
@@ -111,14 +113,18 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     }
 
     @Override
-    public void unsubscribe() {
-        instance.unsubscribe();
+    public void subscribe(SubscriptionPattern pattern, ConsumerRebalanceListener callback) {
+        instance.subscribe(pattern, callback);
     }
 
     @Override
-    @Deprecated
-    public ConsumerRecords<K, V> poll(long timeout) {
-        return instance.poll(timeout);
+    public void subscribe(SubscriptionPattern pattern) {
+        instance.subscribe(pattern);
+    }
+
+    @Override
+    public void unsubscribe() {
+        instance.unsubscribe();
     }
 
     @Override
@@ -162,6 +168,16 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     }
 
     @Override
+    public void registerMetricForSubscription(KafkaMetric metric) {
+        instance.registerMetricForSubscription(metric);
+    }
+
+    @Override
+    public void unregisterMetricFromSubscription(KafkaMetric metric) {
+        instance.unregisterMetricFromSubscription(metric);
+    }
+
+    @Override
     public void seek(TopicPartition partition, long offset) {
         instance.seek(partition, offset);
     }
@@ -189,18 +205,6 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     @Override
     public long position(TopicPartition partition, Duration timeout) {
         return instance.position(partition, timeout);
-    }
-
-    @Override
-    @Deprecated
-    public OffsetAndMetadata committed(TopicPartition partition) {
-        return instance.committed(partition);
-    }
-
-    @Override
-    @Deprecated
-    public OffsetAndMetadata committed(TopicPartition partition, Duration timeout) {
-        return instance.committed(partition, timeout);
     }
 
     @Override

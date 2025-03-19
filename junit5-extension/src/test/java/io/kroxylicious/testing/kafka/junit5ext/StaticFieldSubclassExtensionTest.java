@@ -17,7 +17,9 @@ import org.apache.kafka.clients.producer.Producer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
+import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -30,6 +32,7 @@ public class StaticFieldSubclassExtensionTest extends AbstractExtensionTest {
      * We can declare the field type using a specific subclass of KafkaCluster
      */
     @BrokerCluster(numBrokers = 1)
+    @Version("3.9.0") // TODO remove version specification once kafka native image for 4.0.0 is available
     static TestcontainersKafkaCluster staticCluster;
 
     @Test
