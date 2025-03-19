@@ -57,9 +57,7 @@ class ReflectionUtils {
 
     private static void rejectNullParameters(Object[] parameters) {
         IntStream.range(0, parameters.length)
-                .forEach(i -> {
-                    Objects.requireNonNull(parameters[i], "Null parameters are not supported (parameter %d was null).".formatted(i + 1));
-                });
+                .forEach(i -> Objects.requireNonNull(parameters[i], "Null parameters are not supported (parameter %d was null).".formatted(i + 1)));
     }
 
     public static <R> R invokeInstanceMethod(@NonNull Object target, @NonNull String methodName, Object... parameters) {
