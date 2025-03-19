@@ -49,8 +49,7 @@ final class KraftLogDirUtil {
 
     private static MetadataVersion getMetadataVersion(KafkaConfig config) {
         try {
-            var method = config.getClass().getMethod("interBrokerProtocolVersionString");
-            var version = (String) method.invoke(config);
+            String version = ReflectionUtils.invokeInstanceMethod(config, "interBrokerProtocolVersionString");
             return Optional.ofNullable(version).map(MetadataVersion::fromVersionString).orElse(MetadataVersion.LATEST_PRODUCTION);
         }
         catch (Exception e) {
