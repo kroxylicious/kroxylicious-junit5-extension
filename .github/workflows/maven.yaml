@@ -27,6 +27,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: 'Test for Sonar secret'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          echo "SONAR_TOKEN_SET=$(test ${SONAR_TOKEN} && echo true)" >> $GITHUB_ENV
+
       - name: 'Check out repository'
         uses: actions/checkout@v4
         with:
@@ -48,13 +54,13 @@ jobs:
           restore-keys: ${{ runner.os }}-sonar
 
       - name: 'Build junit extension with maven tests'
-        if: github.ref_name != 'main'
+        if: github.ref_name != 'main' || env.SONAR_TOKEN_SET != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn -B clean verify -Pci
 
       - name: 'Build junit extension  maven project on main'
-        if: github.event_name == 'push' && github.ref_name == 'main'
+        if: github.event_name == 'push' && github.ref_name == 'main' && env.SONAR_TOKEN_SET == 'true'
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
