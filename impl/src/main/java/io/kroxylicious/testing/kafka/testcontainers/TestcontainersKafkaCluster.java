@@ -44,7 +44,6 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.TestInfo;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
@@ -345,15 +344,15 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return repositoryRef.withTag(tag);
     }
 
-    private static @NotNull DockerImageName kafkaRegistryResolver() {
+    private static @NonNull DockerImageName kafkaRegistryResolver() {
         return DockerImageName.parse(Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_REPO)).orElse(QUAY_KAFKA_IMAGE_REPO));
     }
 
-    private static @NotNull Supplier<String> kafkaTagResolver(KafkaClusterConfig clusterConfig) {
+    private static @NonNull Supplier<String> kafkaTagResolver(KafkaClusterConfig clusterConfig) {
         return () -> Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_TAG)).orElse(defaultKafkaVersion(clusterConfig));
     }
 
-    private static @NotNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
+    private static @NonNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
         String defaultVersion;
         if (MAJOR_MINOR_PATCH.matcher(clusterConfig.getKafkaVersion()).matches()) {
             defaultVersion = "latest-kafka-" + clusterConfig.getKafkaVersion();
@@ -364,7 +363,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return defaultVersion;
     }
 
-    private static @NotNull DockerImageName zookeeperRegistryResolver() {
+    private static @NonNull DockerImageName zookeeperRegistryResolver() {
         return DockerImageName.parse(Optional.ofNullable(System.getenv().get(ZOOKEEPER_IMAGE_REPO)).orElse(QUAY_ZOOKEEPER_IMAGE_REPO));
     }
 

@@ -22,7 +22,6 @@ import org.apache.kafka.common.security.scram.ScramCredential;
 import org.apache.kafka.common.security.scram.internals.ScramFormatter;
 import org.apache.kafka.common.security.scram.internals.ScramMechanism;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
-import org.jetbrains.annotations.NotNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -48,7 +47,7 @@ final class ScramUtils {
         }
     }
 
-    @NotNull
+    @NonNull
     static List<String> toKafkaScramArguments(String saslMechanism, Map<String, String> users) {
         var scramMechanism = ScramMechanism.forMechanismName(saslMechanism);
         if (scramMechanism == null) {

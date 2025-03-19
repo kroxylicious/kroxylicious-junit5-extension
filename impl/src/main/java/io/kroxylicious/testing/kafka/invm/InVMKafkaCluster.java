@@ -35,7 +35,6 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.client.ZKClientConfig;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
-import org.jetbrains.annotations.NotNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
@@ -547,7 +546,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         }
     }
 
-    @NotNull
+    @NonNull
     private Class<?> getKafkaZkClientClazz() {
         try {
             return Class.forName("kafka.zk.KafkaZkClient");
@@ -557,7 +556,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         }
     }
 
-    @NotNull
+    @NonNull
     private Class<?> getKafkaAdminZkClientClazz() {
         try {
             return Class.forName("kafka.zk.AdminZkClient");
