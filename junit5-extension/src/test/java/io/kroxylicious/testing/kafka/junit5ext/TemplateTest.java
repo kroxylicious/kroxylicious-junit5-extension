@@ -173,7 +173,8 @@ class TemplateTest {
             if (ZOOKEEPER_AVAILABLE) {
                 expected.add(List.of(3, -1));
             }
-            assertThat(observedTuples).isEqualTo(expected);
+            assertThat(observedTuples)
+                    .containsExactlyInAnyOrderElementsOf(expected);
         }
     }
 
@@ -204,7 +205,9 @@ class TemplateTest {
 
         @AfterAll
         void afterAll() {
-            assertThat(observedVersions).isEqualTo(versions().map(Version::value).collect(Collectors.toSet()));
+            var expected = versions().map(Version::value).collect(Collectors.toSet());
+            assertThat(observedVersions)
+                    .containsExactlyInAnyOrderElementsOf(expected);
         }
     }
 
