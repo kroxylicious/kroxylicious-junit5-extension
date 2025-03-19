@@ -50,6 +50,7 @@ import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.zooKeeperCluster;
 import static io.kroxylicious.testing.kafka.junit5ext.AbstractExtensionTest.assertSameCluster;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @ExtendWith(KafkaClusterExtension.class)
 class TemplateTest {
@@ -144,22 +145,27 @@ class TemplateTest {
 
         @TestTemplate
         void testTuples(@ConstraintsMethodSource(value = "tuples", clazz = TemplateTest.class) KafkaCluster cluster,
-                        Admin admin)
-                throws ExecutionException, InterruptedException {
-            int numBrokers = admin.describeCluster().nodes().get().size();
-            int numControllers;
-            try {
-                numControllers = admin.describeMetadataQuorum().quorumInfo().get().voters().size();
-            }
-            catch (ExecutionException e) {
-                // Zookeeper-based clusters don't support this API
-                if (e.getCause() instanceof UnsupportedVersionException) {
-                    numControllers = -1;
-                }
-                else {
-                    throw e;
-                }
-            }
+                        Admin admin) {
+
+            // Workaround for https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/391
+            int numBrokers = await("countBrokers")
+                    .until(() -> admin.describeCluster().nodes().get().size(), brokers -> brokers > 0);
+            int numControllers = await("countControllers")
+                    .until(() -> {
+
+                        try {
+                            return admin.describeMetadataQuorum().quorumInfo().get().voters().size();
+                        }
+                        catch (ExecutionException e) {
+                            // Zookeeper-based clusters don't support this API
+                            if (e.getCause() instanceof UnsupportedVersionException) {
+                                return -1;
+                            }
+                            else {
+                                throw e;
+                            }
+                        }
+                    }, controllers -> controllers == -1 || controllers > 0);
             observedTuples.add(List.of(
                     numBrokers,
                     numControllers));
