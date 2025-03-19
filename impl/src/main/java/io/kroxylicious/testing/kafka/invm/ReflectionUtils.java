@@ -44,7 +44,8 @@ class ReflectionUtils {
         return Arrays.stream(declaredConstructors)
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers()))
                 .filter(constructor -> matchingMethod(constructor.getParameterTypes(), parameters))
-                .findFirst().map(constructor -> {
+                .findFirst()
+                .map(constructor -> {
                     try {
                         return (K) constructor.newInstance(parameters);
                     }
