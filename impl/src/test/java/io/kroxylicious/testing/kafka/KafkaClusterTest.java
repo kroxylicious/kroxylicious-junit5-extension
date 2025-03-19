@@ -31,6 +31,7 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
@@ -44,6 +45,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import kafka.Kafka;
 import kafka.server.KafkaConfig;
 
 import io.kroxylicious.testing.kafka.api.KafkaCluster;
@@ -67,6 +69,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
 class KafkaClusterTest {
+
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
+
+    static {
+        LOGGER.log(System.Logger.Level.INFO, "Kafka on classpath is version: {0}", AppInfoParser.getVersion());
+    }
 
     private static final boolean ZOOKEEPER_AVAILABLE = zookeeperAvailable();
     private TestInfo testInfo;
