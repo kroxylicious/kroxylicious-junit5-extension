@@ -139,7 +139,8 @@ jobs:
       - name: 'Run select junit tests (Kafka containers)'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=${{ matrix.version }} mvn -Dmaven.main.skip=true -Dmaven.javadoc.skip=true -pl impl,junit5-extension -B test -Dtest=KafkaClusterTest,ParameterExtensionTest -Dkafka.version=${{ matrix.version }}
+        # The annotations don't respect env var TEST_CLUSTER_EXECUTION_MODE, so running ParameterExtensionTest is pointless.
+        run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=${{ matrix.version }} mvn -Dmaven.main.skip=true -Dmaven.javadoc.skip=true -pl impl -B test -Dtest=KafkaClusterTest -Dkafka.version=${{ matrix.version }}
 
       - name: Archive container logs
         uses: actions/upload-artifact@v4
