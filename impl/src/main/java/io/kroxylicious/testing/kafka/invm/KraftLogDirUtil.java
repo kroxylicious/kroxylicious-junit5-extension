@@ -37,14 +37,23 @@ final class KraftLogDirUtil {
     }
 
     static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, List<String> scramArguments) {
-        var metadataVersion = Optional.ofNullable(config.interBrokerProtocolVersionString()).map(MetadataVersion::fromVersionString)
-                .orElse(MetadataVersion.LATEST_PRODUCTION);
+        var metadataVersion = getMetadataVersion(config);
         var directoriesScala = StorageTool.configToLogDirectories(config);
         try {
             prepareLogDirsForKraftKafka39Plus(clusterId, config, scramArguments, directoriesScala, metadataVersion);
         }
         catch (Exception e) {
             prepareLogDirsForKraftPreKafka39(clusterId, config, directoriesScala, metadataVersion, scramArguments);
+        }
+    }
+
+    private static MetadataVersion getMetadataVersion(KafkaConfig config) {
+        try {
+            String version = ReflectionUtils.invokeInstanceMethod(config, "interBrokerProtocolVersionString");
+            return Optional.ofNullable(version).map(MetadataVersion::fromVersionString).orElse(MetadataVersion.LATEST_PRODUCTION);
+        }
+        catch (Exception e) {
+            return MetadataVersion.LATEST_PRODUCTION;
         }
     }
 

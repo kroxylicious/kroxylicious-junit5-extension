@@ -23,6 +23,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
 public abstract class AbstractExtensionTest {
+    public static boolean zookeeperAvailable() {
+        try {
+            Class.forName("kafka.server.KafkaServer");
+            return true;
+        }
+        catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
     protected DescribeClusterResult describeCluster(Map<String, Object> adminConfig) throws InterruptedException, ExecutionException {
         try (var admin = Admin.create(adminConfig)) {
             return describeCluster(admin);
