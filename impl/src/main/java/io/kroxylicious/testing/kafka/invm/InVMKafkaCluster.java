@@ -35,6 +35,7 @@ import org.apache.kafka.common.utils.Time;
 import org.apache.zookeeper.client.ZKClientConfig;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
+import org.jetbrains.annotations.NotNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import kafka.server.KafkaConfig;
@@ -111,20 +112,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
-            var kafkaServerClazz = getKafkaServerClazz();
             createScramUsersInZookeeper(scramArguments, config);
             return instantiateKafkaZookeeperServer(config, threadNamePrefix);
-        }
-    }
-
-    @NonNull
-    @SuppressWarnings("unchecked")
-    private Class<Server> getKafkaServerClazz() {
-        try {
-            return (Class<Server>) Class.forName("kafka.server.KafkaServer");
-        }
-        catch (ClassNotFoundException e) {
-            throw new IllegalStateException("Failed to find Kafka Zookeeper Server on classpath", e);
         }
     }
 
@@ -486,21 +475,23 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
 
     private void createScramUsersInZookeeper(List<String> scramArguments, KafkaConfig config) {
         if (!scramArguments.isEmpty()) {
-            var kafkaServerClazz = getKafkaServerClazz();
-            var uscrs = ScramUtils.getUserScramCredentialRecords(scramArguments);
-            ZKClientConfig zkClientConfig = zkClientConfigFromKafkaConfig(kafkaServerClazz, config);
-            try (var zkClient = createZkClient("invm-kafka-zookeeper-client", Time.SYSTEM, config, zkClientConfig)) {
-                var adminZkClientClazz = Class.forName("kafka.zk.AdminZkClient");
-                var adminZkClient = ReflectionUtils.construct(adminZkClientClazz, zkClient, Option.empty()).orElseThrow();
-                var userEntityType = "users";
-                disableControllerCheck(zkClient);
-                uscrs.forEach(credentials -> {
-                    var userConfig = fetchEntityConfig(adminZkClient, userEntityType, credentials.name());
-                    var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(credentials));
+            try {
+                var kafkaServerClazz = getKafkaServerClazz();
+                var adminZkClientClazz = getKafkaAdminZkClientClazz();
+                var uscrs = ScramUtils.getUserScramCredentialRecords(scramArguments);
+                ZKClientConfig zkClientConfig = zkClientConfigFromKafkaConfig(kafkaServerClazz, config);
+                try (var zkClient = createZkClient(config, zkClientConfig)) {
+                    var adminZkClient = ReflectionUtils.construct(adminZkClientClazz, zkClient, Option.empty()).orElseThrow();
+                    var userEntityType = "users";
+                    disableControllerCheck(zkClient);
+                    uscrs.forEach(credentials -> {
+                        var userConfig = fetchEntityConfig(adminZkClient, userEntityType, credentials.name());
+                        var credentialsString = ScramCredentialUtils.credentialToString(ScramUtils.asScramCredential(credentials));
 
-                    userConfig.setProperty(ScramMechanism.fromType(credentials.mechanism()).mechanismName(), credentialsString);
-                    changeConfigs(adminZkClient, userEntityType, credentials.name(), userConfig, false);
-                });
+                        userConfig.setProperty(ScramMechanism.fromType(credentials.mechanism()).mechanismName(), credentialsString);
+                        changeConfigs(adminZkClient, userEntityType, credentials.name(), userConfig, false);
+                    });
+                }
             }
             catch (Exception e) {
                 throw new IllegalStateException("Failed to create scram users", e);
@@ -516,15 +507,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         return ReflectionUtils.invokeInstanceMethod(adminZkClient, "fetchEntityConfig", userEntityType, name);
     }
 
-    private AutoCloseable createZkClient(String name, Time system, KafkaConfig config, ZKClientConfig zkClientConfig) {
-
-        try {
-            var clazz = Class.forName("kafka.zk.KafkaZkClient");
-            return ReflectionUtils.invokeStaticMethod(clazz, "createZkClient", name, system, config, zkClientConfig);
-        }
-        catch (Exception e) {
-            throw new IllegalStateException("Failed to invoke createZkClient while creating scram users", e);
-        }
+    private AutoCloseable createZkClient(KafkaConfig config, ZKClientConfig zkClientConfig) {
+        var clazz = getKafkaZkClientClazz();
+        return ReflectionUtils.invokeStaticMethod(clazz, "createZkClient", "invm-kafka-zookeeper-client", Time.SYSTEM, config, zkClientConfig);
     }
 
     private ZKClientConfig zkClientConfigFromKafkaConfig(Class<Server> kafkaServerClazz, KafkaConfig config) {
@@ -550,4 +535,36 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
                     "Failed to make enableEntityConfigControllerCheck accessible on %s so we are unlikely to be able to create SCRAM users", zkClient.getClass());
         }
     }
+
+    @NonNull
+    @SuppressWarnings("unchecked")
+    private Class<Server> getKafkaServerClazz() {
+        try {
+            return (Class<Server>) Class.forName("kafka.server.KafkaServer");
+        }
+        catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Failed to find Kafka Zookeeper Server on classpath", e);
+        }
+    }
+
+    @NotNull
+    private Class<?> getKafkaZkClientClazz() {
+        try {
+            return Class.forName("kafka.zk.KafkaZkClient");
+        }
+        catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Failed to find necessary class when creating Kafka Zookeeper Client", e);
+        }
+    }
+
+    @NotNull
+    private Class<?> getKafkaAdminZkClientClazz() {
+        try {
+            return Class.forName("kafka.zk.AdminZkClient");
+        }
+        catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Failed to find necessary class when creating Kafka Zookeeper Admin Client", e);
+        }
+    }
+
 }
