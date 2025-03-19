@@ -112,8 +112,8 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         }
         else {
             var kafkaServerClazz = getKafkaServerClazz();
-            createScramUsersInZookeeper(kafkaServerClazz, scramArguments, config);
-            return instantiateKafkaZookeeperServer(kafkaServerClazz, config, threadNamePrefix);
+            createScramUsersInZookeeper(scramArguments, config);
+            return instantiateKafkaZookeeperServer(config, threadNamePrefix);
         }
     }
 
@@ -132,12 +132,12 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
      * We instantiate the KafkaServer reflectively in order to continue to support older
      * versions of Kafka that used Zookeeper based controllers.
      *
-     * @param kafkaServerClazz kafka server class
      * @param config           kafka config
      * @param threadNamePrefix thread name prefix to be used by the server
      */
     @NonNull
-    private Server instantiateKafkaZookeeperServer(Class<Server> kafkaServerClazz, KafkaConfig config, Option<String> threadNamePrefix) {
+    private Server instantiateKafkaZookeeperServer(KafkaConfig config, Option<String> threadNamePrefix) {
+        var kafkaServerClazz = getKafkaServerClazz();
         return ReflectionUtils.construct(kafkaServerClazz, config, Time.SYSTEM, threadNamePrefix, false).orElseThrow();
     }
 
@@ -484,8 +484,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         }
     }
 
-    private void createScramUsersInZookeeper(Class<Server> kafkaServerClazz, List<String> scramArguments, KafkaConfig config) {
+    private void createScramUsersInZookeeper(List<String> scramArguments, KafkaConfig config) {
         if (!scramArguments.isEmpty()) {
+            var kafkaServerClazz = getKafkaServerClazz();
             var uscrs = ScramUtils.getUserScramCredentialRecords(scramArguments);
             ZKClientConfig zkClientConfig = zkClientConfigFromKafkaConfig(kafkaServerClazz, config);
             try (var zkClient = createZkClient("invm-kafka-zookeeper-client", Time.SYSTEM, config, zkClientConfig)) {

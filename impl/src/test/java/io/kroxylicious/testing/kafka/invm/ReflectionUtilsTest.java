@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ReflectionUtilsTest {
 
     @Test
-    void constructNoArgs() {
+    void constructWithNoParameters() {
         var instance = ReflectionUtils.construct(NoArgs.class);
         assertThat(instance)
                 .isPresent()
@@ -23,7 +23,7 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void constructWithObjectArgs() {
+    void constructWithOneParameter() {
         var instance = ReflectionUtils.construct(ObjectArg.class, "foo");
         assertThat(instance)
                 .isPresent()
@@ -34,7 +34,7 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void constructWithPrimitiveArgs() {
+    void constructWithPrimitiveParameter() {
         var instance = ReflectionUtils.construct(PrimitiveArg.class, true);
         assertThat(instance)
                 .isPresent()
@@ -51,7 +51,14 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void invokeInstanceMethodWithNoArgs() {
+    void constructWithParameterWithNullValueRejected() {
+        assertThatThrownBy(() -> ReflectionUtils.construct(ObjectArg.class, "foo", null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("Null parameters are not supported (parameter 2 was null).");
+    }
+
+    @Test
+    void invokeInstanceMethodWithNoParameters() {
         var obj = new ObjectArg("foo");
 
         var result = ReflectionUtils.invokeInstanceMethod(obj, "getArg");
@@ -59,7 +66,7 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void invokeInstanceMethodWithArgsReturningNonVoid() {
+    void invokeInstanceMethodWithParameterReturningNonVoid() {
         var obj = new MyObject();
 
         var result = ReflectionUtils.invokeInstanceMethod(obj, "reverseMe", "oof");
@@ -67,7 +74,7 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void invokeInstanceMethodWithArgsReturningVoid() {
+    void invokeInstanceMethodWithParameterReturningVoid() {
         var obj = new MyObject();
 
         var result = ReflectionUtils.invokeInstanceMethod(obj, "myMethodReturningVoid", "oof");
@@ -75,13 +82,13 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void invokeStaticMethodWithArgsReturningNonVoid() {
+    void invokeStaticMethodWithParameterReturningNonVoid() {
         var result = ReflectionUtils.invokeStaticMethod(MyObject.class, "staticReverseMe", "oof");
         assertThat(result).isEqualTo("foo");
     }
 
     @Test
-    void invokeInstanceMethodNotFound() {
+    void instanceMethodNotFound() {
         var obj = new MyObject();
 
         assertThatThrownBy(() -> ReflectionUtils.invokeInstanceMethod(obj, "notFound"))
@@ -90,7 +97,7 @@ class ReflectionUtilsTest {
     }
 
     @Test
-    void invokeStaticMethodNotFound() {
+    void staticMethodNotFound() {
         assertThatThrownBy(() -> ReflectionUtils.invokeStaticMethod(MyObject.class, "notFound"))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining("Can't find method notFound on class io.kroxylicious.testing.kafka.invm.ReflectionUtilsTest$MyObject");
@@ -101,6 +108,15 @@ class ReflectionUtilsTest {
         assertThatThrownBy(() -> ReflectionUtils.invokeStaticMethod(MyObject.class, "reverseMe"))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining("Can't find method reverseMe on class io.kroxylicious.testing.kafka.invm.ReflectionUtilsTest$MyObject");
+    }
+
+    @Test
+    void invokeWithParameterWithNullValueRejected() {
+        var obj = new MyObject();
+
+        assertThatThrownBy(() -> ReflectionUtils.invokeInstanceMethod(obj, "myMethodReturningVoid", null, "foo"))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("Null parameters are not supported (parameter 1 was null).");
     }
 
     // These classes are used reflectively by the tests.

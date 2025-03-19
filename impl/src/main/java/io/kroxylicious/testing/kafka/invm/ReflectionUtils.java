@@ -12,8 +12,10 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -37,6 +39,7 @@ class ReflectionUtils {
     @NonNull
     @SuppressWarnings("unchecked")
     public static <K> Optional<K> construct(Class<K> clazz, Object... parameters) {
+        rejectNullParameters(parameters);
         Constructor<?>[] declaredConstructors = clazz.getDeclaredConstructors();
         return Arrays.stream(declaredConstructors)
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers()))
@@ -48,6 +51,13 @@ class ReflectionUtils {
                     catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
                         throw new IllegalStateException(e);
                     }
+                });
+    }
+
+    private static void rejectNullParameters(Object[] parameters) {
+        IntStream.range(0, parameters.length)
+                .forEach(i -> {
+                    Objects.requireNonNull(parameters[i], "Null parameters are not supported (parameter %d was null).".formatted(i + 1));
                 });
     }
 
@@ -66,6 +76,7 @@ class ReflectionUtils {
     @SuppressWarnings("unchecked")
     private static <R> R invokeMethod(@NonNull Class<?> clazz, @Nullable Object target, @NonNull String methodName, Object[] parameters, Method[] methods,
                                       Predicate<Method> methodPredicate) {
+        rejectNullParameters(parameters);
         Optional<Method> first = Arrays.stream(methods)
                 .filter(method -> methodName.equals(method.getName()))
                 .filter(methodPredicate)
