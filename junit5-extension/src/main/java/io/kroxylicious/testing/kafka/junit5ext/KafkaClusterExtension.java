@@ -173,12 +173,16 @@ public class KafkaClusterExtension implements
     @Override
     public boolean supportsTestTemplate(ExtensionContext context) {
         Parameter[] parameters = context.getRequiredTestMethod().getParameters();
+        boolean hasAtLeastOneParameterWithMethodSource = false;
         for (var parameter : parameters) {
             if (!supportsParameter(parameter)) {
                 return false;
             }
+
+            hasAtLeastOneParameterWithMethodSource = hasAtLeastOneParameterWithMethodSource || parameter.getAnnotationsByType(DimensionMethodSource.class).length > 0
+                    || parameter.getAnnotationsByType(ConstraintsMethodSource.class).length > 0;
         }
-        return true;
+        return hasAtLeastOneParameterWithMethodSource;
     }
 
     private static List<? extends List<? extends Object>> cartesianProduct(List<List<?>> domains) {
