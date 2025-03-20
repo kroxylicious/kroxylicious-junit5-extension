@@ -15,6 +15,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -199,6 +201,52 @@ class KafkaClusterConfigTest {
 
         // Then
         assertThat(brokerConfigs).hasSize(3);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "3.7.0", "3.8.0" })
+    void olderKafkaControllerShouldNotAdvertisedControllerListener(String version) {
+        // Given
+        var numBrokers = 1;
+        var numControllers = 2;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .kafkaVersion(version)
+                .build();
+
+        // When
+        var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 1);
+
+        // Then
+        assertThat(config.properties())
+                .containsEntry("process.roles", "controller")
+                .doesNotContainKeys("advertised.listeners");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "3.9.0" })
+    void newerKafkaControllerShouldAdvertisedControllerListener(String version) {
+        // Given
+        var numBrokers = 1;
+        var numControllers = 2;
+        final KafkaClusterConfig kafkaClusterConfig = kafkaClusterConfigBuilder.kraftMode(true)
+                .kraftControllers(numControllers)
+                .brokersNum(numBrokers)
+                .kafkaVersion(version)
+                .build();
+
+        // When
+        var config = kafkaClusterConfig.generateConfigForSpecificNode(endpointConfig, 1);
+
+        // Then
+        assertThat(config.properties())
+                .containsEntry("process.roles", "controller")
+                .hasEntrySatisfying("advertised.listeners", value -> {
+                    assertThat(value)
+                            .asInstanceOf(InstanceOfAssertFactories.STRING)
+                            .contains("CONTROLLER://localhost:" + (CONTROLLER_BASE_PORT + 1));
+                });
     }
 
     @Test
@@ -472,5 +520,16 @@ class KafkaClusterConfigTest {
                 default -> throw new IllegalStateException("Unexpected value: " + listener);
             }
         }
+    }
+
+    static Stream<Arguments> supportedConstraints() {
+        return Stream.of(Arguments.of(Deprecated.class, false),
+                Arguments.of(BrokerCluster.class, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void supportedConstraints(Class<Annotation> anno, boolean supported) {
+        assertThat(KafkaClusterConfig.supportsConstraint(anno)).isEqualTo(supported);
     }
 }

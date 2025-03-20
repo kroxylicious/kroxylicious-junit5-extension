@@ -31,6 +31,7 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
@@ -55,9 +56,11 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
 import io.kroxylicious.testing.kafka.common.Utils;
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -67,6 +70,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 @Timeout(value = 2, unit = TimeUnit.MINUTES)
 class KafkaClusterTest {
+
+    private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
+
+    static {
+        LOGGER.log(System.Logger.Level.INFO, "Kafka on classpath is version: {0}", AppInfoParser.getVersion());
+    }
 
     private static final boolean ZOOKEEPER_AVAILABLE = zookeeperAvailable();
     private TestInfo testInfo;
@@ -550,18 +559,34 @@ class KafkaClusterTest {
     }
 
     /**
+     * KIP-919 (3.7.0) added the ability for admin clients to connect to KRaft controllers
+     * but this only worked when client and broker were on the same network.
+     * KAFKA-16781 (3.9.0) allowed the client and broker to be on a different network by extended advertised listeners
+     * to support controllers too. This affects our testing. In container mode, client and broker run on separate networks,
+     * so we can only test this feature when running 3.9.0 or higher.  In in-VM, mode we just need Kafka 3.7 or higher.
+     */
+    private static boolean supportsAdminConnectionToControllers(KafkaCluster cluster, KafkaClusterConfig config) {
+        return config.getKafkaVersion().matches("^(3\\.[789]\\..*|4\\..*)$") &&
+                (cluster instanceof InVMKafkaCluster ||
+                        config.getKafkaVersion().matches("^(3\\.9\\..*|4\\..*)$"));
+    }
+
+    /**
      * KIP-919 tests ability for the Kafka Admin client to connect to the controller.bootstrap.
      */
     @ParameterizedTest
     @ValueSource(ints = { 1, 2 })
     void kraftAdminConnectionToControllers(int numControllers) throws Exception {
         int brokersNum = 1;
-        try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
+        KafkaClusterConfig config = KafkaClusterConfig.builder()
                 .testInfo(testInfo)
                 .brokersNum(brokersNum)
                 .kraftControllers(numControllers)
                 .kraftMode(true)
-                .build())) {
+                .build();
+
+        try (var cluster = KafkaClusterFactory.create(config)) {
+            assumeThat(supportsAdminConnectionToControllers(cluster, config)).isTrue();
             cluster.start();
 
             try (var controllerAdmin = CloseableAdmin.create(cluster.getControllerAdminClientConfiguration())) {
