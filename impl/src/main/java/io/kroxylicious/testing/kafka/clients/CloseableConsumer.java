@@ -71,7 +71,7 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
      * @param configs   The consumer configs
      * @return the consumer
      */
-    public static<K, V> Consumer<K, V> create(Map<String, Object> configs) {
+    public static <K, V> Consumer<K, V> create(Map<String, Object> configs) {
         return wrap(new KafkaConsumer<>(configs));
     }
 

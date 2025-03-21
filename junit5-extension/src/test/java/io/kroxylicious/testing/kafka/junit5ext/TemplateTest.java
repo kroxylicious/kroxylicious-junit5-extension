@@ -245,8 +245,7 @@ class TemplateTest {
 
     }
 
-    private record MyTestParam(String value) {
-    }
+    private record MyTestParam(String value) {}
 
     private static class MyTestTemplateInvocationContextProvider implements TestTemplateInvocationContextProvider {
         @Override
