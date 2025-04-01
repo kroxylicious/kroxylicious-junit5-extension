@@ -2,7 +2,7 @@
 
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
-## SNAPSHOT
+## 0.11.0
 
 * [#455](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#455): Upgrade to Kafka 4.0.0
 * [#437](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#437): Bump org.apache.logging.log4j:log4j-bom from 2.24.2 to 2.24.3
