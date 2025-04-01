@@ -4,7 +4,13 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## SNAPSHOT
 
+* [#455](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#455): Upgrade to Kafka 4.0.0
 * [#437](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#437): Bump org.apache.logging.log4j:log4j-bom from 2.24.2 to 2.24.3
+
+### Changes, deprecations and removals
+
+* This release introduces support for Kafka 4.0.0.  The extension continues to support earlier versions of Kafka and continues to support the
+  creation of Kafka clusters with Zookeeper controllers when using a Kafka version < 4.0.
 
 ## 0.10.0
 

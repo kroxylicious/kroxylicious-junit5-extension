@@ -33,7 +33,6 @@ import org.apache.kafka.clients.admin.AlterReplicaLogDirsOptions;
 import org.apache.kafka.clients.admin.AlterReplicaLogDirsResult;
 import org.apache.kafka.clients.admin.AlterUserScramCredentialsOptions;
 import org.apache.kafka.clients.admin.AlterUserScramCredentialsResult;
-import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.CreateAclsOptions;
 import org.apache.kafka.clients.admin.CreateAclsResult;
 import org.apache.kafka.clients.admin.CreateDelegationTokenOptions;
@@ -54,6 +53,8 @@ import org.apache.kafka.clients.admin.DeleteTopicsOptions;
 import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.DescribeAclsOptions;
 import org.apache.kafka.clients.admin.DescribeAclsResult;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsOptions;
+import org.apache.kafka.clients.admin.DescribeClassicGroupsResult;
 import org.apache.kafka.clients.admin.DescribeClientQuotasOptions;
 import org.apache.kafka.clients.admin.DescribeClientQuotasResult;
 import org.apache.kafka.clients.admin.DescribeClusterOptions;
@@ -74,6 +75,8 @@ import org.apache.kafka.clients.admin.DescribeProducersOptions;
 import org.apache.kafka.clients.admin.DescribeProducersResult;
 import org.apache.kafka.clients.admin.DescribeReplicaLogDirsOptions;
 import org.apache.kafka.clients.admin.DescribeReplicaLogDirsResult;
+import org.apache.kafka.clients.admin.DescribeShareGroupsOptions;
+import org.apache.kafka.clients.admin.DescribeShareGroupsResult;
 import org.apache.kafka.clients.admin.DescribeTopicsOptions;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.DescribeTransactionsOptions;
@@ -94,6 +97,8 @@ import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsSpec;
 import org.apache.kafka.clients.admin.ListConsumerGroupsOptions;
 import org.apache.kafka.clients.admin.ListConsumerGroupsResult;
+import org.apache.kafka.clients.admin.ListGroupsOptions;
+import org.apache.kafka.clients.admin.ListGroupsResult;
 import org.apache.kafka.clients.admin.ListOffsetsOptions;
 import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsOptions;
@@ -131,6 +136,7 @@ import org.apache.kafka.common.acl.AclBinding;
 import org.apache.kafka.common.acl.AclBindingFilter;
 import org.apache.kafka.common.annotation.InterfaceStability;
 import org.apache.kafka.common.config.ConfigResource;
+import org.apache.kafka.common.metrics.KafkaMetric;
 import org.apache.kafka.common.quota.ClientQuotaAlteration;
 import org.apache.kafka.common.quota.ClientQuotaFilter;
 
@@ -292,19 +298,6 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
         return instance.describeConfigs(resources, options);
     }
 
-    @SuppressWarnings("deprecation")
-    @Override
-    @Deprecated
-    public AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs) {
-        return instance.alterConfigs(configs);
-    }
-
-    @Override
-    @Deprecated
-    public AlterConfigsResult alterConfigs(Map<ConfigResource, Config> configs, AlterConfigsOptions options) {
-        return instance.alterConfigs(configs, options);
-    }
-
     @Override
     public AlterConfigsResult incrementalAlterConfigs(Map<ConfigResource, Collection<AlterConfigOp>> configs) {
         return instance.incrementalAlterConfigs(configs);
@@ -463,6 +456,11 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @Override
     public DeleteConsumerGroupOffsetsResult deleteConsumerGroupOffsets(String groupId, Set<TopicPartition> partitions) {
         return instance.deleteConsumerGroupOffsets(groupId, partitions);
+    }
+
+    @Override
+    public ListGroupsResult listGroups(ListGroupsOptions options) {
+        return instance.listGroups(options);
     }
 
     @Override
@@ -687,6 +685,26 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @Override
     public RemoveRaftVoterResult removeRaftVoter(int i, Uuid uuid, RemoveRaftVoterOptions removeRaftVoterOptions) {
         return instance.removeRaftVoter(i, uuid, removeRaftVoterOptions);
+    }
+
+    @Override
+    public DescribeShareGroupsResult describeShareGroups(Collection<String> groupIds, DescribeShareGroupsOptions options) {
+        return instance.describeShareGroups(groupIds, options);
+    }
+
+    @Override
+    public DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds, DescribeClassicGroupsOptions options) {
+        return instance.describeClassicGroups(groupIds, options);
+    }
+
+    @Override
+    public void registerMetricForSubscription(KafkaMetric metric) {
+        instance.registerMetricForSubscription(metric);
+    }
+
+    @Override
+    public void unregisterMetricFromSubscription(KafkaMetric metric) {
+        instance.unregisterMetricFromSubscription(metric);
     }
 
     @Override
