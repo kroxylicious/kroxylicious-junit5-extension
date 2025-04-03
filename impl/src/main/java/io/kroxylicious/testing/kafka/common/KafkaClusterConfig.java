@@ -142,7 +142,6 @@ public class KafkaClusterConfig {
     @Singular
     private final Map<String, String> brokerConfigs;
 
-    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
     private static final Set<Class<? extends Annotation>> SUPPORTED_CONSTRAINTS = Set.of(
             ClusterId.class,
             BrokerCluster.class,
@@ -151,8 +150,6 @@ public class KafkaClusterConfig {
             KRaftCluster.class,
             Tls.class,
             SaslMechanism.class,
-            SaslPlainAuth.class,
-            SaslPlainAuth.List.class,
             ZooKeeperCluster.class,
             Version.class);
 
@@ -173,7 +170,6 @@ public class KafkaClusterConfig {
      * @param testInfo information about the test execution context.
      * @return the kafka cluster config
      */
-    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
     public static KafkaClusterConfig fromConstraints(List<Annotation> annotations, TestInfo testInfo) {
         var builder = builder();
         builder.testInfo(testInfo);
@@ -181,7 +177,6 @@ public class KafkaClusterConfig {
         var tls = false;
         var useSasl = false;
         var saslUsers = Optional.<Map<String, String>> empty();
-        var deprecatedSaslUsers = Optional.<Map<String, String>> empty();
 
         for (Annotation annotation : annotations) {
             if (annotation instanceof BrokerCluster brokerCluster) {
@@ -211,9 +206,6 @@ public class KafkaClusterConfig {
                 saslUsers = Optional.of(Arrays.stream(principals)
                         .collect(Collectors.toMap(SaslMechanism.Principal::user, SaslMechanism.Principal::password)));
             }
-            else if (annotation instanceof SaslPlainAuth || annotation instanceof SaslPlainAuth.List) {
-                deprecatedSaslUsers = processDeprecatedSaslUserAnnotations(annotation);
-            }
             else if (annotation instanceof BrokerConfig || annotation instanceof BrokerConfig.List) {
                 processBrokerConfigs(annotation, builder::brokerConfig);
             }
@@ -222,20 +214,7 @@ public class KafkaClusterConfig {
             }
         }
 
-        if (deprecatedSaslUsers.isPresent()) {
-            if (!DEPRECATED_SASL_PLAIN_AUTH_USE_REPORTED.compareAndExchange(false, true)) {
-                LOGGER.log(System.Logger.Level.WARNING, "Use of deprecated SaslPlainAuth annotation, use SaslUser instead.");
-            }
-            if (useSasl) {
-                throw new IllegalArgumentException("Cannot use deprecated SaslPlainAuth with SaslMechanism.");
-            }
-            else {
-                builder.saslMechanism(PLAIN_SASL_MECHANISM_NAME);
-                deprecatedSaslUsers.ifPresent(builder::users);
-                useSasl = true;
-            }
-        }
-        else if (saslUsers.isPresent()) {
+        if (saslUsers.isPresent()) {
             saslUsers.ifPresent(builder::users);
         }
 
@@ -250,18 +229,6 @@ public class KafkaClusterConfig {
         catch (IOException e) {
             throw new UncheckedIOException("Failed to create broker certificate", e);
         }
-    }
-
-    @SuppressWarnings({ "java:S5738", "removal" }) // silence warnings about the use of deprecated code
-    private static Optional<Map<String, String>> processDeprecatedSaslUserAnnotations(Annotation annotation) {
-        if (annotation instanceof SaslPlainAuth.List saslPlainAuthList) {
-            return Optional.of(Arrays.stream(saslPlainAuthList.value())
-                    .collect(Collectors.toMap(SaslPlainAuth::user, SaslPlainAuth::password)));
-        }
-        else if (annotation instanceof SaslPlainAuth saslPlainAuth) {
-            return Optional.of(Map.of(saslPlainAuth.user(), saslPlainAuth.password()));
-        }
-        return Optional.empty();
     }
 
     private static void processBrokerConfigs(Annotation annotation, BiConsumer<String, String> consumer) {
