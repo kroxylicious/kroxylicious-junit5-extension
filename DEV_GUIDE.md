@@ -138,6 +138,8 @@ has been applied ineffectively.
 
 ## DCO Signoff
 
-The project requires that all commits are signed-off, indicating that _you_ certify the changes with the developer
-certificate of origin (DCO) (https://developercertificate.org/). This can be done using `git commit -s` for each commit
+The project requires that all commits are signed-off, indicating that _you_ certify the changes with the [Developer
+Certificate of Origin (DCO)](./DCO).
+
+This can be done using `git commit -s` for each commit
 in your pull request. Alternatively, to signoff a bunch of commits you can use `git rebase --signoff _your-branch_`.
