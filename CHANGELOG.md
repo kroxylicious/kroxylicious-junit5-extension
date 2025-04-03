@@ -3,6 +3,14 @@
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
 ## SNAPSHOT
+
+* [#474](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#474): Remove deprecated @SaslPlainAuth annotation
+
+### Changes, deprecations and removals
+
+* This release removes the `@SaslPlainAuth` annotation that was deprecated at 0.9.0.  Users should
+  switch to using the general `@SaslMechanism`, which supports authentication several SASL mechanisms.
+
 ## 0.11.0
 
 * [#455](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#455): Upgrade to Kafka 4.0.0
@@ -38,6 +46,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
   rather than `MINIMUM_BOOTSTRAP_VERSION` as was the case in previous releases.  To get back the old behaviour, override
   the `inter.broker.protocol.version` broker configuration option and set the desired version. This config option
   also controls the metadata storage format when the storage is formatted for the first time.
+* This release deprecates the `@SaslPlainAuth` annotation. Use `@SaslMechanism` instead.
 
 ## 0.8.1
 
