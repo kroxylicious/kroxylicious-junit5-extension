@@ -41,7 +41,6 @@ import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.common.SaslMechanism.Principal;
-import io.kroxylicious.testing.kafka.common.SaslPlainAuth;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
@@ -215,19 +214,6 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     @Test
     void saslAuthWithManyUsers(@BrokerCluster @SaslMechanism(value = "SCRAM-SHA-256", principals = { @Principal(user = "alice", password = "foo"),
             @Principal(user = "bob", password = "bar") }) KafkaCluster cluster) {
-        doAuthExpectSucceeds(cluster, "alice", "foo");
-        doAuthExpectSucceeds(cluster, "bob", "bar");
-    }
-
-    @Test
-    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
-    void saslPlainAuthDeprecatedAnnotation(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") KafkaCluster cluster) {
-        doAuthExpectSucceeds(cluster, "alice", "foo");
-    }
-
-    @Test
-    @SuppressWarnings({ "java:S5738", "java:S4144" }) // silence warnings about the use of deprecated code and the duplicated method content
-    void saslPlainAuthDeprecatedAnnotationManyUsers(@BrokerCluster @SaslPlainAuth(user = "alice", password = "foo") @SaslPlainAuth(user = "bob", password = "bar") KafkaCluster cluster) {
         doAuthExpectSucceeds(cluster, "alice", "foo");
         doAuthExpectSucceeds(cluster, "bob", "bar");
     }

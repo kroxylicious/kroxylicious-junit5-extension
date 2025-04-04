@@ -321,48 +321,6 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    void constraintSaslPlainAuthDeprecatedAnnotation() {
-        // Given
-        var annotations = getAnnotations(ConstraintUtils.saslPlainAuth("bob", "secret"));
-
-        // When
-        var config = KafkaClusterConfig.fromConstraints(annotations, null);
-
-        // Then
-        assertThat(config.getSaslMechanism()).isEqualTo("PLAIN");
-        assertThat(config.getUsers())
-                .hasSize(1)
-                .containsEntry("bob", "secret");
-    }
-
-    @Test
-    void constraintSaslPlainAuthManyDeprecatedAnnotation() {
-        // Given
-        var annotations = getAnnotations(ConstraintUtils.saslPlainAuth(Map.of("alice", "secret", "bob", "secret")));
-
-        // When
-        var config = KafkaClusterConfig.fromConstraints(annotations, null);
-
-        // Then
-        assertThat(config.getSaslMechanism()).isEqualTo("PLAIN");
-        assertThat(config.getUsers())
-                .hasSize(2)
-                .containsKeys("bob", "alice");
-    }
-
-    @Test
-    void constraintSaslMechanismAndSaslPlainAuthCombinationDisallowed() {
-        // Given
-        var annotations = getAnnotations(ConstraintUtils.saslMechanism("PLAIN"), ConstraintUtils.saslPlainAuth("bob", "secret"));
-
-        // When/Then
-        assertThatThrownBy(() -> KafkaClusterConfig.fromConstraints(annotations, null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Cannot use deprecated SaslPlainAuth with SaslMechanism");
-
-    }
-
-    @Test
     void constraintBrokerConfig() {
         // Given
         var annotations = getAnnotations(ConstraintUtils.brokerConfig("compression.type", "zstd"));
