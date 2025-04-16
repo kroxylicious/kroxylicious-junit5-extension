@@ -265,6 +265,7 @@
                                 <!--suppress MavenModelInspection -->
                                 <header>${session.executionRootDirectory}/etc/license.txt</header>
                                 <excludes>
+                                    <exclude>DCO.txt</exclude>
                                     <exclude>LICENSE.txt</exclude>
                                     <exclude>**/.dontdelete</exclude>
                                 </excludes>
