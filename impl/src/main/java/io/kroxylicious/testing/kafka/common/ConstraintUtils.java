@@ -104,32 +104,6 @@ public class ConstraintUtils {
     }
 
     /**
-     * Creates a constraint to ensure the user is configured with a particular user.
-     *
-     * @param user     the user
-     * @param password the password
-     * @return the user
-     */
-    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
-    public static SaslPlainAuth saslPlainAuth(String user, String password) {
-        return mkAnnotation(SaslPlainAuth.class, Map.of("user", user, "password", password));
-    }
-
-    /**
-     * Creates a constraint to ensure the user is configured with a list of users.
-     *
-     * @param users the users (username/password pairs)
-     * @return the user
-     */
-    @SuppressWarnings("java:S5738") // silence warnings about the use of deprecated code
-    public static SaslPlainAuth.List saslPlainAuth(Map<String, String> users) {
-        return mkAnnotation(SaslPlainAuth.List.class, Map.of(VALUE,
-                users.entrySet().stream()
-                        .map(e -> saslPlainAuth(e.getKey(), e.getValue()))
-                        .toArray(SaslPlainAuth[]::new)));
-    }
-
-    /**
      * The SASL mechanism constraint instance
      *
      * @param saslMechanism the SASL mechanism name
