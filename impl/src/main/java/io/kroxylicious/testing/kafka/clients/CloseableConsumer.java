@@ -15,6 +15,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.apache.kafka.clients.consumer.CloseOptions;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -320,6 +321,11 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
     @Override
     public void close(Duration timeout) {
         instance.close(timeout);
+    }
+
+    @Override
+    public void close(CloseOptions closeOptions) {
+        instance.close(closeOptions);
     }
 
     @Override
