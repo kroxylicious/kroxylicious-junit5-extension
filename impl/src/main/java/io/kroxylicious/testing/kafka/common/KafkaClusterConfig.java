@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.admin.ScramMechanism;
 import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.config.SslConfigs;
@@ -80,6 +81,7 @@ public class KafkaClusterConfig {
     private static final String SCRAM_256_SASL_MECHANISM_NAME = "SCRAM-SHA-256";
     private static final String SCRAM_512_SASL_MECHANISM_NAME = "SCRAM-SHA-512";
     private static final Pattern PRE_KAFKA_39 = Pattern.compile("^3\\.[0-8]\\..*$");
+    private static final Pattern POST_KAFKA_4_1 = Pattern.compile("^4\\.[1-9][0-9]*\\..*$");
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -671,6 +673,22 @@ public class KafkaClusterConfig {
         return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).startsWith(SCRAM_SHA_SASL_MECHANISM_PREFIX);
     }
 
+    public Optional<ScramMechanism> getScramMechanism() {
+        if (!isSaslScram()) {
+            return Optional.empty();
+        }
+        String mechanismUpperCase = this.saslMechanism.toUpperCase(ROOT);
+        if (mechanismUpperCase.equals(SCRAM_256_SASL_MECHANISM_NAME)) {
+            return Optional.of(ScramMechanism.SCRAM_SHA_256);
+        }
+        else if (mechanismUpperCase.equals(SCRAM_512_SASL_MECHANISM_NAME)) {
+            return Optional.of(ScramMechanism.SCRAM_SHA_512);
+        }
+        else {
+            throw new IllegalConfigurationException("could not determine scram mechanism for " + this.saslMechanism);
+        }
+    }
+
     /**
      * Is the cluster coppering using Kraft Controller nodes.
      *
@@ -693,6 +711,10 @@ public class KafkaClusterConfig {
         var version = AppInfoParser.getVersion();
         var appInfoParserUnknown = "unknown"; // Defined by AppInfoParser.DEFAULT_VALUE. Symbol is package-private.
         return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
+    }
+
+    public boolean isKafkaPostVersion41() {
+        return kafkaVersion.equals(Version.LATEST_RELEASE) || POST_KAFKA_4_1.matcher(kafkaVersion).matches();
     }
 
     /**

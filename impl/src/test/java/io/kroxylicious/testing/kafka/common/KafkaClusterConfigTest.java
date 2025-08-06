@@ -8,8 +8,11 @@ package io.kroxylicious.testing.kafka.common;
 import java.lang.annotation.Annotation;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.admin.ScramMechanism;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -278,6 +282,21 @@ class KafkaClusterConfigTest {
     }
 
     @Test
+    void settingSaslMechanism() {
+        // Given
+        var annotations = getAnnotations(ConstraintUtils.saslMechanism(null, Map.of("alice", "secret")));
+
+        // When
+        var config = KafkaClusterConfig.fromConstraints(annotations, null);
+
+        // Then
+        assertThat(config.getSaslMechanism()).isEqualTo("PLAIN");
+        assertThat(config.getUsers())
+                .hasSize(1)
+                .containsEntry("alice", "secret");
+    }
+
+    @Test
     void saslMechanismValueDefaultsToPlain() {
         // Given
         var annotations = getAnnotations(ConstraintUtils.saslMechanism(null, Map.of("alice", "secret")));
@@ -290,6 +309,40 @@ class KafkaClusterConfigTest {
         assertThat(config.getUsers())
                 .hasSize(1)
                 .containsEntry("alice", "secret");
+    }
+
+    public static Stream<Arguments> scramMechanism() {
+        return Stream.of(Arguments.argumentSet("scram sha 256",
+                (Consumer<KafkaClusterConfig.KafkaClusterConfigBuilder>) builder -> builder.saslMechanism("SCRAM-SHA-256"),
+                ScramMechanism.SCRAM_SHA_256),
+                Arguments.argumentSet("scram sha 512",
+                        (Consumer<KafkaClusterConfig.KafkaClusterConfigBuilder>) builder -> builder.saslMechanism("SCRAM-SHA-512"),
+                        ScramMechanism.SCRAM_SHA_512),
+                Arguments.argumentSet("other sasl mechanism",
+                        (Consumer<KafkaClusterConfig.KafkaClusterConfigBuilder>) builder -> builder.saslMechanism("GSSAPI"),
+                        null),
+                Arguments.argumentSet("default",
+                        (Consumer<KafkaClusterConfig.KafkaClusterConfigBuilder>) builder -> {
+                        },
+                        null));
+    }
+
+    @ParameterizedTest
+    @MethodSource
+    void scramMechanism(Consumer<KafkaClusterConfig.KafkaClusterConfigBuilder> configurer, @Nullable ScramMechanism expected) {
+        KafkaClusterConfig.KafkaClusterConfigBuilder builder = KafkaClusterConfig.builder();
+        // When
+        configurer.accept(builder);
+        var config = builder.build();
+        // Then
+        assertThat(config.getScramMechanism()).isEqualTo(Optional.ofNullable(expected));
+    }
+
+    @Test
+    public void unknownScramSize() {
+        KafkaClusterConfig config = KafkaClusterConfig.builder().saslMechanism("SCRAM-SHA-1024").build();
+
+        assertThatThrownBy(config::getScramMechanism).isInstanceOf(IllegalConfigurationException.class);
     }
 
     @Test
@@ -373,6 +426,31 @@ class KafkaClusterConfigTest {
         // Then
         assertThat(config.isKraftMode())
                 .isFalse();
+    }
+
+    public static Stream<Arguments> versions() {
+        return Stream.of(
+                Arguments.of("0.1", false),
+                Arguments.of("3.9.1", false),
+                Arguments.of("4.0.0", false),
+                Arguments.of("4.1.0", true),
+                Arguments.of("4.1.0-rc1", true),
+                Arguments.of("4.1.0-SNAPSHOT", true),
+                Arguments.of("latest", true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("versions")
+    void isKafkaPostVersion41(String version, boolean isKafkaPostVersion4) {
+        // Given
+        var annotations = getAnnotations(ConstraintUtils.version(version));
+
+        // When
+        var config = KafkaClusterConfig.fromConstraints(annotations, null);
+
+        // Then
+        assertThat(config.isKafkaPostVersion41())
+                .isEqualTo(isKafkaPostVersion4);
     }
 
     @Test

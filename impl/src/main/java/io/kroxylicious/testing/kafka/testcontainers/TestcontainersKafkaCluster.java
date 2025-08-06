@@ -42,6 +42,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.ScramCredentialInfo;
+import org.apache.kafka.clients.admin.ScramMechanism;
+import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.TestInfo;
@@ -109,6 +112,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int ZOOKEEPER_PORT = 2181;
 
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
+    private static final String APACHE_KAFKA_JAVA_IMAGE_REPO = "docker.io/apache/kafka";
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
@@ -120,18 +124,21 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     // as a startup failure.
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
-    private static final String KAFKA_CONTAINER_MOUNT_POINT = "/kafka";
+    private static final String KAFKA_CONTAINER_MOUNT_POINT = "/tmp";
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
 
-    // This uid needs to match the uid used by the kafka container to execute the kafka process
+    // This uid needs to match the uid used by the ozangunalp native kafka container to execute the kafka process
+    @Deprecated
     private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";
     private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\d+(\\.\\d+(\\.\\d+)?)?");
+    // This uid needs to match the uid used by the apache kafka containers to execute the kafka process
+    public static final String APACHE_CONTAINER_UID = "1000";
 
     private final DockerImageName kafkaImage;
     private final KafkaClusterConfig clusterConfig;
-    private final String logDirVolumeName = createNamedVolume();
+    private final String logDirVolumeName;
     private final Network network = Network.newNetwork();
     private final String name;
     private final ZookeeperContainer zookeeper;
@@ -172,9 +179,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     // suppress `resource` warnings as we manage the lifecycle at a wider scope
     @SuppressWarnings("resource")
     public TestcontainersKafkaCluster(KafkaClusterConfig clusterConfig) {
-        this.kafkaImage = resolveImage(TestcontainersKafkaCluster::kafkaRegistryResolver, kafkaTagResolver(clusterConfig));
+        this.kafkaImage = resolveImage(() -> kafkaRegistryResolver(clusterConfig), kafkaTagResolver(clusterConfig));
 
         this.clusterConfig = clusterConfig;
+        this.logDirVolumeName = createNamedVolume(clusterConfig);
 
         this.name = Optional.ofNullable(clusterConfig.getTestInfo())
                 .map(TestInfo::getDisplayName)
@@ -208,12 +216,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     /**
      * Instantiates a new Testcontainers kafka cluster.
      *
-     * @param kafkaImage     <em>IGNORED</em> the kafka image
+     * @param kafkaImage <em>IGNORED</em> the kafka image
      * @param zookeeperImage <em>IGNORED</em> the zookeeper image
-     * @param clusterConfig  the cluster config
-     *
+     * @param clusterConfig the cluster config
      * @deprecated please use {@link TestcontainersKafkaCluster#TestcontainersKafkaCluster(KafkaClusterConfig)}
-     * The Image arguments have been replaced by environment variables
+     *         The Image arguments have been replaced by environment variables
      */
     @SuppressWarnings("unused")
     @Deprecated(forRemoval = true)
@@ -249,18 +256,28 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
+        if (clusterConfig.isKafkaPostVersion41()) {
+            kafkaContainer
+                    .withEnv("CLUSTER_ID", holder.kraftClusterId())
+                    .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/etc/kafka/docker/server.properties");
+        }
+        else {
+            kafkaContainer.withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
+                    .withEnv("SERVER_CLUSTER_ID", holder.kraftClusterId())
+                    // disables automatic configuration of listeners/roles by kafka-native
+                    .withEnv("SERVER_AUTO_CONFIGURE", "false")
+                    .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/cnf/server.properties");
+        }
+
         kafkaContainer
-                .withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
-                .withEnv("SERVER_CLUSTER_ID", holder.kraftClusterId())
-                // disables automatic configuration of listeners/roles by kafka-native
-                .withEnv("SERVER_AUTO_CONFIGURE", "false")
-                .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/cnf/server.properties")
                 .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
 
         if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
-            kafkaContainer.withEnv("SERVER_SCRAM_CREDENTIALS", buildScramUsersEnvVar());
+            if (!clusterConfig.isKafkaPostVersion41()) {
+                kafkaContainer.withEnv("SERVER_SCRAM_CREDENTIALS", buildScramUsersEnvVar());
+            }
         }
 
         if (holder.isBroker()) {
@@ -344,8 +361,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         return repositoryRef.withTag(tag);
     }
 
-    private static @NonNull DockerImageName kafkaRegistryResolver() {
-        return DockerImageName.parse(Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_REPO)).orElse(QUAY_KAFKA_IMAGE_REPO));
+    private static @NonNull DockerImageName kafkaRegistryResolver(KafkaClusterConfig clusterConfig) {
+        String defaultRepo = clusterConfig.isKafkaPostVersion41() ? APACHE_KAFKA_JAVA_IMAGE_REPO : QUAY_KAFKA_IMAGE_REPO;
+        return DockerImageName.parse(Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_REPO)).orElse(defaultRepo));
     }
 
     private static @NonNull Supplier<String> kafkaTagResolver(KafkaClusterConfig clusterConfig) {
@@ -354,7 +372,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     private static @NonNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
         String defaultVersion;
-        if (MAJOR_MINOR_PATCH.matcher(clusterConfig.getKafkaVersion()).matches()) {
+        if (clusterConfig.isKafkaPostVersion41()) {
+            defaultVersion = clusterConfig.getKafkaVersion();
+        }
+        else if (MAJOR_MINOR_PATCH.matcher(clusterConfig.getKafkaVersion()).matches()) {
             defaultVersion = "latest-kafka-" + clusterConfig.getKafkaVersion();
         }
         else {
@@ -407,6 +428,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                     clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
+            if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
+                if (clusterConfig.isKafkaPostVersion41()) {
+                    createScramUsers();
+                }
+            }
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
@@ -414,6 +440,16 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             }
             stop();
             throw new RuntimeException("startup failed or timed out", e);
+        }
+    }
+
+    private void createScramUsers() throws InterruptedException, ExecutionException, TimeoutException {
+        ScramMechanism mechanism = clusterConfig.getScramMechanism().orElseThrow(() -> new RuntimeException("config is SASL scram, but scram mechanism is empty"));
+        try (Admin admin = createAdmin()) {
+            admin.alterUserScramCredentials(clusterConfig.getUsers().entrySet().stream()
+                    .map(userEntry -> new UserScramCredentialUpsertion(userEntry.getKey(), new ScramCredentialInfo(mechanism, 4096), userEntry.getValue()))
+                    .collect(Collectors.toList()))
+                    .all().get(5, TimeUnit.SECONDS);
         }
     }
 
@@ -426,7 +462,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
         var newNodeId = first.getAsInt();
 
-        LOGGER.log(System.Logger.Level.DEBUG,
+        LOGGER.log(Level.DEBUG,
                 "Adding broker with node.id {0} to cluster with existing nodes {1}.", newNodeId, nodes.keySet());
 
         // preallocate ports for the new broker
@@ -445,7 +481,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         }
         nodes.put(configHolder.nodeId(), kafkaContainer);
 
-        Utils.awaitExpectedBrokerCountInClusterViaTopic(
+        awaitExpectedBrokerCountInClusterViaTopic(
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 getNumOfBrokers());
@@ -698,10 +734,11 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     @SuppressWarnings({ "try" })
-    private static String createNamedVolume() {
+    private static String createNamedVolume(KafkaClusterConfig clusterConfig) {
         try (DockerClient dockerClient = createDockerClient(); var volumeCmd = dockerClient.createVolumeCmd();) {
+            String containerUid = clusterConfig.isKafkaPostVersion41() ? APACHE_CONTAINER_UID : KAFKA_CONTAINER_UID;
             if (CONTAINER_ENGINE_PODMAN) {
-                volumeCmd.withDriverOpts(Map.of("o", "uid=" + KAFKA_CONTAINER_UID));
+                volumeCmd.withDriverOpts(Map.of("o", "uid=" + containerUid));
             }
             var volumeName = volumeCmd.exec().getName();
             volumesPendingCleanup.add(volumeName);
@@ -711,7 +748,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 try (var c = new OneShotContainer()) {
                     c.withName("prepareKafkaVolume")
                             .addGenericBind(new Bind(volumeName, new Volume(KAFKA_CONTAINER_MOUNT_POINT)))
-                            .withCommand("chown", "-R", KAFKA_CONTAINER_UID, KAFKA_CONTAINER_MOUNT_POINT)
+                            .withCommand("chown", "-R", containerUid, KAFKA_CONTAINER_MOUNT_POINT)
                             .withStartupCheckStrategy(new OneShotStartupCheckStrategy());
                     c.start();
                 }
