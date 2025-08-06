@@ -1,5 +1,26 @@
 # Kafka Cluster JUnit 5 extension
 
+<!-- TOC -->
+* [Kafka Cluster JUnit 5 extension](#kafka-cluster-junit-5-extension)
+  * [What?](#what)
+  * [Dependency](#dependency)
+  * [Example](#example)
+  * [Adding Constraints](#adding-constraints)
+  * [Configuring Kafka Brokers](#configuring-kafka-brokers)
+  * [Configuring SASL](#configuring-sasl)
+  * [Configuring Kafka Clients](#configuring-kafka-clients)
+  * [Creating Test Topics](#creating-test-topics)
+  * [Node topology](#node-topology)
+  * [Provisioning mechanisms](#provisioning-mechanisms)
+    * [Choosing the Provisioning mechanism](#choosing-the-provisioning-mechanism)
+  * [Field injection and Parameter Resolution](#field-injection-and-parameter-resolution)
+  * [Template tests](#template-tests)
+  * [Custom cluster provisioning and constraints](#custom-cluster-provisioning-and-constraints)
+  * [Developer Guide](#developer-guide)
+  * [Releasing this project](#releasing-this-project)
+  * [Contributing](#contributing)
+<!-- TOC -->
+
 ## What?
 
 This is a JUnit 5 extension that allows writing tests that require a Kafka cluster
@@ -190,6 +211,21 @@ In case you use podman for testcontainers, some tips must be taken into account:
 
 ---
 
+### Choosing the Provisioning mechanism
+
+By default, `KafkaCluster` prefers to run in the same JVM as your tests. You can override this globally or for specific 
+tests.
+
+* **Global Container Mode**: To prefer running the cluster in a container, set this environment variable:
+    ```bash
+    export TEST_CLUSTER_EXECUTION_MODE=CONTAINER
+    ```
+
+* **Per-Test Override**: For a specific test, directly inject the cluster implementation you need:
+    * `InVMKafkaCluster` (in-JVM)
+    * `TestcontainersKafkaCluster` (container)
+
+
 ## Field injection and Parameter Resolution
 
 The extension supports injecting clusters and clients:
@@ -345,3 +381,7 @@ See the [developer guide](DEV_GUIDE.md).
 ## Releasing this project
 
 See the [releasing guide](RELEASING.md).
+
+## Contributing
+
+We welcome contributions! Please see our [contributing guidelines](https://github.com/kroxylicious/.github/blob/main/CONTRIBUTING.md) to get started.

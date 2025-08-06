@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -89,7 +90,11 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 import io.kroxylicious.testing.kafka.api.KafkaClusterProvisioningStrategy;
 import io.kroxylicious.testing.kafka.api.KroxyliciousTestInfo;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
+import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.internal.AdminSource;
+import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
+import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static java.lang.System.Logger.Level.TRACE;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -1171,7 +1176,7 @@ public class KafkaClusterExtension implements
                     }
                     return true;
                 })
-                .min(Comparator.comparing(x -> x.estimatedProvisioningTimeMs(constraints, declarationType)))
+                .min(Comparator.comparing(preferStrategiesMatchingEnvVar()).thenComparing(x -> x.estimatedProvisioningTimeMs(constraints, declarationType)))
                 .orElseThrow(() -> {
                     var strategies = ServiceLoader.load(KafkaClusterProvisioningStrategy.class).stream()
                             .map(ServiceLoader.Provider::type)
@@ -1180,6 +1185,23 @@ public class KafkaClusterExtension implements
                             + " and supporting all of " + constraints +
                             " was found (tried: " + classNames(strategies) + ")");
                 });
+    }
+
+    // if the user sets TEST_CLUSTER_EXECUTION_MODE, we want to prefer this mode if the user declares a generic KafkaCluster
+    private static Function<KafkaClusterProvisioningStrategy, Integer> preferStrategiesMatchingEnvVar() {
+        return x -> {
+            String preferredModeFromEnv = System.getenv().get(KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE);
+            KafkaClusterExecutionMode preferredExecutionMode = KafkaClusterExecutionMode.convertClusterExecutionMode(preferredModeFromEnv, null);
+            if (preferredExecutionMode == null) {
+                return 0;
+            }
+            else {
+                return switch (preferredExecutionMode) {
+                    case IN_VM -> x.supportsType(InVMKafkaCluster.class) ? -1 : 1;
+                    case CONTAINER -> x.supportsType(TestcontainersKafkaCluster.class) ? -1 : 1;
+                };
+            }
+        };
     }
 
     @NonNull

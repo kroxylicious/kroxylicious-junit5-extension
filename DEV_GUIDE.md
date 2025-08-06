@@ -50,7 +50,7 @@ The kafka environment used by the integrations tests can be _defaulted_ with the
 
 | env var                       | default | description                                                                                                                             |
 |-------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------|
-| `TEST_CLUSTER_EXECUTION_MODE` | `IN_VM` | `IN_VM` or `CONTAINER`. if `IN_VM`, kafka will be run same virtual machines as the integration test. Otherwise containers will be used. |
+| `TEST_CLUSTER_EXECUTION_MODE` | `IN_VM` | `IN_VM` or `CONTAINER`. if `IN_VM`, kafka will prefer to run in the same virtual machines as the integration test. Otherwise containers will be used. |
 | `TEST_CLUSTER_KRAFT_MODE`     | `true`  | if true, kafka will be run in kraft mode.                                                                                               |
 
 When the integration-tests are run in `CONTAINER` mode, the kafka/zookeeper logs are written to a location specified by
