@@ -87,8 +87,8 @@ class TestcontainersKafkaClusterTest {
     }
 
     @ParameterizedTest
-    @MethodSource("fixedVersions")
-    void shouldAllowConfigToControlFixedKafkaVersion(Version version) {
+    @MethodSource("fixedVersionsPre41")
+    void shouldAllowConfigToControlFixedKafkaVersionPre41(Version version) {
         KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
@@ -99,6 +99,57 @@ class TestcontainersKafkaClusterTest {
             assertThat(kafkaImage)
                     .isNotNull().satisfies(pullPolicyForImage -> {
                         assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("latest-kafka-" + version.value());
+                    });
+        }
+    }
+
+    @Test
+    void shouldAllowConfigToControlFixedKafkaVersionPost41() {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion("4.1.0-rc2").build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("4.1.0-rc2");
+                    });
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("fixedVersionsPost41")
+    void post41Versions(Version version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo(version.value());
+                    });
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("fixedVersionsPost41")
+    void post41VersionsShouldUseApacheKafkaNativeImagesByDefault(Version version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getRegistry()).isEqualTo("docker.io");
+                        assertThat(pullPolicyForImage.getRepository()).isEqualTo("apache/kafka");
                     });
         }
     }
@@ -121,8 +172,9 @@ class TestcontainersKafkaClusterTest {
         }
     }
 
-    private static Stream<Version> fixedVersions() {
+    private static Stream<Version> fixedVersionsPre41() {
         return Stream.of(
+                version("4.0.0"),
                 version("3.9.0"),
                 version("3.8.0"),
                 version("3.7.0"),
@@ -131,6 +183,10 @@ class TestcontainersKafkaClusterTest {
                 version("3.4.0"),
                 version("3.2.3"),
                 version("3.1.2"));
+    }
+
+    private static Stream<Version> fixedVersionsPost41() {
+        return Stream.of(version("4.1.0"));
     }
 
     private static Stream<Version> floatingVersions() {

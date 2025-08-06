@@ -16,8 +16,10 @@ import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.metadata.UserScramCredentialRecord;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
+import org.apache.kafka.metadata.storage.Formatter;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
+import org.slf4j.Logger;
 
 import kafka.server.KafkaConfig;
 import kafka.tools.StorageTool;
@@ -36,15 +38,35 @@ final class KraftLogDirUtil {
         throw new IllegalStateException();
     }
 
+    private interface ThrowingRunnable {
+        void run() throws Exception;
+    }
+
+    /**
+     * The intent is to execute the runnables in sequence, returning immediately if one succeeds.
+     * @param runnables runnables
+     * @throws RuntimeException if all runnables throw an exception
+     */
+    private static void tryWithFallbacks(ThrowingRunnable... runnables) {
+        Throwable lastFailure = null;
+        for (ThrowingRunnable runnable : runnables) {
+            try {
+                runnable.run();
+                return;
+            }
+            catch (LinkageError | Exception e) {
+                lastFailure = e;
+            }
+        }
+        throw new RuntimeException("all fallbacks failed", lastFailure);
+    }
+
     static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, List<String> scramArguments) {
         var metadataVersion = getMetadataVersion(config);
         var directoriesScala = StorageTool.configToLogDirectories(config);
-        try {
-            prepareLogDirsForKraftKafka39Plus(clusterId, config, scramArguments, directoriesScala, metadataVersion);
-        }
-        catch (Exception e) {
-            prepareLogDirsForKraftPreKafka39(clusterId, config, directoriesScala, metadataVersion, scramArguments);
-        }
+        tryWithFallbacks(() -> prepareLogDirsForKraftKafka41Plus(clusterId, config, scramArguments, directoriesScala, metadataVersion),
+                () -> prepareLogDirsForKraftKafka39Plus(clusterId, config, scramArguments, directoriesScala, metadataVersion),
+                () -> prepareLogDirsForKraftPreKafka39(clusterId, config, directoriesScala, metadataVersion, scramArguments));
     }
 
     private static MetadataVersion getMetadataVersion(KafkaConfig config) {
@@ -57,11 +79,31 @@ final class KraftLogDirUtil {
         }
     }
 
+    private static void prepareLogDirsForKraftKafka41Plus(String clusterId, KafkaConfig config, List<String> scramArguments, Seq<String> directoriesScala,
+                                                          MetadataVersion metadataVersion)
+            throws Exception {
+        var controllerListenerName = config.controllerListenerNames().stream().findFirst().orElseThrow();
+        var directories = CollectionConverters.asJava(directoriesScala);
+        Formatter formatter = new Formatter();
+        formatter.setClusterId(clusterId);
+        formatter.setNodeId(config.nodeId());
+        formatter.setControllerListenerName(controllerListenerName);
+        formatter.setMetadataLogDirectory(config.metadataLogDir());
+        formatter.setDirectories(directories);
+        formatter.setIgnoreFormatted(IGNORE_FORMATTED);
+        formatter.setScramArguments(scramArguments);
+        formatter.setPrintStream(LOGGING_PRINT_STREAM);
+        formatter.setReleaseVersion(metadataVersion);
+        formatter.run();
+    }
+
     private static void prepareLogDirsForKraftKafka39Plus(String clusterId, KafkaConfig config, List<String> scramArguments, Seq<String> directoriesScala,
                                                           MetadataVersion metadataVersion)
             throws ClassNotFoundException, InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         // Try Formatter class (introduced Kafka 3.9)
-        var controllerListenerName = CollectionConverters.asJava(config.controllerListenerNames()).stream().findFirst().orElseThrow();
+        scala.collection.Seq controllerListenerNameSeq = (scala.collection.Seq) KafkaConfig.class.getMethod("controllerListenerNames")
+                .invoke(config);
+        var controllerListenerName = CollectionConverters.asJava(controllerListenerNameSeq).stream().findFirst().orElseThrow();
         var directories = CollectionConverters.asJava(directoriesScala);
         var formatterClazz = Class.forName("org.apache.kafka.metadata.storage.Formatter");
         var formatter = formatterClazz.getDeclaredConstructor().newInstance();
