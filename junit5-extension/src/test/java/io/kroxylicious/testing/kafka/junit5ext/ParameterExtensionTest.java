@@ -31,6 +31,7 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junitpioneer.jupiter.SetEnvironmentVariable;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -39,11 +40,13 @@ import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.common.SaslMechanism.Principal;
 import io.kroxylicious.testing.kafka.common.Tls;
 import io.kroxylicious.testing.kafka.common.ZooKeeperCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
+import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_COMPACT;
 import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG;
@@ -63,6 +66,20 @@ class ParameterExtensionTest extends AbstractExtensionTest {
 
     @Test
     void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster) throws Exception {
+        assertThat(cluster).isInstanceOf(InVMKafkaCluster.class);
+        assertClusterIdAndSize(cluster, 2);
+    }
+
+    @SetEnvironmentVariable(key = KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE, value = "CONTAINER")
+    @Test
+    void clusterParameterPreferenceContainer(@BrokerCluster(numBrokers = 2) KafkaCluster cluster) throws Exception {
+        assertThat(cluster).isInstanceOf(TestcontainersKafkaCluster.class);
+        assertClusterIdAndSize(cluster, 2);
+    }
+
+    @SetEnvironmentVariable(key = KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE, value = "IN_VM")
+    @Test
+    void clusterParameterPreferenceInVm(@BrokerCluster(numBrokers = 2) KafkaCluster cluster) throws Exception {
         assertThat(cluster).isInstanceOf(InVMKafkaCluster.class);
         assertClusterIdAndSize(cluster, 2);
     }
