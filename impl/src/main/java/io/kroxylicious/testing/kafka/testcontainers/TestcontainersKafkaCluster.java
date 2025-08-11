@@ -42,9 +42,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.clients.admin.ScramCredentialInfo;
-import org.apache.kafka.clients.admin.ScramMechanism;
-import org.apache.kafka.clients.admin.UserScramCredentialUpsertion;
 import org.apache.kafka.common.config.SslConfigs;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.TestInfo;
@@ -80,6 +77,7 @@ import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.internal.AdminSource;
 
+import static io.kroxylicious.testing.kafka.common.ScramInitialiser.initialiseScramUsers;
 import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCountInClusterViaTopic;
 
 /**
@@ -256,7 +254,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG);
         copyHostKeyStoreToContainer(kafkaContainer, properties, SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG);
 
-        if (clusterConfig.isKafkaPostVersion41()) {
+        if (clusterConfig.isKafkaVersion41OrHigher()) {
             kafkaContainer
                     .withEnv("CLUSTER_ID", holder.kraftClusterId())
                     .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/etc/kafka/docker/server.properties");
@@ -273,12 +271,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                 .withStartupAttempts(CONTAINER_STARTUP_ATTEMPTS)
                 .withMinimumRunningDuration(MINIMUM_RUNNING_DURATION)
                 .withStartupTimeout(STARTUP_TIMEOUT);
-
-        if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
-            if (!clusterConfig.isKafkaPostVersion41()) {
-                kafkaContainer.withEnv("SERVER_SCRAM_CREDENTIALS", buildScramUsersEnvVar());
-            }
-        }
 
         if (holder.isBroker()) {
             kafkaContainer.addFixedExposedPort(portsAllocator.getPort(Listener.EXTERNAL, brokerNum), CLIENT_PORT);
@@ -362,7 +354,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private static @NonNull DockerImageName kafkaRegistryResolver(KafkaClusterConfig clusterConfig) {
-        String defaultRepo = clusterConfig.isKafkaPostVersion41() ? APACHE_KAFKA_JAVA_IMAGE_REPO : QUAY_KAFKA_IMAGE_REPO;
+        String defaultRepo = clusterConfig.isKafkaVersion41OrHigher() ? APACHE_KAFKA_JAVA_IMAGE_REPO : QUAY_KAFKA_IMAGE_REPO;
         return DockerImageName.parse(Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_REPO)).orElse(defaultRepo));
     }
 
@@ -372,7 +364,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     private static @NonNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
         String defaultVersion;
-        if (clusterConfig.isKafkaPostVersion41()) {
+        if (clusterConfig.isKafkaVersion41OrHigher()) {
             defaultVersion = clusterConfig.getKafkaVersion();
             if (defaultVersion.equals("4.1.0")) {
                 // TODO remove once kafka is released
@@ -432,11 +424,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
                     clusterConfig.getAnonConnectConfigForCluster(buildBrokerListFor(Listener.ANON)),
                     READY_TIMEOUT_SECONDS, TimeUnit.SECONDS,
                     clusterConfig.getBrokersNum());
-            if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
-                if (clusterConfig.isKafkaPostVersion41()) {
-                    createScramUsers();
-                }
-            }
+            initialiseScramUsers(this, clusterConfig);
         }
         catch (InterruptedException | ExecutionException | TimeoutException e) {
             if (e instanceof InterruptedException) {
@@ -444,16 +432,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             }
             stop();
             throw new RuntimeException("startup failed or timed out", e);
-        }
-    }
-
-    private void createScramUsers() throws InterruptedException, ExecutionException, TimeoutException {
-        ScramMechanism mechanism = clusterConfig.getScramMechanism().orElseThrow(() -> new RuntimeException("config is SASL scram, but scram mechanism is empty"));
-        try (Admin admin = createAdmin()) {
-            admin.alterUserScramCredentials(clusterConfig.getUsers().entrySet().stream()
-                    .map(userEntry -> new UserScramCredentialUpsertion(userEntry.getKey(), new ScramCredentialInfo(mechanism, 4096), userEntry.getValue()))
-                    .collect(Collectors.toList()))
-                    .all().get(5, TimeUnit.SECONDS);
         }
     }
 
@@ -740,7 +718,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @SuppressWarnings({ "try" })
     private static String createNamedVolume(KafkaClusterConfig clusterConfig) {
         try (DockerClient dockerClient = createDockerClient(); var volumeCmd = dockerClient.createVolumeCmd();) {
-            String containerUid = clusterConfig.isKafkaPostVersion41() ? APACHE_CONTAINER_UID : KAFKA_CONTAINER_UID;
+            String containerUid = clusterConfig.isKafkaVersion41OrHigher() ? APACHE_CONTAINER_UID : KAFKA_CONTAINER_UID;
             if (CONTAINER_ENGINE_PODMAN) {
                 volumeCmd.withDriverOpts(Map.of("o", "uid=" + containerUid));
             }
