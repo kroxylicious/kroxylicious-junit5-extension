@@ -90,7 +90,7 @@
         <testcontainers.version>1.21.3</testcontainers.version>
         <lombok.version>1.18.38</lombok.version>
         <assertj-core.version>3.27.3</assertj-core.version>
-        <spotbugs-annotations.version>4.9.3</spotbugs-annotations.version>
+        <spotbugs-annotations.version>4.9.4</spotbugs-annotations.version>
         <zookeeper.version>3.8.4</zookeeper.version>
         <log4j.version>2.25.1</log4j.version>
         <awaitility.version>4.3.0</awaitility.version>
