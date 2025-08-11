@@ -449,7 +449,7 @@ class KafkaClusterConfigTest {
         var config = KafkaClusterConfig.fromConstraints(annotations, null);
 
         // Then
-        assertThat(config.isKafkaPostVersion41())
+        assertThat(config.isKafkaVersion41OrHigher())
                 .isEqualTo(isKafkaPostVersion4);
     }
 

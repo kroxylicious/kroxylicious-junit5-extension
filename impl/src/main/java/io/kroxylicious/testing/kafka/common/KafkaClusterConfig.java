@@ -81,7 +81,7 @@ public class KafkaClusterConfig {
     private static final String SCRAM_256_SASL_MECHANISM_NAME = "SCRAM-SHA-256";
     private static final String SCRAM_512_SASL_MECHANISM_NAME = "SCRAM-SHA-512";
     private static final Pattern PRE_KAFKA_39 = Pattern.compile("^3\\.[0-8]\\..*$");
-    private static final Pattern POST_KAFKA_4_1 = Pattern.compile("^4\\.[1-9][0-9]*\\..*$");
+    private static final Pattern KAFKA_4_1_OR_HIGHER = Pattern.compile("^4\\.[1-9][0-9]*\\..*$");
 
     private TestInfo testInfo;
     private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
@@ -713,8 +713,8 @@ public class KafkaClusterConfig {
         return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
     }
 
-    public boolean isKafkaPostVersion41() {
-        return kafkaVersion.equals(Version.LATEST_RELEASE) || POST_KAFKA_4_1.matcher(kafkaVersion).matches();
+    public boolean isKafkaVersion41OrHigher() {
+        return kafkaVersion.equals(Version.LATEST_RELEASE) || KAFKA_4_1_OR_HIGHER.matcher(kafkaVersion).matches();
     }
 
     /**
