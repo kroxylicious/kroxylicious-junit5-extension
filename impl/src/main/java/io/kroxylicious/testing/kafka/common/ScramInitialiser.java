@@ -23,6 +23,9 @@ import static org.junit.Assert.assertTrue;
 
 public class ScramInitialiser {
 
+    private ScramInitialiser() {
+    }
+
     public static void initialiseScramUsers(AdminSource adminSource, KafkaClusterConfig clusterConfig) {
         try {
             if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {
@@ -44,7 +47,7 @@ public class ScramInitialiser {
             }
         }
         catch (Exception e) {
-            throw new RuntimeException("Failed to initialise scram users", e);
+            throw new ScramInitializationException("Failed to initialise scram users", e);
         }
     }
 }
