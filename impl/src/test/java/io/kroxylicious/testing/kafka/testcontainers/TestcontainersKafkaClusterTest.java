@@ -5,19 +5,30 @@
  */
 package io.kroxylicious.testing.kafka.testcontainers;
 
+import java.util.Map;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.CommonClientConfigs;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.RemoteDockerImage;
 import org.testcontainers.utility.DockerImageName;
 
+import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Version;
 
@@ -87,8 +98,8 @@ class TestcontainersKafkaClusterTest {
     }
 
     @ParameterizedTest
-    @MethodSource("fixedVersions")
-    void shouldAllowConfigToControlFixedKafkaVersion(Version version) {
+    @MethodSource("fixedVersionsPre41")
+    void shouldAllowConfigToControlFixedKafkaVersionPre41(Version version) {
         KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
@@ -99,6 +110,57 @@ class TestcontainersKafkaClusterTest {
             assertThat(kafkaImage)
                     .isNotNull().satisfies(pullPolicyForImage -> {
                         assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("latest-kafka-" + version.value());
+                    });
+        }
+    }
+
+    @Test
+    void shouldAllowConfigToControlFixedKafkaVersionPost41() {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion("4.1.0-rc2").build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("4.1.0-rc2");
+                    });
+        }
+    }
+
+    // TODO delete whwn 4.1.0 releases
+    @Test
+    void shouldOverride41ToRCTemporarily() {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion("4.1.0").build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("4.1.0-rc2");
+                    });
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("fixedVersionsPost41")
+    void post41VersionsShouldUseApacheKafkaNativeImagesByDefault(Version version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getRegistry()).isEqualTo("docker.io");
+                        assertThat(pullPolicyForImage.getRepository()).isEqualTo("apache/kafka");
                     });
         }
     }
@@ -121,8 +183,9 @@ class TestcontainersKafkaClusterTest {
         }
     }
 
-    private static Stream<Version> fixedVersions() {
+    private static Stream<Version> fixedVersionsPre41() {
         return Stream.of(
+                version("4.0.0"),
                 version("3.9.0"),
                 version("3.8.0"),
                 version("3.7.0"),
@@ -131,6 +194,10 @@ class TestcontainersKafkaClusterTest {
                 version("3.4.0"),
                 version("3.2.3"),
                 version("3.1.2"));
+    }
+
+    private static Stream<Version> fixedVersionsPost41() {
+        return Stream.of(version("4.1.0"));
     }
 
     private static Stream<Version> floatingVersions() {
@@ -186,6 +253,29 @@ class TestcontainersKafkaClusterTest {
                         // this works because the classpath will be 3.9.0 or greater so we are forcing a fallback
                         assertThat(pullPolicyForImage.getVersionPart()).isEqualTo("latest-zookeeper-3.7.0");
                     });
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource(value = { "4.1.0", "4.0.0", "3.9.0", "3.8.0" })
+    void scramUsersCreated(String version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version).securityProtocol("SASL_PLAINTEXT").saslMechanism("SCRAM-SHA-256")
+                .user("admin", "admin-secret").build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+            testcontainersKafkaCluster.start();
+            Map<String, Object> kafkaClientConfiguration = testcontainersKafkaCluster.getKafkaClientConfiguration();
+            assertThat(kafkaClientConfiguration).containsEntry(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
+            assertThat(kafkaClientConfiguration).containsEntry(SaslConfigs.SASL_MECHANISM, "SCRAM-SHA-256");
+            kafkaClientConfiguration.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+            kafkaClientConfiguration.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+            try (var producer = CloseableProducer.create(kafkaClientConfiguration)) {
+                Future<RecordMetadata> metadataFuture = producer.send(new ProducerRecord<>("topic", "key", "value"));
+                RecordMetadata recordMetadata = metadataFuture.get(10, TimeUnit.SECONDS);
+                assertThat(recordMetadata).isNotNull();
+            }
+        }
+        catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 

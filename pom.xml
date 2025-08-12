@@ -86,7 +86,7 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <junit.version>5.13.4</junit.version>
-        <kafka.version>4.0.0</kafka.version>
+        <kafka.version>4.1.0</kafka.version>
         <testcontainers.version>1.21.3</testcontainers.version>
         <lombok.version>1.18.38</lombok.version>
         <assertj-core.version>3.27.4</assertj-core.version>
@@ -719,4 +719,13 @@
             <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
+<repositories>
+    <repository>
+        <id>apache.staging</id>
+        <name>Apache Staging Repository</name>
+        <url>https://repository.apache.org/content/groups/staging</url>
+        <releases>
+            <enabled>true</enabled> </releases>
+    </repository>
+</repositories>
 </project>

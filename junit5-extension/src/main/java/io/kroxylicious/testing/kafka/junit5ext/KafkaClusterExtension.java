@@ -429,7 +429,7 @@ public class KafkaClusterExtension implements
      *
      * @param <T> the type parameter
      */
-    static class Closeable<T extends AutoCloseable> implements ExtensionContext.Store.CloseableResource {
+    static class Closeable<T extends AutoCloseable> implements AutoCloseable {
 
         private final String clusterName;
 
@@ -459,7 +459,7 @@ public class KafkaClusterExtension implements
         }
 
         @Override
-        public void close() throws Throwable {
+        public void close() throws Exception {
             LOGGER.log(TRACE, "Stopping '{0}' with cluster name '{1}' for {2}",
                     resource, clusterName, sourceElement);
             resource.close();

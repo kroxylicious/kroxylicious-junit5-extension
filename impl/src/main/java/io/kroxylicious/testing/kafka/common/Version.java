@@ -19,9 +19,13 @@ import io.kroxylicious.testing.kafka.api.KafkaClusterConstraint;
 @Target({ ElementType.FIELD, ElementType.PARAMETER })
 @KafkaClusterConstraint
 public @interface Version {
-    /** The latest release made by the kafka-native project. */
+    /** The latest release made by the kafka-native or apache kafka project. */
     String LATEST_RELEASE = "latest";
-    /** The latest development snapshot created by kafka-native project's main build. */
+    /**
+     * The latest development snapshot created by ogunalp/kafka-native project's main build.
+     * @deprecated moving forward we will use the apache images
+     **/
+    @Deprecated(forRemoval = true, since = "0.12.0")
     String LATEST_SNAPSHOT = "latest-snapshot";
 
     /**

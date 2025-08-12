@@ -31,6 +31,10 @@ import org.apache.kafka.clients.admin.AlterPartitionReassignmentsOptions;
 import org.apache.kafka.clients.admin.AlterPartitionReassignmentsResult;
 import org.apache.kafka.clients.admin.AlterReplicaLogDirsOptions;
 import org.apache.kafka.clients.admin.AlterReplicaLogDirsResult;
+import org.apache.kafka.clients.admin.AlterShareGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.AlterShareGroupOffsetsResult;
+import org.apache.kafka.clients.admin.AlterStreamsGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.AlterStreamsGroupOffsetsResult;
 import org.apache.kafka.clients.admin.AlterUserScramCredentialsOptions;
 import org.apache.kafka.clients.admin.AlterUserScramCredentialsResult;
 import org.apache.kafka.clients.admin.CreateAclsOptions;
@@ -49,6 +53,14 @@ import org.apache.kafka.clients.admin.DeleteConsumerGroupsOptions;
 import org.apache.kafka.clients.admin.DeleteConsumerGroupsResult;
 import org.apache.kafka.clients.admin.DeleteRecordsOptions;
 import org.apache.kafka.clients.admin.DeleteRecordsResult;
+import org.apache.kafka.clients.admin.DeleteShareGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.DeleteShareGroupOffsetsResult;
+import org.apache.kafka.clients.admin.DeleteShareGroupsOptions;
+import org.apache.kafka.clients.admin.DeleteShareGroupsResult;
+import org.apache.kafka.clients.admin.DeleteStreamsGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.DeleteStreamsGroupOffsetsResult;
+import org.apache.kafka.clients.admin.DeleteStreamsGroupsOptions;
+import org.apache.kafka.clients.admin.DeleteStreamsGroupsResult;
 import org.apache.kafka.clients.admin.DeleteTopicsOptions;
 import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.DescribeAclsOptions;
@@ -77,6 +89,8 @@ import org.apache.kafka.clients.admin.DescribeReplicaLogDirsOptions;
 import org.apache.kafka.clients.admin.DescribeReplicaLogDirsResult;
 import org.apache.kafka.clients.admin.DescribeShareGroupsOptions;
 import org.apache.kafka.clients.admin.DescribeShareGroupsResult;
+import org.apache.kafka.clients.admin.DescribeStreamsGroupsOptions;
+import org.apache.kafka.clients.admin.DescribeStreamsGroupsResult;
 import org.apache.kafka.clients.admin.DescribeTopicsOptions;
 import org.apache.kafka.clients.admin.DescribeTopicsResult;
 import org.apache.kafka.clients.admin.DescribeTransactionsOptions;
@@ -92,6 +106,8 @@ import org.apache.kafka.clients.admin.FenceProducersOptions;
 import org.apache.kafka.clients.admin.FenceProducersResult;
 import org.apache.kafka.clients.admin.ListClientMetricsResourcesOptions;
 import org.apache.kafka.clients.admin.ListClientMetricsResourcesResult;
+import org.apache.kafka.clients.admin.ListConfigResourcesOptions;
+import org.apache.kafka.clients.admin.ListConfigResourcesResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsOptions;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsSpec;
@@ -103,6 +119,12 @@ import org.apache.kafka.clients.admin.ListOffsetsOptions;
 import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsOptions;
 import org.apache.kafka.clients.admin.ListPartitionReassignmentsResult;
+import org.apache.kafka.clients.admin.ListShareGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.ListShareGroupOffsetsResult;
+import org.apache.kafka.clients.admin.ListShareGroupOffsetsSpec;
+import org.apache.kafka.clients.admin.ListStreamsGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.ListStreamsGroupOffsetsResult;
+import org.apache.kafka.clients.admin.ListStreamsGroupOffsetsSpec;
 import org.apache.kafka.clients.admin.ListTopicsOptions;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.ListTransactionsOptions;
@@ -119,6 +141,8 @@ import org.apache.kafka.clients.admin.RemoveRaftVoterOptions;
 import org.apache.kafka.clients.admin.RemoveRaftVoterResult;
 import org.apache.kafka.clients.admin.RenewDelegationTokenOptions;
 import org.apache.kafka.clients.admin.RenewDelegationTokenResult;
+import org.apache.kafka.clients.admin.TerminateTransactionOptions;
+import org.apache.kafka.clients.admin.TerminateTransactionResult;
 import org.apache.kafka.clients.admin.UnregisterBrokerOptions;
 import org.apache.kafka.clients.admin.UnregisterBrokerResult;
 import org.apache.kafka.clients.admin.UpdateFeaturesOptions;
@@ -439,6 +463,17 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    public ListStreamsGroupOffsetsResult listStreamsGroupOffsets(Map<String, ListStreamsGroupOffsetsSpec> map,
+                                                                 ListStreamsGroupOffsetsOptions listStreamsGroupOffsetsOptions) {
+        return instance.listStreamsGroupOffsets(map, listStreamsGroupOffsetsOptions);
+    }
+
+    @Override
+    public ListStreamsGroupOffsetsResult listStreamsGroupOffsets(Map<String, ListStreamsGroupOffsetsSpec> groupSpecs) {
+        return instance.listStreamsGroupOffsets(groupSpecs);
+    }
+
+    @Override
     public DeleteConsumerGroupsResult deleteConsumerGroups(Collection<String> groupIds, DeleteConsumerGroupsOptions options) {
         return instance.deleteConsumerGroups(groupIds, options);
     }
@@ -446,6 +481,16 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @Override
     public DeleteConsumerGroupsResult deleteConsumerGroups(Collection<String> groupIds) {
         return instance.deleteConsumerGroups(groupIds);
+    }
+
+    @Override
+    public DeleteStreamsGroupsResult deleteStreamsGroups(Collection<String> collection, DeleteStreamsGroupsOptions deleteStreamsGroupsOptions) {
+        return instance.deleteStreamsGroups(collection, deleteStreamsGroupsOptions);
+    }
+
+    @Override
+    public DeleteStreamsGroupsResult deleteStreamsGroups(Collection<String> groupIds) {
+        return instance.deleteStreamsGroups(groupIds);
     }
 
     @Override
@@ -459,8 +504,24 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    public DeleteStreamsGroupOffsetsResult deleteStreamsGroupOffsets(String s, Set<TopicPartition> set,
+                                                                     DeleteStreamsGroupOffsetsOptions deleteStreamsGroupOffsetsOptions) {
+        return instance.deleteStreamsGroupOffsets(s, set, deleteStreamsGroupOffsetsOptions);
+    }
+
+    @Override
+    public DeleteStreamsGroupOffsetsResult deleteStreamsGroupOffsets(String groupId, Set<TopicPartition> partitions) {
+        return instance.deleteStreamsGroupOffsets(groupId, partitions);
+    }
+
+    @Override
     public ListGroupsResult listGroups(ListGroupsOptions options) {
         return instance.listGroups(options);
+    }
+
+    @Override
+    public ListGroupsResult listGroups() {
+        return instance.listGroups();
     }
 
     @Override
@@ -523,6 +584,17 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     public AlterConsumerGroupOffsetsResult alterConsumerGroupOffsets(String groupId, Map<TopicPartition, OffsetAndMetadata> offsets,
                                                                      AlterConsumerGroupOffsetsOptions options) {
         return instance.alterConsumerGroupOffsets(groupId, offsets, options);
+    }
+
+    @Override
+    public AlterStreamsGroupOffsetsResult alterStreamsGroupOffsets(String s, Map<TopicPartition, OffsetAndMetadata> map,
+                                                                   AlterStreamsGroupOffsetsOptions alterStreamsGroupOffsetsOptions) {
+        return instance.alterStreamsGroupOffsets(s, map, alterStreamsGroupOffsetsOptions);
+    }
+
+    @Override
+    public AlterStreamsGroupOffsetsResult alterStreamsGroupOffsets(String groupId, Map<TopicPartition, OffsetAndMetadata> offsets) {
+        return instance.alterStreamsGroupOffsets(groupId, offsets);
     }
 
     @Override
@@ -668,6 +740,11 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    public ListConfigResourcesResult listConfigResources(Set<ConfigResource.Type> set, ListConfigResourcesOptions listConfigResourcesOptions) {
+        return instance.listConfigResources(set, listConfigResourcesOptions);
+    }
+
+    @Override
     public ListClientMetricsResourcesResult listClientMetricsResources(ListClientMetricsResourcesOptions options) {
         return instance.listClientMetricsResources(options);
     }
@@ -693,6 +770,31 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    public AlterShareGroupOffsetsResult alterShareGroupOffsets(String s, Map<TopicPartition, Long> map, AlterShareGroupOffsetsOptions alterShareGroupOffsetsOptions) {
+        return instance.alterShareGroupOffsets(s, map, alterShareGroupOffsetsOptions);
+    }
+
+    @Override
+    public ListShareGroupOffsetsResult listShareGroupOffsets(Map<String, ListShareGroupOffsetsSpec> map, ListShareGroupOffsetsOptions listShareGroupOffsetsOptions) {
+        return instance.listShareGroupOffsets(map, listShareGroupOffsetsOptions);
+    }
+
+    @Override
+    public DeleteShareGroupOffsetsResult deleteShareGroupOffsets(String s, Set<String> set, DeleteShareGroupOffsetsOptions deleteShareGroupOffsetsOptions) {
+        return instance.deleteShareGroupOffsets(s, set, deleteShareGroupOffsetsOptions);
+    }
+
+    @Override
+    public DeleteShareGroupsResult deleteShareGroups(Collection<String> collection, DeleteShareGroupsOptions deleteShareGroupsOptions) {
+        return instance.deleteShareGroups(collection, deleteShareGroupsOptions);
+    }
+
+    @Override
+    public DescribeStreamsGroupsResult describeStreamsGroups(Collection<String> collection, DescribeStreamsGroupsOptions describeStreamsGroupsOptions) {
+        return instance.describeStreamsGroups(collection, describeStreamsGroupsOptions);
+    }
+
+    @Override
     public DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds, DescribeClassicGroupsOptions options) {
         return instance.describeClassicGroups(groupIds, options);
     }
@@ -710,5 +812,70 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @Override
     public Map<MetricName, ? extends Metric> metrics() {
         return instance.metrics();
+    }
+
+    @Override
+    public TerminateTransactionResult forceTerminateTransaction(String s, TerminateTransactionOptions terminateTransactionOptions) {
+        return instance.forceTerminateTransaction(s, terminateTransactionOptions);
+    }
+
+    @Override
+    public ListConfigResourcesResult listConfigResources() {
+        return instance.listConfigResources();
+    }
+
+    @Override
+    public ListClientMetricsResourcesResult listClientMetricsResources() {
+        return instance.listClientMetricsResources();
+    }
+
+    @Override
+    public AddRaftVoterResult addRaftVoter(int voterId, Uuid voterDirectoryId, Set<RaftVoterEndpoint> endpoints) {
+        return instance.addRaftVoter(voterId, voterDirectoryId, endpoints);
+    }
+
+    @Override
+    public RemoveRaftVoterResult removeRaftVoter(int voterId, Uuid voterDirectoryId) {
+        return instance.removeRaftVoter(voterId, voterDirectoryId);
+    }
+
+    @Override
+    public DescribeShareGroupsResult describeShareGroups(Collection<String> groupIds) {
+        return instance.describeShareGroups(groupIds);
+    }
+
+    @Override
+    public AlterShareGroupOffsetsResult alterShareGroupOffsets(String groupId, Map<TopicPartition, Long> offsets) {
+        return instance.alterShareGroupOffsets(groupId, offsets);
+    }
+
+    @Override
+    public ListShareGroupOffsetsResult listShareGroupOffsets(Map<String, ListShareGroupOffsetsSpec> groupSpecs) {
+        return instance.listShareGroupOffsets(groupSpecs);
+    }
+
+    @Override
+    public DeleteShareGroupOffsetsResult deleteShareGroupOffsets(String groupId, Set<String> topics) {
+        return instance.deleteShareGroupOffsets(groupId, topics);
+    }
+
+    @Override
+    public DeleteShareGroupsResult deleteShareGroups(Collection<String> groupIds) {
+        return instance.deleteShareGroups(groupIds);
+    }
+
+    @Override
+    public DescribeClassicGroupsResult describeClassicGroups(Collection<String> groupIds) {
+        return instance.describeClassicGroups(groupIds);
+    }
+
+    @Override
+    public DescribeStreamsGroupsResult describeStreamsGroups(Collection<String> groupIds) {
+        return instance.describeStreamsGroups(groupIds);
+    }
+
+    @Override
+    public TerminateTransactionResult forceTerminateTransaction(String transactionalId) {
+        return instance.forceTerminateTransaction(transactionalId);
     }
 }
