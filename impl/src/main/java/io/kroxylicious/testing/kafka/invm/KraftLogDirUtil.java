@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.Optional;
 
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
-import org.apache.kafka.common.metadata.UserScramCredentialRecord;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.storage.Formatter;
@@ -36,8 +35,19 @@ final class KraftLogDirUtil {
         throw new IllegalStateException();
     }
 
+    // we allow it to throw the generic exception type as a way to handle arbitrary failures
+    @SuppressWarnings("java:S112")
     private interface ThrowingRunnable {
         void run() throws Exception;
+    }
+
+    /**
+     * Thrown when all fallback alternatives have failed
+     */
+    private static class FallbackException extends RuntimeException {
+        private FallbackException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
     /**
@@ -56,7 +66,7 @@ final class KraftLogDirUtil {
                 lastFailure = e;
             }
         }
-        throw new RuntimeException("all fallbacks failed", lastFailure);
+        throw new FallbackException("all fallbacks failed", lastFailure);
     }
 
     static void prepareLogDirsForKraft(String clusterId, KafkaConfig config) {
@@ -98,7 +108,7 @@ final class KraftLogDirUtil {
                                                           MetadataVersion metadataVersion)
             throws ClassNotFoundException, InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         // Try Formatter class (introduced Kafka 3.9)
-        scala.collection.Seq controllerListenerNameSeq = (scala.collection.Seq) KafkaConfig.class.getMethod("controllerListenerNames")
+        scala.collection.Seq<String> controllerListenerNameSeq = (scala.collection.Seq<String>) KafkaConfig.class.getMethod("controllerListenerNames")
                 .invoke(config);
         var controllerListenerName = CollectionConverters.asJava(controllerListenerNameSeq).stream().findFirst().orElseThrow();
         var directories = CollectionConverters.asJava(directoriesScala);
@@ -166,10 +176,6 @@ final class KraftLogDirUtil {
 
     private static ApiMessageAndVersion metadataVersionMessage(MetadataVersion metadataVersion) {
         return wrap(new FeatureLevelRecord().setName(MetadataVersion.FEATURE_NAME).setFeatureLevel(metadataVersion.featureLevel()));
-    }
-
-    private static ApiMessageAndVersion scramMessage(UserScramCredentialRecord scramRecord) {
-        return wrap(scramRecord);
     }
 
     private static ApiMessageAndVersion wrap(ApiMessage message) {
