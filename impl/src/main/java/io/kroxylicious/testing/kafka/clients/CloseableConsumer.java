@@ -313,11 +313,15 @@ public record CloseableConsumer<K, V>(Consumer<K, V> instance) implements Consum
         instance.enforceRebalance(reason);
     }
 
+    // using deprecated signature to support running with older kafka-clients versions
+    @SuppressWarnings({ "deprecation" })
     @Override
     public void close() {
         instance.close(Duration.ofSeconds(5L));
     }
 
+    // using deprecated signature to support running with older kafka-clients versions
+    @SuppressWarnings({ "deprecation" })
     @Override
     public void close(Duration timeout) {
         instance.close(timeout);

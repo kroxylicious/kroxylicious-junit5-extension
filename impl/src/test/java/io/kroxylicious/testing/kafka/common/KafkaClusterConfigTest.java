@@ -284,7 +284,7 @@ class KafkaClusterConfigTest {
     @Test
     void settingSaslMechanism() {
         // Given
-        var annotations = getAnnotations(ConstraintUtils.saslMechanism(null, Map.of("alice", "secret")));
+        var annotations = getAnnotations(ConstraintUtils.saslMechanism("PLAIN", Map.of("alice", "secret")));
 
         // When
         var config = KafkaClusterConfig.fromConstraints(annotations, null);
@@ -339,7 +339,7 @@ class KafkaClusterConfigTest {
     }
 
     @Test
-    public void unknownScramSize() {
+    void unknownScramSize() {
         KafkaClusterConfig config = KafkaClusterConfig.builder().saslMechanism("SCRAM-SHA-1024").build();
 
         assertThatThrownBy(config::getScramMechanism).isInstanceOf(IllegalConfigurationException.class);

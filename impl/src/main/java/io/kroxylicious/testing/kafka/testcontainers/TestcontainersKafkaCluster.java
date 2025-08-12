@@ -109,8 +109,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int CONTROLLER_PORT = 9091;
     private static final int ZOOKEEPER_PORT = 2181;
 
+    @Deprecated(since = "0.12.0")
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String APACHE_KAFKA_JAVA_IMAGE_REPO = "docker.io/apache/kafka";
+    @Deprecated(since = "0.12.0")
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
@@ -126,7 +128,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
 
     // This uid needs to match the uid used by the ozangunalp native kafka container to execute the kafka process
-    @Deprecated
+    @Deprecated(since = "0.12.0")
     private static final String KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";

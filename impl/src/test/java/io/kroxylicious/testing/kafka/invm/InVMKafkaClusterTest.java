@@ -22,7 +22,7 @@ import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class InVMKafkaClusterTest {
+class InVMKafkaClusterTest {
 
     @Test
     void scramUsersCreated() {

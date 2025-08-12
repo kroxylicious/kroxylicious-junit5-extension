@@ -18,28 +18,28 @@ import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(KafkaClusterExtension.class)
-public class TestcontainersTest {
+class TestcontainersTest {
 
     @Test
-    public void test39(@Version("3.9.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+    void test39(@Version("3.9.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
     }
 
     @Test
-    public void test40(@Version("4.0.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+    void test40(@Version("4.0.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
     }
 
     @Test
-    public void test41(@Version("4.1.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+    void test41(@Version("4.1.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
     }
 
     @Test
-    public void testLatest(@Version(Version.LATEST_RELEASE) TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+    void testLatest(@Version(Version.LATEST_RELEASE) TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
     }
