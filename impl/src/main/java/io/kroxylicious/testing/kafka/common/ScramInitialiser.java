@@ -46,6 +46,9 @@ public class ScramInitialiser {
                 }
             }
         }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         catch (Exception e) {
             throw new ScramInitializationException("Failed to initialise scram users", e);
         }
