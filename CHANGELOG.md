@@ -5,11 +5,17 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 ## SNAPSHOT
 
 * [#474](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#474): Remove deprecated @SaslPlainAuth annotation
+* [#501](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/501): Upgrade to Kafka 4.1.0
 
 ### Changes, deprecations and removals
 
 * This release removes the `@SaslPlainAuth` annotation that was deprecated at 0.9.0.  Users should
   switch to using the general `@SaslMechanism`, which supports authentication several SASL mechanisms.
+* This release changes the images used with testcontainers mode from 'quay.io/ogunalp/kafka-native' 
+  native images to Apache Kafka JRE-based images. If you target a kafka version less-than to 4.1.0, then
+  the old images will be uses. If you target a kafka version greater-than-or-equal-to 4.1.0, then an 
+  apache image will be used. Images will be pulled from `mirror.gcr.io/apache/kafka`, this value can
+  be overridden by setting the `APACHE_KAFKA_IMAGE_REPO` environment variable.
 
 ## 0.11.0
 
