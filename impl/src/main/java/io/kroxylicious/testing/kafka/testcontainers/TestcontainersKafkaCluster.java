@@ -89,9 +89,13 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     public static final String ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     /**
-     * environment variable specifying the kafka image repository.
+     * environment variable specifying the native kafka image repository.
      */
     public static final String KAFKA_IMAGE_REPO = "KAFKA_IMAGE_REPO";
+    /**
+     * environment variable specifying the apache kafka image repository.
+     */
+    public static final String APACHE_KAFKA_IMAGE_REPO = "APACHE_KAFKA_IMAGE_REPO";
     /**
      * environment variable specifying the kafka image repository.
      */
@@ -111,7 +115,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     @Deprecated(since = "0.12.0")
     private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
-    private static final String APACHE_KAFKA_JAVA_IMAGE_REPO = "docker.io/apache/kafka";
+    private static final String APACHE_KAFKA_JAVA_IMAGE_REPO = "mirror.gcr.io/apache/kafka";
     @Deprecated(since = "0.12.0")
     private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
@@ -194,8 +198,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             this.zookeeper = null;
         }
         else {
-            zookeeperImage = resolveImage(TestcontainersKafkaCluster::zookeeperRegistryResolver, () -> Optional.ofNullable(System.getenv().get(ZOOKEEPER_IMAGE_TAG))
-                    .orElse(Version.LATEST_RELEASE));
+            zookeeperImage = resolveImage(TestcontainersKafkaCluster::zookeeperRegistryResolver, () -> envVarValueOrElse(ZOOKEEPER_IMAGE_TAG, Version.LATEST_RELEASE));
             this.zookeeper = new ZookeeperContainer(zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
@@ -356,12 +359,20 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private static @NonNull DockerImageName kafkaRegistryResolver(KafkaClusterConfig clusterConfig) {
-        String defaultRepo = clusterConfig.isKafkaVersion41OrHigher() ? APACHE_KAFKA_JAVA_IMAGE_REPO : QUAY_KAFKA_IMAGE_REPO;
-        return DockerImageName.parse(Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_REPO)).orElse(defaultRepo));
+        if (clusterConfig.isKafkaVersion41OrHigher()) {
+            return DockerImageName.parse(envVarValueOrElse(APACHE_KAFKA_IMAGE_REPO, APACHE_KAFKA_JAVA_IMAGE_REPO));
+        }
+        else {
+            return DockerImageName.parse(envVarValueOrElse(KAFKA_IMAGE_REPO, QUAY_KAFKA_IMAGE_REPO));
+        }
+    }
+
+    private static String envVarValueOrElse(String envVarName, String defaultValue) {
+        return Optional.ofNullable(System.getenv().get(envVarName)).orElse(defaultValue);
     }
 
     private static @NonNull Supplier<String> kafkaTagResolver(KafkaClusterConfig clusterConfig) {
-        return () -> Optional.ofNullable(System.getenv().get(KAFKA_IMAGE_TAG)).orElse(defaultKafkaVersion(clusterConfig));
+        return () -> envVarValueOrElse(KAFKA_IMAGE_TAG, defaultKafkaVersion(clusterConfig));
     }
 
     private static @NonNull String defaultKafkaVersion(KafkaClusterConfig clusterConfig) {
@@ -379,7 +390,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private static @NonNull DockerImageName zookeeperRegistryResolver() {
-        return DockerImageName.parse(Optional.ofNullable(System.getenv().get(ZOOKEEPER_IMAGE_REPO)).orElse(QUAY_ZOOKEEPER_IMAGE_REPO));
+        return DockerImageName.parse(envVarValueOrElse(ZOOKEEPER_IMAGE_REPO, QUAY_ZOOKEEPER_IMAGE_REPO));
     }
 
     /**

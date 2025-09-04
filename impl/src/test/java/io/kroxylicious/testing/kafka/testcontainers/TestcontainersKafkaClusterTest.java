@@ -23,6 +23,7 @@ import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junitpioneer.jupiter.ClearEnvironmentVariable;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.RemoteDockerImage;
@@ -35,6 +36,10 @@ import io.kroxylicious.testing.kafka.common.Version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.KAFKA_IMAGE_REPO)
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.APACHE_KAFKA_IMAGE_REPO)
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_REPO)
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_TAG)
 class TestcontainersKafkaClusterTest {
 
     private KafkaClusterConfig.KafkaClusterConfigBuilder clusterConfigBuilder;
@@ -60,9 +65,10 @@ class TestcontainersKafkaClusterTest {
     }
 
     @SetEnvironmentVariable(key = TestcontainersKafkaCluster.KAFKA_IMAGE_REPO, value = "docker.io/example/kafka-native")
-    @Test
-    void shouldAllowEnvVarToControlKafkaContainerRepository() {
-        KafkaClusterConfig config = clusterConfigBuilder.build();
+    @ParameterizedTest
+    @MethodSource("fixedVersionsPre41")
+    void shouldAllowEnvVarToControlNativeKafkaContainerRepositoryPre41(Version version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
 
             // When
@@ -159,8 +165,27 @@ class TestcontainersKafkaClusterTest {
             // Then
             assertThat(kafkaImage)
                     .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.getRegistry()).isEqualTo("docker.io");
+                        assertThat(pullPolicyForImage.getRegistry()).isEqualTo("mirror.gcr.io");
                         assertThat(pullPolicyForImage.getRepository()).isEqualTo("apache/kafka");
+                    });
+        }
+    }
+
+    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.APACHE_KAFKA_IMAGE_REPO, value = "docker.io/example/kafka")
+    @ParameterizedTest
+    @MethodSource("fixedVersionsPost41")
+    void post41VersionsShouldUseApacheKafkaNativeImagesWithRepoOverride(Version version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).build();
+        try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
+
+            // When
+            final DockerImageName kafkaImage = testcontainersKafkaCluster.getKafkaImage();
+
+            // Then
+            assertThat(kafkaImage)
+                    .isNotNull().satisfies(pullPolicyForImage -> {
+                        assertThat(pullPolicyForImage.getRegistry()).isEqualTo("docker.io");
+                        assertThat(pullPolicyForImage.getRepository()).isEqualTo("example/kafka");
                     });
         }
     }
