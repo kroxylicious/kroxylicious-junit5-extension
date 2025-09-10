@@ -8,7 +8,7 @@ At a high level, the process is as follows:
 
 1. The developer prepares the release blog post.
 1. The developer adds their private key/passphrase as repository secrets
-1. The workflow `stage_release` tags, builds/signs the release, and stages the release on a Nexus staging repository. This process uses the GitHub machine account [kroxylicious-robot](https://github.com/kroxylicious-robot) and a user token owned by Sonatype account `kroxylicious` account.
+1. The workflow `stage_release` tags, builds/signs the release, and stages the release on a Maven Central Portal. This process uses the GitHub machine account [kroxylicious-robot](https://github.com/kroxylicious-robot) and a user token owned by Sonatype account `kroxylicious` account.
 1. The stage release is verified using manual verification steps.
 1. The release is made public.
 1. The developer removes their private key/passphrase from the repository secrets.
@@ -17,6 +17,8 @@ At a high level, the process is as follows:
 
 You must be a member of the Kroxylicious [release-engineers](https://github.com/orgs/kroxylicious/teams/release-engineers) and have access to [create 
 secrets](https://github.com/kroxylicious/kroxylicious-junit5-extension/settings/secrets/actions) within the kroxylicious repository.
+
+You must be [registered](https://central.sonatype.org/register/central-portal/) with Sonatype Central Portal  and your id must be registered as [publisher](https://central.sonatype.com/publishing/io.kroxylicious/users) for the Kroxylicious namespace. To do the latter step, ask someone who is a publisher to [open a support ticket](https://central.sonatype.org/faq/what-happened-to-issues-sonatype-org/#i-used-to-registerupdate-my-ossrh-account-at-issuessonatypeorg-what-do-i-do-now:~:text=To%20add%20a%20new%20publisher%20to%20an%20existing%20namespace%2C).
 
 You will need a GPG key, follow this [guide](https://help.ubuntu.com/community/GnuPrivacyGuardHowto#Generating_an_OpenPGP_Key).
 
@@ -31,7 +33,6 @@ Create-or-update the following repository secrets:
 |-----------------------------------------------|----------------------------------------------------------------------------|
 | `KROXYLICIOUS_RELEASE_PRIVATE_KEY`            | Private key, in armor format, of the project admin conducting the release. |
 | `KROXYLICIOUS_RELEASE_PRIVATE_KEY_PASSPHRASE` | Passphrase used to protect the private key                                 |
-
 
 To export your key run something like
 ```shell
@@ -60,7 +61,7 @@ This will:
 * raise single PR that will contain two commits:
   1. the first will version the artefacts at `release-version`.  A `release-version` tag will point at this commit.
   2. the second will re-open main for development, at the next snapshot.
-* stage a release [Nexus UI](https://s01.oss.sonatype.org/). It'll be named `iokroxylioustesting-nn`.
+* stage a deployment in the [Central Publishing Portal](https://central.sonatype.com/publishing).
 
 If anything goes wrong, follow the steps in [Failed Releases](#failed-releases)
 
@@ -69,13 +70,9 @@ If anything goes wrong, follow the steps in [Failed Releases](#failed-releases)
 You can validate the staged artefacts by using a test application, `T`, use the Maven artefacts.   The kroxylicious main
 project is an obvious choice.
 
-1. Find the staging repository URL by executing.
-   ```shell
-   curl -sS --header 'Accept: application/json' \
-     https://s01.oss.sonatype.org/service/local/all_repositories \
-     | jq '.data[] | select(.name | contains("kroxylicious")) | .contentResourceURI'
-   ```
-   The repository url should include `iokroxylioustesting-nn`. You can also browse to it via the [Nexus UI](https://s01.oss.sonatype.org/).
+1. [Configure Maven](https://central.sonatype.org/publish/publish-portal-api/#manually-testing-a-deployment-bundle) to download staged artefacts from Central Publishing Portal.
+   To do this, you need to [generate a user token](https://central.sonatype.org/publish/publish-portal-api/#authentication-authorization) for your Sonatype account and then [configure maven]
+   (https://central.sonatype.org/publish/publish-portal-api/#manually-testing-a-deployment-bundle) to use it.
 1. Add a [`<repositories>`](https://maven.apache.org/pom.html#Repositories) that references the staging repository public url to `T`'s POM.
 1. Update `T`'s kroxylicious-junit5-extension dependency to refer to the `<RELEASE_VERSION>`.
 1. Run `T` build/test cycle but use an alternative cache location to be sure artefacts are being fetched.  Check the build output, you'll see the
@@ -85,6 +82,7 @@ MAVEN_OPTS="-Dmaven.repo.local=/tmp/repository" mvn verify
 ```
 If the build passes, proceed to make the release public.
 The local changes made to `T`'s POM can be reverted.
+1. Once you've finished verifying the release, [revoke](https://central.sonatype.com/account) your Sonatype token.
 
 ### Making the release public
 
