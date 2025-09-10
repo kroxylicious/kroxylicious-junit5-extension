@@ -6,6 +6,7 @@
 #
 
 set -e
+set -o pipefail
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 . "${SCRIPT_DIR}/common.sh"
 # Tmp fix - revert the nounset change made by common to match the expectations of this script.
@@ -14,10 +15,9 @@ set +u
 REPOSITORY="origin"
 BRANCH_FROM="main"
 WORK_BRANCH_NAME="release-work-$(openssl rand -hex 12)"
-DRY_RUN="false"
 SKIP_VALIDATION="false"
 RELEASE_NOTES_DIR=${RELEASE_NOTES_DIR:-.releaseNotes}
-while getopts ":v:b:k:r:n:w:dsh" opt; do
+while getopts ":l:v:b:k:r:n:w:s:h" opt; do
   case $opt in
     v) RELEASE_VERSION="${OPTARG}"
     ;;
@@ -29,23 +29,23 @@ while getopts ":v:b:k:r:n:w:dsh" opt; do
     ;;
     k) GPG_KEY="${OPTARG}"
     ;;
-    w) WORK_BRANCH_NAME="${OPTARG}"
+    l) RELCAND_ID_LABEL="${OPTARG}"
     ;;
-    d) DRY_RUN="true"
+    w) WORK_BRANCH_NAME="${OPTARG}"
     ;;
     s) SKIP_VALIDATION="true"
     ;;
     h)
       1>&2 cat << EOF
-usage: $0 -k keyid -v version [-b branch] [-r repository] [-s] [-d] [-h]
+usage: $0 -k keyid -v version -l relcand-label [-b branch] [-r repository] [-s] [-h] [-w workbranch] [-n nextversion]
  -k short key id used to sign the release
  -v version number e.g. 0.3.0
  -b branch to release from (defaults to 'main')
  -n development version e.g. 0.4.0-SNAPSHOT
+ -l Release candidate label to be applied to the PR.
  -r the remote name of the kroxylicious repository (defaults to 'origin')
  -w release work branch
  -s skips validation
- -d dry-run mode
  -h this help message
 EOF
       exit 1
@@ -57,6 +57,11 @@ EOF
 
 done
 
+if [[ -z "${RELCAND_ID_LABEL}" ]]; then
+    echo "No run id label. Please specify -l <run id label>" 1>&2
+    exit 1
+fi
+
 if [[ -z "${GPG_KEY}" ]]; then
     echo "GPG_KEY not set unable to sign the release. Please specify -k <YOUR_GPG_KEY>" 1>&2
     exit 1
@@ -65,6 +70,12 @@ fi
 if [[ -z ${RELEASE_VERSION} ]]; then
   echo "No version specified, aborting"
   exit 1
+fi
+
+if ! command -v gh &> /dev/null
+then
+    echo "gh command could not be found."
+    exit 1
 fi
 
 GREEN='\033[0;32m'
@@ -95,11 +106,11 @@ cleanup() {
     # Note that git branch -D echos the sha of the deleted branch to
     # stdout.  This is great for debugging the release process as it
     # lets the developer restore to the state of the tree.
-    if [[ "${DRY_RUN:-false}" == true && ${TEMPORARY_RELEASE_BRANCH} ]]; then
+    if [[ ${TEMPORARY_RELEASE_BRANCH} ]]; then
         git branch -D "${TEMPORARY_RELEASE_BRANCH}" || true
     fi
 
-    if [[ "${DRY_RUN:-false}" == true && ${PREPARE_DEVELOPMENT_BRANCH} ]]; then
+    if [[ ${PREPARE_DEVELOPMENT_BRANCH} ]]; then
         git branch -D "${PREPARE_DEVELOPMENT_BRANCH}" || true
     fi
 }
@@ -122,17 +133,6 @@ INITIAL_VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.4.0:evaluate 
 TEMPORARY_RELEASE_BRANCH="${WORK_BRANCH_NAME}-rel"
 git checkout -b "${TEMPORARY_RELEASE_BRANCH}" "${REPOSITORY}/${BRANCH_FROM}"
 
-if [[ "${DRY_RUN:-false}" == true ]]; then
-    DEPLOY_DRY_RUN_DIR=$(mktemp -d)
-    #Disable the shell check as the colour codes only work with interpolation.
-    # shellcheck disable=SC2059
-    printf "${BLUE}Dry-run mode:${NC} no remote tags or PRs will be created, artefacts will be deployed to: ${DEPLOY_DRY_RUN_DIR}\n"
-    MVN_DEPLOY_DRYRUN="-DaltDeploymentRepository=ossrh::file:${DEPLOY_DRY_RUN_DIR}"
-    GIT_DRYRUN="--dry-run"
-else
-    MVN_DEPLOY_DRYRUN=""
-fi
-
 if [[ "${SKIP_VALIDATION:-false}" != true ]]; then
     printf "Validating the build is ${GREEN}green${NC}"
     mvn -q clean verify
@@ -153,13 +153,23 @@ git commit --message "Release version ${RELEASE_TAG}" --signoff
 
 git tag -f "${RELEASE_TAG}"
 
-git push "${REPOSITORY}" "${RELEASE_TAG}" ${GIT_DRYRUN:-}
+git push "${REPOSITORY}" "${RELEASE_TAG}"
 
 echo "Deploying release"
 
 # shellcheck disable=SC2086
 # Quoting leads to an extra space which causes maven to barf!
-mvn -q deploy -Prelease -DskipTests=true -DreleaseSigningKey="${GPG_KEY}" ${MVN_DEPLOY_DRYRUN:-}
+MVN_DEPLOY_OUTPUT=$(mktemp)
+mvn -Prelease -DskipTests=true -DreleaseSigningKey="${GPG_KEY}" -DprocessAllModules=true deploy | tee ${MVN_DEPLOY_OUTPUT}
+DEPLOYMENT_ID=$(awk -F'[ .]' '/Uploaded bundle successfully/ {print $9}' < ${MVN_DEPLOY_OUTPUT})
+
+if [[ -z "${DEPLOYMENT_ID}" ]]; then
+     echo "Failed to find Central Publishing Portal deployment id in Maven deploy output" 1>&2
+     exit 1
+fi
+
+echo "Found Central Publishing Portal deployment id: ${DEPLOYMENT_ID}"
+echo "${DEPLOYMENT_ID}" > DEPLOYMENT.ID
 
 echo "Release deployed. Extracting release notes in: ${RELEASE_NOTES_DIR}"
 mkdir -p "${RELEASE_NOTES_DIR}"
@@ -175,16 +185,6 @@ replaceInFile "s_##\s${RELEASE_VERSION//./\\.}_## SNAPSHOT\n## ${RELEASE_VERSION
 
 git commit --message "Start next development version" --signoff
 
-if [[ "${DRY_RUN:-false}" == true ]]; then
-    exit 0
-fi
-
-if ! command -v gh &> /dev/null
-then
-    echo "gh command could not be found. Please create a pull request by hand https://github.com/kroxylicious/kroxylicious/compare"
-    exit
-fi
-
 ORIGINAL_GH_DEFAULT_REPO=$(gh repo set-default -v | (grep -v 'no default repository' || true))
 gh repo set-default "$(git remote get-url "${REPOSITORY}")"
 
@@ -192,8 +192,9 @@ gh repo set-default "$(git remote get-url "${REPOSITORY}")"
 # it is created as a draft, the deploy_release workflow will publish it.
 echo "Creating draft release notes."
 # csplit will create a file for every version as we use ## to denote versions. We also use # CHANGELOG as a header so the current release is actually in the 01 file (zero based)
-gh release create --title "${RELEASE_TAG}" --notes-file "${RELEASE_NOTES_DIR}/release-notes_01" --draft "${RELEASE_TAG}"
-
+gh release create --title "${RELEASE_TAG}" \
+  --notes-file "${RELEASE_NOTES_DIR}/release-notes_01" \
+  --draft "${RELEASE_TAG}"
 
 BODY="Release version ${RELEASE_VERSION}"
 
@@ -201,4 +202,9 @@ BODY="Release version ${RELEASE_VERSION}"
 git push "${REPOSITORY}" HEAD
 
 echo "Creating pull request to merge the released version."
-gh pr create --head "${PREPARE_DEVELOPMENT_BRANCH}" --base "${BRANCH_FROM}" --title "Kroxylicious junit extension development version ${RELEASE_VERSION}" --body "${BODY}" --repo "$(gh repo set-default -v)"
+gh pr create --head "${PREPARE_DEVELOPMENT_BRANCH}" \
+             --base "${BRANCH_FROM}" \
+             --title "Kroxylicious junit extension development version ${RELEASE_VERSION}" \
+             --body "${BODY}" \
+             --repo "$(gh repo set-default -v)" \
+             --label "${RELCAND_ID_LABEL}"
