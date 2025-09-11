@@ -85,13 +85,16 @@ import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCoun
  */
 public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaListenerSource, AdminSource {
 
-    public static final String ZOOKEEPER_IMAGE_TAG = "ZOOKEEPER_IMAGE_TAG";
-    public static final String ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
+    @Deprecated(since = "0.12.0")
+    public static final String LEGACY_ZOOKEEPER_IMAGE_TAG = "ZOOKEEPER_IMAGE_TAG";
+    @Deprecated(since = "0.12.0")
+    public static final String LEGACY_ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
     /**
-     * environment variable specifying the native kafka image repository.
+     * environment variable specifying the ogunalp native kafka image repository.
      */
-    public static final String KAFKA_IMAGE_REPO = "KAFKA_IMAGE_REPO";
+    @Deprecated(since = "0.12.0")
+    public static final String LEGACY_KAFKA_IMAGE_REPO = "KAFKA_IMAGE_REPO";
     /**
      * environment variable specifying the apache kafka image repository.
      */
@@ -114,10 +117,10 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int ZOOKEEPER_PORT = 2181;
 
     @Deprecated(since = "0.12.0")
-    private static final String QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
+    private static final String LEGACY_QUAY_KAFKA_IMAGE_REPO = "quay.io/ogunalp/kafka-native";
     private static final String APACHE_KAFKA_JAVA_IMAGE_REPO = "mirror.gcr.io/apache/kafka";
     @Deprecated(since = "0.12.0")
-    private static final String QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
+    private static final String LEGACY_QUAY_ZOOKEEPER_IMAGE_REPO = "quay.io/ogunalp/zookeeper-native";
     private static final int CONTAINER_STARTUP_ATTEMPTS = 3;
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration RESTART_BACKOFF_DELAY = Duration.ofMillis(2500);
@@ -133,7 +136,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
 
     // This uid needs to match the uid used by the ozangunalp native kafka container to execute the kafka process
     @Deprecated(since = "0.12.0")
-    private static final String KAFKA_CONTAINER_UID = "1001";
+    private static final String LEGACY_KAFKA_CONTAINER_UID = "1001";
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";
     private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\d+(\\.\\d+(\\.\\d+)?)?");
@@ -198,7 +201,8 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             this.zookeeper = null;
         }
         else {
-            zookeeperImage = resolveImage(TestcontainersKafkaCluster::zookeeperRegistryResolver, () -> envVarValueOrElse(ZOOKEEPER_IMAGE_TAG, Version.LATEST_RELEASE));
+            zookeeperImage = resolveImage(TestcontainersKafkaCluster::zookeeperRegistryResolver,
+                    () -> envVarValueOrElse(LEGACY_ZOOKEEPER_IMAGE_TAG, Version.LATEST_RELEASE));
             this.zookeeper = new ZookeeperContainer(zookeeperImage)
                     .withName(name)
                     .withNetwork(network)
@@ -363,7 +367,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             return DockerImageName.parse(envVarValueOrElse(APACHE_KAFKA_IMAGE_REPO, APACHE_KAFKA_JAVA_IMAGE_REPO));
         }
         else {
-            return DockerImageName.parse(envVarValueOrElse(KAFKA_IMAGE_REPO, QUAY_KAFKA_IMAGE_REPO));
+            return DockerImageName.parse(envVarValueOrElse(LEGACY_KAFKA_IMAGE_REPO, LEGACY_QUAY_KAFKA_IMAGE_REPO));
         }
     }
 
@@ -390,7 +394,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     }
 
     private static @NonNull DockerImageName zookeeperRegistryResolver() {
-        return DockerImageName.parse(envVarValueOrElse(ZOOKEEPER_IMAGE_REPO, QUAY_ZOOKEEPER_IMAGE_REPO));
+        return DockerImageName.parse(envVarValueOrElse(LEGACY_ZOOKEEPER_IMAGE_REPO, LEGACY_QUAY_ZOOKEEPER_IMAGE_REPO));
     }
 
     /**
@@ -727,7 +731,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     @SuppressWarnings({ "try" })
     private static String createNamedVolume(KafkaClusterConfig clusterConfig) {
         try (DockerClient dockerClient = createDockerClient(); var volumeCmd = dockerClient.createVolumeCmd();) {
-            String containerUid = clusterConfig.isKafkaVersion41OrHigher() ? APACHE_CONTAINER_UID : KAFKA_CONTAINER_UID;
+            String containerUid = clusterConfig.isKafkaVersion41OrHigher() ? APACHE_CONTAINER_UID : LEGACY_KAFKA_CONTAINER_UID;
             if (CONTAINER_ENGINE_PODMAN) {
                 volumeCmd.withDriverOpts(Map.of("o", "uid=" + containerUid));
             }
