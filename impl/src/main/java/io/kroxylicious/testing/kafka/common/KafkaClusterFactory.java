@@ -32,10 +32,10 @@ public class KafkaClusterFactory {
      * @deprecated use the field from {@link TestcontainersKafkaCluster}
      */
     @Deprecated(forRemoval = true)
-    public static final String KAFKA_IMAGE_REPO = TestcontainersKafkaCluster.KAFKA_IMAGE_REPO;
+    public static final String KAFKA_IMAGE_REPO = TestcontainersKafkaCluster.LEGACY_KAFKA_IMAGE_REPO;
 
     @Deprecated(forRemoval = true)
-    public static final String ZOOKEEPER_IMAGE_REPO = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_REPO;
+    public static final String ZOOKEEPER_IMAGE_REPO = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_REPO;
 
     /**
      * environment variable specifying kraft mode, true or false.

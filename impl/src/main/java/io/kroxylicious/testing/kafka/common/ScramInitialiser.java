@@ -37,7 +37,7 @@ public class ScramInitialiser {
                             .collect(Collectors.toList()))
                             .all().get(5, TimeUnit.SECONDS);
                     List<String> users = clusterConfig.getUsers().keySet().stream().toList();
-                    // there is a delay in availability, if we don't pause here then some tests that immediately try to produce records fail to authenticate
+                    // there is a delay in availability, if we don't poll for consistency here then some tests that immediately try to produce records fail to authenticate
                     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
                         Map<String, UserScramCredentialsDescription> scramDescription = admin.describeUserScramCredentials(users).all()
                                 .get(5, TimeUnit.SECONDS);
@@ -48,6 +48,7 @@ public class ScramInitialiser {
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         }
         catch (Exception e) {
             throw new ScramInitializationException("Failed to initialise scram users", e);

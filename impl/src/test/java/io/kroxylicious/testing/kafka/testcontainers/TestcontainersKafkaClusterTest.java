@@ -36,10 +36,10 @@ import io.kroxylicious.testing.kafka.common.Version;
 import static io.kroxylicious.testing.kafka.common.ConstraintUtils.version;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.KAFKA_IMAGE_REPO)
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_KAFKA_IMAGE_REPO)
 @ClearEnvironmentVariable(key = TestcontainersKafkaCluster.APACHE_KAFKA_IMAGE_REPO)
-@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_REPO)
-@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_TAG)
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_REPO)
+@ClearEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_TAG)
 class TestcontainersKafkaClusterTest {
 
     private KafkaClusterConfig.KafkaClusterConfigBuilder clusterConfigBuilder;
@@ -64,7 +64,7 @@ class TestcontainersKafkaClusterTest {
         }
     }
 
-    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.KAFKA_IMAGE_REPO, value = "docker.io/example/kafka-native")
+    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_KAFKA_IMAGE_REPO, value = "docker.io/example/kafka-native")
     @ParameterizedTest
     @MethodSource("fixedVersionsPre41")
     void shouldAllowEnvVarToControlNativeKafkaContainerRepositoryPre41(Version version) {
@@ -243,7 +243,7 @@ class TestcontainersKafkaClusterTest {
         }
     }
 
-    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_REPO, value = "docker.io/example/native-zookeeper")
+    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_REPO, value = "docker.io/example/native-zookeeper")
     @Test
     void shouldAllowEnvVarToControlZookeeperImage() {
         KafkaClusterConfig config = clusterConfigBuilder.kraftMode(false).build();
@@ -262,7 +262,7 @@ class TestcontainersKafkaClusterTest {
         }
     }
 
-    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.ZOOKEEPER_IMAGE_TAG, value = "latest-zookeeper-3.7.0")
+    @SetEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_TAG, value = "latest-zookeeper-3.7.0")
     @Test
     void shouldAllowEnvVarToControlZookeeperVersion() {
         KafkaClusterConfig config = clusterConfigBuilder.kraftMode(false).build();
