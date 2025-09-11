@@ -14,6 +14,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.assertj.core.api.ObjectAssert;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +24,7 @@ import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.OPTIONAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -62,9 +64,10 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
 
     @Test
     void topicStaticField() throws ExecutionException, InterruptedException {
-        assertThat(staticTopic)
-                .isNotNull()
-                .extracting(Topic::name).isNotNull();
+        ObjectAssert<Topic> topicAssert = assertThat(staticTopic)
+                .isNotNull();
+        topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
     }
 
     @Test

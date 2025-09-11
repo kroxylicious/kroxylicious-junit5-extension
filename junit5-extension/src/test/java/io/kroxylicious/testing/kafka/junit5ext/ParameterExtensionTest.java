@@ -23,10 +23,13 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.Node;
+import org.apache.kafka.common.TopicCollection;
 import org.apache.kafka.common.TopicPartitionInfo;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.assertj.core.api.InstanceOfAssertFactories;
+import org.assertj.core.api.ObjectAssert;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
@@ -51,6 +54,7 @@ import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_COMPACT;
 import static org.apache.kafka.common.config.TopicConfig.CLEANUP_POLICY_CONFIG;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.OPTIONAL;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.assertj.core.api.InstanceOfAssertFactories.collection;
 import static org.assertj.core.api.InstanceOfAssertFactories.list;
@@ -292,12 +296,19 @@ class ParameterExtensionTest extends AbstractExtensionTest {
                Admin admin)
             throws Exception {
 
-        assertThat(topic).isNotNull().extracting(Topic::name).isNotNull();
+        ObjectAssert<Topic> topicAssert = assertThat(topic).isNotNull();
+        topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
 
         var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
         assertThat(result)
                 .describedAs("expected topic to exist on the cluster")
                 .containsKey(topic.name());
+        Uuid topicId = topic.topicId().orElseThrow();
+        var result2 = admin.describeTopics(TopicCollection.ofTopicIds(List.of(topicId))).allTopicIds().get(5, TimeUnit.SECONDS);
+        assertThat(result2)
+                .describedAs("expected topic with id to exist on the cluster")
+                .containsKey(topicId);
     }
 
     @Test

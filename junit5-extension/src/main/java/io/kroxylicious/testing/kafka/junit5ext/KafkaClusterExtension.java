@@ -34,11 +34,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.common.Uuid;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.ByteBufferDeserializer;
@@ -173,6 +175,17 @@ public class KafkaClusterExtension implements
      * Instantiates a new Kafka cluster extension.
      */
     public KafkaClusterExtension() {
+    }
+
+    private record KafkaTopic(@NonNull String name, @Nullable Uuid id) implements Topic {
+        private KafkaTopic {
+            Objects.requireNonNull(name);
+        }
+
+        @Override
+        public @NonNull Optional<Uuid> topicId() {
+            return Optional.ofNullable(id);
+        }
     }
 
     @Override
@@ -1023,15 +1036,15 @@ public class KafkaClusterExtension implements
                 var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
                 var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);
                 var topicDef = new NewTopic(topicName, numPartitions, replicationFactor).configs(buildTopicConfig(sourceElement));
-                var createFuture = admin.createTopics(List.of(topicDef)).all();
+                CreateTopicsResult topicsResult = admin.createTopics(List.of(topicDef));
+                var createFuture = topicsResult.all();
 
-                Awaitility.await()
+                var topicMap = Awaitility.await()
                         .failFast(createFuture::isCompletedExceptionally)
                         .atMost(Duration.ofSeconds(5))
                         .until(() -> admin.listTopics().namesToListings().get(),
                                 n -> n.containsKey(topicName));
-
-                return () -> topicName;
+                return new KafkaTopic(topicName, topicMap.get(topicName).topicId());
             }
         }
         else {

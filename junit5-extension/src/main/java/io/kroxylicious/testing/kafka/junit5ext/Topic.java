@@ -5,6 +5,10 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
+import java.util.Optional;
+
+import org.apache.kafka.common.Uuid;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -15,4 +19,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface Topic {
     @NonNull
     String name();
+
+    /**
+     * @return the topic id of the created topic, will be non-empty for kafka versions >=2.8
+     */
+    @NonNull
+    Optional<Uuid> topicId();
 }
