@@ -321,7 +321,7 @@ public class KafkaClusterExtension implements
             }
 
             // TODO check that annotation is meta-annotated
-            source = ReflectionUtils.makeAccessible(sourceMethod).invoke(null);
+            source = makeAccessible(sourceMethod).invoke(null);
         }
         catch (ReflectiveOperationException e) {
             throw new ParameterResolutionException("Error invoking method " + methodSource.value() + " given in @" + DimensionMethodSource.class.getSimpleName() +
@@ -400,7 +400,7 @@ public class KafkaClusterExtension implements
     @NonNull
     private static Method getTargetMethod(Class<?> clazz, Class<?> methodClazz, String methodName) throws NoSuchMethodException {
         Class<?> target = methodClazz == null || methodClazz == Void.class ? clazz : methodClazz;
-        return ReflectionUtils.makeAccessible(target.getDeclaredMethod(methodName));
+        return makeAccessible(target.getDeclaredMethod(methodName));
     }
 
     @SuppressWarnings("unchecked")
@@ -1032,7 +1032,10 @@ public class KafkaClusterExtension implements
 
         if (cluster instanceof AdminSource adminSource) {
             try (var admin = adminSource.createAdmin()) {
-                var topicName = MobyNamesGenerator.getRandomName();
+                var namingStrategy = Optional.ofNullable(sourceElement.getAnnotation(TopicNamingStrategy.class))
+                        .map(TopicNamingStrategy::value)
+                        .orElse(NamingStrategy.RANDOM_ADJECTIVE_UNDERSCORE_NOUN);
+                var topicName = generateName(namingStrategy);
                 var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
                 var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);
                 var topicDef = new NewTopic(topicName, numPartitions, replicationFactor).configs(buildTopicConfig(sourceElement));
@@ -1050,6 +1053,13 @@ public class KafkaClusterExtension implements
         else {
             throw new UnsupportedOperationException("Kafka cluster " + cluster.getClass() + " does not support producing an anonymous admin client.");
         }
+    }
+
+    private static String generateName(NamingStrategy namingStrategy) {
+        return switch (namingStrategy) {
+            case RANDOM_ADJECTIVE_UNDERSCORE_NOUN -> MobyNamesGenerator.getRandomName();
+            case RANDOM_ADJECTIVE_HYPHEN_NOUN -> MobyNamesGenerator.getRandomName().replace("_", "-");
+        };
     }
 
     private static Map<String, Object> buildConfig(AnnotatedElement sourceElement, KafkaCluster cluster) {

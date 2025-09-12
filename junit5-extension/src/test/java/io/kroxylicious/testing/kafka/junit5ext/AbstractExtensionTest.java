@@ -23,6 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
 public abstract class AbstractExtensionTest {
+
+    public static final String RANDOM_ADJECTIVE_UNDERSCORE_NOUN_PATTERN = "^[a-z]+_[a-z]+$";
+    public static final String RANDOM_ADJECTIVE_HYPHEN_NOUN_PATTERN = "^[a-z]+-[a-z]+$";
+
     public static boolean zookeeperAvailable() {
         try {
             Class.forName("kafka.server.KafkaServer");

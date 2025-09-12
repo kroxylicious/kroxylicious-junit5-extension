@@ -25,6 +25,7 @@ import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.OPTIONAL;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -43,6 +44,9 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     Admin injectedAdmin;
 
     Topic injectedTopic;
+
+    @TopicNamingStrategy(NamingStrategy.RANDOM_ADJECTIVE_HYPHEN_NOUN)
+    Topic injectedTopic2;
 
     private Admin privateField;
 
@@ -82,7 +86,15 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     void shouldInjectTopicField() {
         ObjectAssert<Topic> topicAssert = assertThat(injectedTopic)
                 .isNotNull();
-        topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_UNDERSCORE_NOUN_PATTERN);
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void shouldInjectTopicFieldWithNamingStrategy() {
+        ObjectAssert<Topic> topicAssert = assertThat(injectedTopic2)
+                .isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_HYPHEN_NOUN_PATTERN);
         topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
     }
 

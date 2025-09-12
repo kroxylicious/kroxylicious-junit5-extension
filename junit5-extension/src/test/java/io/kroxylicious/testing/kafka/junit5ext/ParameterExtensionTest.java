@@ -297,7 +297,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
             throws Exception {
 
         ObjectAssert<Topic> topicAssert = assertThat(topic).isNotNull();
-        topicAssert.extracting(Topic::name).isNotNull();
+        assertThat(topic).isNotNull().extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_UNDERSCORE_NOUN_PATTERN);
         topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
 
         var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
@@ -322,6 +322,18 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         var topicConfig = all.get(resourceKey);
         assertThat(topicConfig).isNotNull();
         assertConfigValue(topicConfig, CLEANUP_POLICY_CONFIG, CLEANUP_POLICY_COMPACT);
+    }
+
+    @Test
+    void topicNamingStrategyRandomAdjectiveHyphenNoun(KafkaCluster cluster,
+                                                      @TopicNamingStrategy(NamingStrategy.RANDOM_ADJECTIVE_HYPHEN_NOUN) Topic topic) {
+        assertThat(topic).isNotNull().extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_HYPHEN_NOUN_PATTERN);
+    }
+
+    @Test
+    void topicNamingStrategyRandomAdjectiveUnderscoreNoun(KafkaCluster cluster,
+                                                          @TopicNamingStrategy(NamingStrategy.RANDOM_ADJECTIVE_UNDERSCORE_NOUN) Topic topic) {
+        assertThat(topic).isNotNull().extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_UNDERSCORE_NOUN_PATTERN);
     }
 
     @Test

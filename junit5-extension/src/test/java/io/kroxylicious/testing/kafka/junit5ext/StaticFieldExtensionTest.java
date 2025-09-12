@@ -25,6 +25,7 @@ import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.OPTIONAL;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
@@ -42,6 +43,9 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
     static AdminClient staticAdminClient;
 
     static Topic staticTopic;
+
+    @TopicNamingStrategy(NamingStrategy.RANDOM_ADJECTIVE_HYPHEN_NOUN)
+    static Topic staticTopicWithNaming;
 
     @Test
     void testKafkaClusterStaticField()
@@ -63,10 +67,18 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void topicStaticField() throws ExecutionException, InterruptedException {
+    void topicStaticField() {
         ObjectAssert<Topic> topicAssert = assertThat(staticTopic)
                 .isNotNull();
-        topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_UNDERSCORE_NOUN_PATTERN);
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void topicStaticFieldWithNamingStrategy() {
+        ObjectAssert<Topic> topicAssert = assertThat(staticTopicWithNaming)
+                .isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().matches(RANDOM_ADJECTIVE_HYPHEN_NOUN_PATTERN);
         topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
     }
 
