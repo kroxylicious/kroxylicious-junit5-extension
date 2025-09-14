@@ -13,7 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Signals the wish for a topic to be created and injected into a test as either test parameter
- * or field.
+ * or field. To customize the naming of the topic, parameters and fields of this type should be
+ * annotated with {@link TopicNameMethodSource}.
  * {@see KafkaClusterExtension}
  */
 public interface Topic {

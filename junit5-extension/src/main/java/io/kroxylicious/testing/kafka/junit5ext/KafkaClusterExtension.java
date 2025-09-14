@@ -82,6 +82,7 @@ import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.util.ExceptionUtils;
 import org.junit.platform.commons.util.ReflectionUtils;
+import org.testcontainers.shaded.com.google.common.annotations.VisibleForTesting;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -99,6 +100,7 @@ import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
 import static java.lang.System.Logger.Level.TRACE;
+import static org.apache.kafka.common.internals.Topic.validate;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
 import static org.junit.platform.commons.util.ReflectionUtils.makeAccessible;
 
@@ -175,6 +177,55 @@ public class KafkaClusterExtension implements
      * Instantiates a new Kafka cluster extension.
      */
     public KafkaClusterExtension() {
+    }
+
+    @VisibleForTesting
+    sealed interface TopicNaming permits TopicNaming.RandomHumanReadable, TopicNaming.ReflectiveFactoryMethod {
+        String name();
+
+        record RandomHumanReadable() implements TopicNaming {
+            @Override
+            public String name() {
+                return MobyNamesGenerator.getRandomName();
+            }
+        }
+
+        record ReflectiveFactoryMethod(ExtensionContext context, Class<?> methodClass, String method) implements TopicNaming {
+            public ReflectiveFactoryMethod {
+                Objects.requireNonNull(context, "context must not be null");
+                Objects.requireNonNull(methodClass, "methodClass must not be null");
+                Objects.requireNonNull(method, "method must not be null");
+            }
+
+            @Override
+            public String name() {
+                try {
+                    Method targetMethod = getTargetMethod(context.getRequiredTestClass(), methodClass, method);
+                    String methodName = targetMethod.toGenericString();
+                    validateMethod(targetMethod, methodName);
+                    Object invoke = targetMethod.invoke(null);
+                    if (invoke == null) {
+                        throw new ParameterResolutionException(
+                                "topic name source method " + methodName + " returned null");
+                    }
+                    return (String) invoke;
+                }
+                catch (ReflectiveOperationException e) {
+                    String className = (methodClass == Void.class ? context.getRequiredTestClass() : methodClass).getName();
+                    throw new ParameterResolutionException("failed to invoke topic source name method " + method + " of " + className, e);
+                }
+            }
+
+            private void validateMethod(Method targetMethod, String methodName) {
+                if (targetMethod.getReturnType() != String.class) {
+                    throw new ParameterResolutionException(
+                            "topic name source method " + methodName + " must return String");
+                }
+                if (ReflectionUtils.isNotStatic(targetMethod)) {
+                    throw new ParameterResolutionException("topic name source method " + methodName + " is not static.");
+                }
+            }
+        }
     }
 
     private record KafkaTopic(@NonNull String name, @Nullable Uuid id) implements Topic {
@@ -1032,7 +1083,7 @@ public class KafkaClusterExtension implements
 
         if (cluster instanceof AdminSource adminSource) {
             try (var admin = adminSource.createAdmin()) {
-                var topicName = MobyNamesGenerator.getRandomName();
+                var topicName = getTopicName(sourceElement, extensionContext);
                 var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
                 var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);
                 var topicDef = new NewTopic(topicName, numPartitions, replicationFactor).configs(buildTopicConfig(sourceElement));
@@ -1050,6 +1101,15 @@ public class KafkaClusterExtension implements
         else {
             throw new UnsupportedOperationException("Kafka cluster " + cluster.getClass() + " does not support producing an anonymous admin client.");
         }
+    }
+
+    private static String getTopicName(AnnotatedElement sourceElement, ExtensionContext extensionContext) {
+        TopicNaming naming = Optional.ofNullable(sourceElement.getAnnotation(TopicNameMethodSource.class))
+                .<TopicNaming> map(a -> new TopicNaming.ReflectiveFactoryMethod(extensionContext, a.clazz(), a.value()))
+                .orElse(new TopicNaming.RandomHumanReadable());
+        String name = naming.name();
+        validate(name);
+        return name;
     }
 
     private static Map<String, Object> buildConfig(AnnotatedElement sourceElement, KafkaCluster cluster) {

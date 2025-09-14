@@ -25,12 +25,15 @@ import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.OPTIONAL;
+import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 @ExtendWith(KafkaClusterExtension.class)
 class StaticFieldExtensionTest extends AbstractExtensionTest {
 
+    public static final String FIXED_TOPIC_NAME = "fixed";
+    public static final String CUSTOM_TOPIC_NAME = "customTopic";
     @Order(1)
     @BrokerCluster(numBrokers = 1)
     static KafkaCluster staticCluster;
@@ -42,6 +45,25 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
     static AdminClient staticAdminClient;
 
     static Topic staticTopic;
+
+    @TopicNameMethodSource
+    static Topic customNamedTopic;
+
+    @SuppressWarnings("unused") // used via @TopicNameMethodSource
+    static String topicName() {
+        return FIXED_TOPIC_NAME;
+    }
+
+    @TopicNameMethodSource("customTopicName")
+    static Topic customNamedTopicByNamedInstanceMethod;
+
+    @TopicNameMethodSource(clazz = AbstractExtensionTest.class, value = "anotherCustomTopicName")
+    static Topic customNamedTopicFromAnotherClass;
+
+    @SuppressWarnings("unused") // used via @TopicNameMethodSource
+    static String customTopicName() {
+        return CUSTOM_TOPIC_NAME;
+    }
 
     @Test
     void testKafkaClusterStaticField()
@@ -63,10 +85,34 @@ class StaticFieldExtensionTest extends AbstractExtensionTest {
     }
 
     @Test
-    void topicStaticField() throws ExecutionException, InterruptedException {
+    void topicStaticField() {
         ObjectAssert<Topic> topicAssert = assertThat(staticTopic)
                 .isNotNull();
         topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void topicStaticFieldWithCustomName() {
+        ObjectAssert<Topic> topicAssert = assertThat(customNamedTopic)
+                .isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().isEqualTo(FIXED_TOPIC_NAME);
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void topicCustomNamedTopicByNamedMethod() {
+        ObjectAssert<Topic> topicAssert = assertThat(customNamedTopicByNamedInstanceMethod)
+                .isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().isEqualTo(CUSTOM_TOPIC_NAME);
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void topicCustomNamedTopicFromAnotherClass() {
+        ObjectAssert<Topic> topicAssert = assertThat(customNamedTopicFromAnotherClass)
+                .isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().isEqualTo(ANOTHER_FIXED_TOPIC_NAME);
         topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
     }
 

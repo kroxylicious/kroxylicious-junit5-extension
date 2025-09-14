@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.STRING;
 
 public abstract class AbstractExtensionTest {
+    public static final String ANOTHER_FIXED_TOPIC_NAME = "superTopic";
+
     public static boolean zookeeperAvailable() {
         try {
             Class.forName("kafka.server.KafkaServer");
@@ -63,5 +65,10 @@ public abstract class AbstractExtensionTest {
 
     protected <K, V> void doProducer(Producer<K, V> producer, K key, V value) throws ExecutionException, InterruptedException {
         producer.send(new ProducerRecord<>("my-topic", key, value)).get();
+    }
+
+    @SuppressWarnings("unused") // used via @TopicNameMethodSource
+    static String anotherCustomTopicName() {
+        return ANOTHER_FIXED_TOPIC_NAME;
     }
 }
