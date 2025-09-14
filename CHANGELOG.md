@@ -4,6 +4,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## SNAPSHOT
 
+* [#519](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/519): Enable Users to customize automatically created Topic names
 * [#474](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#474): Remove deprecated @SaslPlainAuth annotation
 * [#501](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/501): Upgrade to Kafka 4.1.0
 
@@ -16,6 +17,11 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
   the old images will be uses. If you target a kafka version greater-than-or-equal-to 4.1.0, then an 
   apache image will be used. Images will be pulled from `mirror.gcr.io/apache/kafka`, this value can
   be overridden by setting the `APACHE_KAFKA_IMAGE_REPO` environment variable.
+* Introduces the `@TopicNameMethodSource` annotation. If users need to control the naming of automatically
+  created topics, then they can annotate their Topic parameter or field with a reference to a static no-args
+  method that returns String. This method will be invoked by the extension to obtain the name for the topic.
+  This allows you to precisely control the characters used and length of the name, or add a prefix to the topic
+  names for a test.
 
 ## 0.11.0
 

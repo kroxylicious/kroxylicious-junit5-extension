@@ -31,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 @ExtendWith(KafkaClusterExtension.class)
 class InstanceFieldExtensionTest extends AbstractExtensionTest {
 
+    public static final String FIXED_TOPIC_NAME = "fixed";
+    public static final String CUSTOM_TOPIC_NAME = "customTopic";
     @BrokerCluster(numBrokers = 1)
     KafkaCluster instanceCluster;
 
@@ -43,6 +45,22 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
     Admin injectedAdmin;
 
     Topic injectedTopic;
+
+    @SuppressWarnings("unused") // used via @TopicNameMethodSource
+    static String topicName() {
+        return FIXED_TOPIC_NAME;
+    }
+
+    @TopicNameMethodSource
+    Topic topicWithCustomName;
+
+    @SuppressWarnings("unused") // used via @TopicNameMethodSource
+    String customTopicName() {
+        return CUSTOM_TOPIC_NAME;
+    }
+
+    @TopicNameMethodSource(clazz = AbstractExtensionTest.class, value = "anotherCustomTopicName")
+    Topic topicWithCustomNameFromOtherClass;
 
     private Admin privateField;
 
@@ -83,6 +101,20 @@ class InstanceFieldExtensionTest extends AbstractExtensionTest {
         ObjectAssert<Topic> topicAssert = assertThat(injectedTopic)
                 .isNotNull();
         topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void shouldInjectTopicFieldWithCustomName() {
+        ObjectAssert<Topic> topicAssert = assertThat(topicWithCustomName)
+                .isNotNull();
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+    }
+
+    @Test
+    void shouldInjectTopicFieldWithCustomNameFromOtherClass() {
+        ObjectAssert<Topic> topicAssert = assertThat(topicWithCustomNameFromOtherClass)
+                .isNotNull();
         topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
     }
 

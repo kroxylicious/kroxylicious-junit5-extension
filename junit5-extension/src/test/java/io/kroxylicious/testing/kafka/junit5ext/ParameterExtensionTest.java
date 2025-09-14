@@ -67,6 +67,8 @@ class ParameterExtensionTest extends AbstractExtensionTest {
     private static final String CONSUMER_GROUP = "mygroup";
     private static final String TRANSACTIONAL_ID = "mytxn1";
     private static final String CLIENT_ID = "myclientid";
+    public static final String FIXED_TOPIC_NAME = "fixed";
+    public static final String CUSTOM_TOPIC_NAME = "customTopicName";
 
     @Test
     void clusterParameter(@BrokerCluster(numBrokers = 2) KafkaCluster cluster) throws Exception {
@@ -298,6 +300,53 @@ class ParameterExtensionTest extends AbstractExtensionTest {
 
         ObjectAssert<Topic> topicAssert = assertThat(topic).isNotNull();
         topicAssert.extracting(Topic::name).isNotNull();
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+        Uuid topicId = topic.topicId().orElseThrow();
+        var result2 = admin.describeTopics(TopicCollection.ofTopicIds(List.of(topicId))).allTopicIds().get(5, TimeUnit.SECONDS);
+        assertThat(result2)
+                .describedAs("expected topic with id to exist on the cluster")
+                .containsKey(topicId);
+    }
+
+    @SuppressWarnings("unused") // used via @TopicNameMethodSource
+    static String topicName() {
+        return FIXED_TOPIC_NAME;
+    }
+
+    @Test
+    void topicNamingSource(KafkaCluster cluster,
+                           @TopicNameMethodSource Topic topic,
+                           Admin admin)
+            throws Exception {
+
+        ObjectAssert<Topic> topicAssert = assertThat(topic).isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().isEqualTo(FIXED_TOPIC_NAME);
+        topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
+
+        var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
+        assertThat(result)
+                .describedAs("expected topic to exist on the cluster")
+                .containsKey(topic.name());
+        Uuid topicId = topic.topicId().orElseThrow();
+        var result2 = admin.describeTopics(TopicCollection.ofTopicIds(List.of(topicId))).allTopicIds().get(5, TimeUnit.SECONDS);
+        assertThat(result2)
+                .describedAs("expected topic with id to exist on the cluster")
+                .containsKey(topicId);
+    }
+
+    @Test
+    void topicNamingSourceCustomMethodOnAnotherClass(KafkaCluster cluster,
+                                                     @TopicNameMethodSource(clazz = AbstractExtensionTest.class, value = "anotherCustomTopicName") Topic topic,
+                                                     Admin admin)
+            throws Exception {
+
+        ObjectAssert<Topic> topicAssert = assertThat(topic).isNotNull();
+        topicAssert.extracting(Topic::name, STRING).isNotNull().isEqualTo(ANOTHER_FIXED_TOPIC_NAME);
         topicAssert.extracting(Topic::topicId, OPTIONAL).isNotNull().isNotEmpty();
 
         var result = admin.describeTopics(List.of(topic.name())).allTopicNames().get(5, TimeUnit.SECONDS);
