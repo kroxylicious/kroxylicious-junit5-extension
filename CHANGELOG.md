@@ -2,7 +2,7 @@
 
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
-## SNAPSHOT
+## 0.12.0
 
 * [#519](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/519): Enable Users to customize automatically created Topic names
 * [#474](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/#474): Remove deprecated @SaslPlainAuth annotation
