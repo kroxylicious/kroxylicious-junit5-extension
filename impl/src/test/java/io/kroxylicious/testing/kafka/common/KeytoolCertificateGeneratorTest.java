@@ -9,6 +9,7 @@ package io.kroxylicious.testing.kafka.common;
 import java.io.File;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +39,30 @@ class KeytoolCertificateGeneratorTest {
         assertThat(ks.getCertificate(alias)).isNotNull();
         assertThat(ks.getKey(alias, password.toCharArray())).isNotNull();
         assertThat(ks.getType()).isEqualTo(generator.getKeyStoreType());
+    }
+
+    @Test
+    public void generatesKeyStoreWithIPDomain() throws Exception {
+        var generator = new KeytoolCertificateGenerator();
+        generator.generateSelfSignedCertificateEntry("test@kroxylicious.io", "127.0.0.1", "Dev",
+                "Kroxylicious.io", null, null, "US");
+
+        var keystore = generator.getKeyStoreLocation();
+        assertThat(keystore).isNotEmpty();
+        var keystoreFile = new File(keystore);
+        assertThat(keystoreFile).exists();
+        var password = generator.getPassword();
+
+        var ks = KeyStore.getInstance(keystoreFile, password.toCharArray());
+        var aliases = aliasList(ks);
+        assertThat(aliases).hasSize(1);
+        var alias = aliases.get(0);
+        assertThat(ks.getCertificate(alias)).isNotNull();
+        assertThat(ks.getKey(alias, password.toCharArray())).isNotNull();
+        assertThat(ks.getType()).isEqualTo(generator.getKeyStoreType());
+        // 7 belongs to the IPAddress SAN type
+        assertThat(((X509Certificate)ks.getCertificate(alias)).getSubjectAlternativeNames().stream().findFirst().filter(a -> (int)a.get(0) == 7).map(a -> a.get(1)))
+                .isPresent().get().asString().isEqualTo("127.0.0.1");
     }
 
     @Test
