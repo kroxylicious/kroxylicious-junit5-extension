@@ -61,7 +61,7 @@ class KeytoolCertificateGeneratorTest {
         assertThat(ks.getKey(alias, password.toCharArray())).isNotNull();
         assertThat(ks.getType()).isEqualTo(generator.getKeyStoreType());
         // 7 corresponds to the IPAddress SAN type
-        assertThat(((X509Certificate)ks.getCertificate(alias)).getSubjectAlternativeNames().stream().findFirst().filter(a -> (int)a.get(0) == 7).map(a -> a.get(1)))
+        assertThat(((X509Certificate) ks.getCertificate(alias)).getSubjectAlternativeNames().stream().findFirst().filter(a -> (int) a.get(0) == 7).map(a -> a.get(1)))
                 .isPresent().get().asString().isEqualTo("127.0.0.1");
     }
 
