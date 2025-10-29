@@ -89,7 +89,7 @@
         <kafka.version>4.1.0</kafka.version>
         <testcontainers.version>1.21.3</testcontainers.version>
         <lombok.version>1.18.42</lombok.version>
-        <assertj-core.version>3.27.5</assertj-core.version>
+        <assertj-core.version>3.27.6</assertj-core.version>
         <spotbugs-annotations.version>4.9.5</spotbugs-annotations.version>
         <zookeeper.version>3.8.4</zookeeper.version>
         <log4j.version>2.25.1</log4j.version>
@@ -98,6 +98,7 @@
         <mockito.version>5.20.0</mockito.version>
         <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
         <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
+        <bouncycastle.version>1.82</bouncycastle.version>
 
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
@@ -246,6 +247,11 @@
                 <artifactId>junit-pioneer</artifactId>
                 <version>${junit-pioneer.version}</version>
                 <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
