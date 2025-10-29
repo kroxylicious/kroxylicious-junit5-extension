@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.bouncycastle.util.IPAddress;
+
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import static java.lang.System.Logger.Level.DEBUG;
@@ -257,7 +259,11 @@ public class KeytoolCertificateGenerator {
     }
 
     private List<String> getSAN(String domain) {
-        return List.of("-ext", "SAN=dns:" + domain);
+        String sanType = "dns";
+        if (IPAddress.isValidIPv4(domain) || IPAddress.isValidIPv6(domain)) {
+            sanType = "IP";
+        }
+        return List.of("-ext", "SAN=" + sanType + ":" + domain);
     }
 
     public String getTrustStoreType() {
