@@ -21,8 +21,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import org.bouncycastle.util.IPAddress;
+
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
