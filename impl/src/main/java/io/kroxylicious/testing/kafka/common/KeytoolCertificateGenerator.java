@@ -19,10 +19,10 @@ import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.bouncycastle.util.IPAddress;
 
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.WARNING;
@@ -38,7 +38,6 @@ public class KeytoolCertificateGenerator {
     private final Path keyStoreFilePath;
     private final Path trustStoreFilePath;
     private final System.Logger log = System.getLogger(KeytoolCertificateGenerator.class.getName());
-    private static final Pattern IP_PATTERN = Pattern.compile("^(((?!25?[6-9])[12]\\d|[1-9])?\\d\\.?\\b){4}$");
 
     /**
      * Instantiates a new Keytool certificate generator.
@@ -260,7 +259,7 @@ public class KeytoolCertificateGenerator {
 
     private List<String> getSAN(String domain) {
         String sanType = "dns";
-        if (IP_PATTERN.matcher(domain).matches()) {
+        if (IPAddress.isValidIPv4(domain) || IPAddress.isValidIPv6(domain)) {
             sanType = "IP";
         }
         return List.of("-ext", "SAN=" + sanType + ":" + domain);

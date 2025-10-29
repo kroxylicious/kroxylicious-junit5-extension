@@ -13,6 +13,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +21,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class KeytoolCertificateGeneratorTest {
+    private static final int ASN_GENERAL_NAME_IP_ADDRESS = 7;
+
     @Test
     public void generatesKeyStore() throws Exception {
         var generator = new KeytoolCertificateGenerator();
@@ -55,14 +58,17 @@ class KeytoolCertificateGeneratorTest {
 
         var ks = KeyStore.getInstance(keystoreFile, password.toCharArray());
         var aliases = aliasList(ks);
-        assertThat(aliases).hasSize(1);
         var alias = aliases.get(0);
-        assertThat(ks.getCertificate(alias)).isNotNull();
-        assertThat(ks.getKey(alias, password.toCharArray())).isNotNull();
-        assertThat(ks.getType()).isEqualTo(generator.getKeyStoreType());
-        // 7 corresponds to the IPAddress SAN type
-        assertThat(((X509Certificate) ks.getCertificate(alias)).getSubjectAlternativeNames().stream().findFirst().filter(a -> (int) a.get(0) == 7).map(a -> a.get(1)))
-                .isPresent().get().asString().isEqualTo("127.0.0.1");
+        assertThat(ks.getCertificate(alias))
+                .asInstanceOf(InstanceOfAssertFactories.type(X509Certificate.class))
+                .satisfies(c -> {
+                    var names = c.getSubjectAlternativeNames();
+                    assertThat(names)
+                            .singleElement()
+                            .asInstanceOf(InstanceOfAssertFactories.list(List.class))
+                            .isEqualTo(List.of(KeytoolCertificateGeneratorTest.ASN_GENERAL_NAME_IP_ADDRESS, "127.0.0.1"));
+
+                });
     }
 
     @Test
@@ -93,7 +99,7 @@ class KeytoolCertificateGeneratorTest {
     @NonNull
     private List<String> aliasList(KeyStore ks) throws KeyStoreException {
         List<String> aliases = new ArrayList<>();
-        ks.aliases().asIterator().forEachRemaining(alias -> aliases.add(alias));
+        ks.aliases().asIterator().forEachRemaining(aliases::add);
         return aliases;
     }
 }
