@@ -5,9 +5,6 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import io.netty.pkitesting.CertificateBuilder;
-import io.netty.pkitesting.X509Bundle;
-
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +16,9 @@ import java.security.KeyStore;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+
+import io.netty.pkitesting.CertificateBuilder;
+import io.netty.pkitesting.X509Bundle;
 
 import static java.time.temporal.ChronoUnit.DAYS;
 
