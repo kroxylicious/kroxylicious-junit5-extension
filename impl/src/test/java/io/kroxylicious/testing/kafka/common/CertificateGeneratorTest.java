@@ -1,0 +1,125 @@
+/*
+ * Copyright Kroxylicious Authors.
+ *
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+ */
+
+package io.kroxylicious.testing.kafka.common;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.junit.jupiter.api.Test;
+
+import java.io.File;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class CertificateGeneratorTest {
+    private static final int ASN_GENERAL_NAME_IP_ADDRESS = 7;
+    private static final int ASN_GENERAL_NAME_DNS = 2;
+
+    @Test
+    public void generatesKeyStore() throws Exception {
+        var generator = new CertificateGenerator("localhost");
+        generator.generateSelfSignedCertificateEntry("test@kroxylicious.io", "Dev",
+                "Kroxylicious.io", null, null, "US");
+
+        var keystore = generator.getKeyStoreLocation();
+        assertThat(keystore).isNotEmpty();
+        var keystoreFile = new File(keystore);
+        assertThat(keystoreFile).exists();
+        var password = generator.getPassword();
+
+        var ks = KeyStore.getInstance(keystoreFile, password.toCharArray());
+        var aliases = keyAliasList(ks);
+        assertThat(aliases).hasSize(1);
+        var alias = aliases.get(0);
+        assertThat(ks.getCertificate(alias)).isNotNull();
+        assertThat(ks.getKey(alias, password.toCharArray())).isNotNull();
+        assertThat(ks.getType()).isEqualTo(generator.getKeyStoreType());
+    }
+
+    @Test
+    public void generatesKeyStoreWithIPDomain() throws Exception {
+        var generator = new CertificateGenerator("localhost", "127.0.0.1");
+        generator.generateSelfSignedCertificateEntry("test@kroxylicious.io", "Dev",
+                "Kroxylicious.io", null, null, "US");
+
+        List<?> expectedDns = List.of(CertificateGeneratorTest.ASN_GENERAL_NAME_DNS, "localhost");
+        List<?> expectedIp = List.of(CertificateGeneratorTest.ASN_GENERAL_NAME_IP_ADDRESS, "127.0.0.1");
+
+        var keystore = generator.getKeyStoreLocation();
+        assertThat(keystore).isNotEmpty();
+        var keystoreFile = new File(keystore);
+        assertThat(keystoreFile).exists();
+        var password = generator.getPassword();
+
+        var ks = KeyStore.getInstance(keystoreFile, password.toCharArray());
+        var aliases = keyAliasList(ks);
+        var alias = aliases.get(0);
+        assertThat(ks.getCertificate(alias))
+                .asInstanceOf(InstanceOfAssertFactories.type(X509Certificate.class))
+                .satisfies(c -> {
+                    var names = c.getSubjectAlternativeNames();
+                    assertThat(names)
+                            .anyMatch(x -> x.equals(expectedDns))
+                            .anyMatch(x -> x.equals(expectedIp));
+                });
+    }
+
+    @Test
+    public void generatesTrustStore() throws Exception {
+        var generator = new CertificateGenerator("localhost");
+        generator.generateSelfSignedCertificateEntry("test@kroxylicious.io", "Dev",
+                "Kroxylicious.io", null, null, "US");
+
+        var trustStore = generator.getTrustStoreLocation();
+        assertThat(trustStore).isNotEmpty();
+        var trustStoreFile = new File(trustStore);
+        assertThat(trustStoreFile).exists();
+        var password = generator.getPassword();
+
+        var ts = KeyStore.getInstance(trustStoreFile, password.toCharArray());
+        var aliases = certificateAliasList(ts);
+        assertThat(aliases).hasSize(1);
+        var alias = aliases.get(0);
+        assertThat(ts.getCertificate(alias)).isNotNull();
+        assertThat(ts.getType()).isEqualTo(generator.getTrustStoreType());
+    }
+
+    @NonNull
+    private List<String> aliasList(KeyStore ks) throws KeyStoreException {
+        List<String> aliases = new ArrayList<>();
+        ks.aliases().asIterator().forEachRemaining(aliases::add);
+        return aliases;
+    }
+
+    @NonNull
+    private List<String> keyAliasList(KeyStore ks) throws KeyStoreException {
+        return aliasList(ks).stream().filter(a -> {
+            try {
+                return ks.isKeyEntry(a);
+            }
+            catch (KeyStoreException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList();
+    }
+
+    @NonNull
+    private List<String> certificateAliasList(KeyStore ks) throws KeyStoreException {
+        return aliasList(ks).stream().filter(a -> {
+            try {
+                return ks.isCertificateEntry(a);
+            }
+            catch (KeyStoreException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList();
+    }
+}
