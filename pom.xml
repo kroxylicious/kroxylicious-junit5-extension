@@ -97,7 +97,7 @@
         <duct-tape.version>1.0.8</duct-tape.version>
         <mockito.version>5.20.0</mockito.version>
         <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
-        <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
         <bouncycastle.version>1.82</bouncycastle.version>
 
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
