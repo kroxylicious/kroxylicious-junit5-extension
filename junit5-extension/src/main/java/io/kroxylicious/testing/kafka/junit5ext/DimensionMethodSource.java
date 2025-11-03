@@ -36,7 +36,7 @@ import java.lang.annotation.Target;
  *             mkAnnotation(BrokerCluster.class, 3));
  *     }
  * }
- * }*</pre>
+ * }</pre>
  *
  * <p>If multiple such annotation are present there will be a test for each element of the Cartesian product
  * over each of the dimensions. If you want to execute a subset of the Cartesian
@@ -49,7 +49,7 @@ public @interface DimensionMethodSource {
 
     /**
      * The name of the {@code static}, package- or {@code public}-accessible method.
-     * @return the string
+     * @return the value
      */
     String value();
 
@@ -67,9 +67,9 @@ public @interface DimensionMethodSource {
     @Target({ ElementType.PARAMETER, ElementType.FIELD })
     @interface List {
         /**
-         * Value dimension method source list.
+         * Value of dimension method source type.
          *
-         * @return thevalue
+         * @return the value of list
          */
         DimensionMethodSource[] value();
     }
