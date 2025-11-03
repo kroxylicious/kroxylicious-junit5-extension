@@ -26,11 +26,11 @@ import static java.time.temporal.ChronoUnit.DAYS;
  * The type Certificate generator.
  */
 public class CertificateGenerator {
-    private static final String PKCS12_KEYSTORE_TYPE = "PKCS12";
     private final String domain;
     private final String ipAddress;
     private String password;
     private Path keyStoreFilePath;
+    private KeyStore keyStore;
 
     /**
      * Instantiates a new Certificate generator.
@@ -86,7 +86,7 @@ public class CertificateGenerator {
         }
 
         X509Bundle leaf = temp.buildSelfSigned();
-        KeyStore keyStore = leaf.toKeyStore(getPassword().toCharArray());
+        keyStore = leaf.toKeyStore(getPassword().toCharArray());
 
         FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
         Path certsDirectory = Files.createTempDirectory("kroxylicious", attr);
@@ -130,20 +130,20 @@ public class CertificateGenerator {
     }
 
     /**
-     * Gets trust store type.
+     * Gets truststore type.
      *
-     * @return  the trust store type
+     * @return  the truststore type
      */
     public String getTrustStoreType() {
-        return PKCS12_KEYSTORE_TYPE;
+        return keyStore.getType();
     }
 
     /**
-     * Gets key store type.
+     * Gets keystore type.
      *
-     * @return  the key store type
+     * @return  the keystore type
      */
     public String getKeyStoreType() {
-        return PKCS12_KEYSTORE_TYPE;
+        return keyStore.getType();
     }
 }
