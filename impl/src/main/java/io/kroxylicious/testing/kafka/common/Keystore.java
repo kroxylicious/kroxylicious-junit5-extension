@@ -1,10 +1,10 @@
 package io.kroxylicious.testing.kafka.common;
 
-import io.netty.pkitesting.CertificateBuilder;
-import io.netty.pkitesting.X509Bundle;
-
 import java.time.Instant;
 import java.util.UUID;
+
+import io.netty.pkitesting.CertificateBuilder;
+import io.netty.pkitesting.X509Bundle;
 
 import static java.time.temporal.ChronoUnit.DAYS;
 

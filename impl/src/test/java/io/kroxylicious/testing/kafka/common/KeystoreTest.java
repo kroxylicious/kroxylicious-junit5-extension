@@ -9,10 +9,11 @@ package io.kroxylicious.testing.kafka.common;
 import java.security.cert.X509Certificate;
 import java.util.List;
 
-import io.netty.pkitesting.CertificateBuilder;
-import io.netty.pkitesting.X509Bundle;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
+
+import io.netty.pkitesting.CertificateBuilder;
+import io.netty.pkitesting.X509Bundle;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
