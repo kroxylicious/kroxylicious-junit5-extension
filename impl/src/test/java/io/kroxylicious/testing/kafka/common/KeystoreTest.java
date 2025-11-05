@@ -23,7 +23,7 @@ class KeystoreTest {
     private static final int ASN_GENERAL_NAME_DNS = 2;
 
     @Test
-    void generateSelfSignedKeyStore() {
+    void generateSelfSignedKeyStore() throws Exception {
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
                 .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
@@ -38,7 +38,7 @@ class KeystoreTest {
     }
 
     @Test
-    void generateSelfSignedKeyStoreAddingDistinguishedName() {
+    void generateSelfSignedKeyStoreAddingDistinguishedName() throws Exception {
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost",
                 "Dev", "Kroxylicious.io", null, null, "US"));
@@ -52,7 +52,7 @@ class KeystoreTest {
     }
 
     @Test
-    void generateSignedKeyStore() {
+    void generateSignedKeyStore() throws Exception {
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
                 .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
@@ -69,7 +69,7 @@ class KeystoreTest {
     }
 
     @Test
-    void generateKeyStoreWithIPDomain() {
+    void generateKeyStoreWithIPDomain() throws Exception {
         String domainIP = "127.0.0.1";
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
@@ -91,7 +91,7 @@ class KeystoreTest {
     }
 
     @Test
-    void generateKeyStoreWithDnsSAN() {
+    void generateKeyStoreWithDnsSAN() throws Exception {
         String domain = "localhost";
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
@@ -113,7 +113,7 @@ class KeystoreTest {
     }
 
     @Test
-    void generatesKeyStoreWithIPAndDnsSAN() {
+    void generatesKeyStoreWithIPAndDnsSAN() throws Exception {
         String domain = "localhost";
         String domainIP = "127.0.0.1";
         var keystore = new Keystore();

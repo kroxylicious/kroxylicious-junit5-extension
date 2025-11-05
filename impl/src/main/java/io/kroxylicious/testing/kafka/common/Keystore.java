@@ -35,26 +35,16 @@ public class Keystore implements KeystoreManager {
     }
 
     @Override
-    public X509Bundle createSelfSignedCertificate(CertificateBuilder certificateBuilder) {
-        try {
-            return certificateBuilder.copy()
-                    .setIsCertificateAuthority(true)
-                    .buildSelfSigned();
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public X509Bundle createSelfSignedCertificate(CertificateBuilder certificateBuilder) throws Exception {
+        return certificateBuilder.copy()
+                .setIsCertificateAuthority(true)
+                .buildSelfSigned();
     }
 
     @Override
-    public X509Bundle createSignedCertificate(X509Bundle issuer, CertificateBuilder certificateBuilder) {
-        try {
-            return certificateBuilder.copy()
-                    .buildIssuedBy(issuer);
-        }
-        catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public X509Bundle createSignedCertificate(X509Bundle issuer, CertificateBuilder certificateBuilder) throws Exception {
+        return certificateBuilder.copy()
+                .buildIssuedBy(issuer);
     }
 
     @Override

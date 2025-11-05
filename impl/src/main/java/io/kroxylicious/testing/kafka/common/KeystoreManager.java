@@ -21,7 +21,7 @@ public interface KeystoreManager {
      * @param certificateBuilder the builder configuring the certificate
      * @return the self-signed certificate.
      */
-    X509Bundle createSelfSignedCertificate(CertificateBuilder certificateBuilder);
+    X509Bundle createSelfSignedCertificate(CertificateBuilder certificateBuilder) throws Exception;
 
     /**
      * Optional we don't need this today!
@@ -29,7 +29,7 @@ public interface KeystoreManager {
      * @param certificateBuilder the builder configuring the certificate
      * @return the signed certificate.
      */
-    X509Bundle createSignedCertificate(X509Bundle issuer, CertificateBuilder certificateBuilder);
+    X509Bundle createSignedCertificate(X509Bundle issuer, CertificateBuilder certificateBuilder) throws Exception;
 
     /**
      * Formats the provided fields into a RFC5280 compliant form
