@@ -26,7 +26,7 @@ class KeystoreTest {
     void generateSelfSignedKeyStore() {
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
-                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost","Dev",
+                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
                         "Kroxylicious.io", null, null, "US"));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
@@ -55,7 +55,7 @@ class KeystoreTest {
     void generateSignedKeyStore() {
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
-                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost","Dev",
+                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
                         "Kroxylicious.io", null, null, "US"));
         X509Bundle issuer = keystore.createSelfSignedCertificate(certificateBuilder);
         X509Bundle signed = keystore.createSignedCertificate(issuer, certificateBuilder);
@@ -73,7 +73,7 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
-                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost","Dev",
+                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
                         "Kroxylicious.io", null, null, "US"))
                 .addSanIpAddress(domainIP);
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
@@ -95,7 +95,7 @@ class KeystoreTest {
         String domain = "localhost";
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
-                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost","Dev",
+                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
                         "Kroxylicious.io", null, null, "US"))
                 .addSanDnsName(domain);
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
@@ -118,7 +118,7 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new Keystore();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder()
-                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost","Dev",
+                .subject(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
                         "Kroxylicious.io", null, null, "US"))
                 .addSanIpAddress(domainIP)
                 .addSanDnsName(domain);
