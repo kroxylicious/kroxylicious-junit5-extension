@@ -6,7 +6,6 @@
 package io.kroxylicious.testing.kafka.common;
 
 import java.time.Instant;
-import java.util.UUID;
 
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
@@ -14,7 +13,6 @@ import io.netty.pkitesting.X509Bundle;
 import static java.time.temporal.ChronoUnit.DAYS;
 
 public class Keystore implements KeystoreManager {
-    private String password;
 
     @Override
     public CertificateBuilder newCertificateBuilder() {
@@ -62,18 +60,5 @@ public class Keystore implements KeystoreManager {
     @Override
     public String buildDistinguishedName(String email, String domain, String organizationUnit, String organization, String city, String state, String country) {
         return "CN=" + domain + ", OU=" + organizationUnit + ", O=" + organization + ", L=" + city + ", ST=" + state + ", C=" + country + ", EMAILADDRESS=" + email;
-    }
-
-    /**
-     * Creates a password.
-     *
-     * @return the password
-     */
-    public String getPassword() {
-        if (this.password == null) {
-            this.password = UUID.randomUUID().toString().replace("-", "");
-        }
-
-        return this.password;
     }
 }
