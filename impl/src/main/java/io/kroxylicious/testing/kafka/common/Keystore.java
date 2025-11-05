@@ -32,12 +32,8 @@ public class Keystore implements KeystoreManager {
      * @return  the certificate builder
      */
     public CertificateBuilder newCertificateBuilder(String distinguishedName) {
-        Instant now = Instant.now();
-        return new CertificateBuilder()
-                .notBefore(now.minus(1, DAYS))
-                .notAfter(now.plus(1, DAYS))
-                .subject(distinguishedName)
-                .rsa2048();
+        return newCertificateBuilder().copy()
+                .subject(distinguishedName);
     }
 
     @Override
