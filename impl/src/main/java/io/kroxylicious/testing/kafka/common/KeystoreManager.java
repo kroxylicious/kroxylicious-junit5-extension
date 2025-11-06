@@ -117,7 +117,8 @@ public class KeystoreManager {
     }
 
     /**
-     * Generate certificate file path. See {@link KeystoreManager#getPassword()} for getting the password
+     * Generate certificate file path. It contains both certificates, subject's (key certs) and issuer's (trust CA certs)
+     * See {@link KeystoreManager#getPassword()} for getting the password
      *
      * @param bundle the bundle
      * @return  the path of the generated certificate file
