@@ -7,7 +7,6 @@ package io.kroxylicious.testing.kafka.common;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,10 +22,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
+import org.bouncycastle.util.IPAddress;
+
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
-import org.bouncycastle.util.IPAddress;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class KeystoreManager {
     private String password;
@@ -116,7 +117,7 @@ public class KeystoreManager {
     }
 
     /**
-     * Generate certificate file path. Password can be obtained
+     * Generate certificate file path. See {@link KeystoreManager#getPassword()} for getting the password
      *
      * @param bundle the bundle
      * @return  the path of the generated certificate file

@@ -13,12 +13,13 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
 
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -31,7 +32,7 @@ class KeystoreTest {
     void generateSelfSignedKeyStore() throws Exception {
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                        "Kroxylicious.io", null, null, "US"));
+                "Kroxylicious.io", null, null, "US"));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         assertAll(() -> {
@@ -45,7 +46,7 @@ class KeystoreTest {
     void generateSignedKeyStore() throws Exception {
         var keystore = new KeystoreManager();
         CertificateBuilder issuerCertificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("mail@kroxylicious.io", "localhost", "TestCA",
-                        "Issuer", null, null, "US"));
+                "Issuer", null, null, "US"));
 
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
                 "Kroxylicious.io", null, null, "US"));
@@ -66,7 +67,7 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                        "Kroxylicious.io", null, null, "US"), List.of(domainIP));
+                "Kroxylicious.io", null, null, "US"), List.of(domainIP));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         List<?> expectedIp = List.of(KeystoreTest.ASN_GENERAL_NAME_IP_ADDRESS, domainIP);
@@ -86,7 +87,7 @@ class KeystoreTest {
         String domain = "localhost";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                        "Kroxylicious.io", null, null, "US"), List.of(domain));
+                "Kroxylicious.io", null, null, "US"), List.of(domain));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         List<?> expectedDns = List.of(KeystoreTest.ASN_GENERAL_NAME_DNS, domain);
@@ -107,7 +108,7 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                        "Kroxylicious.io", null, null, "US"), List.of(domain, domainIP));
+                "Kroxylicious.io", null, null, "US"), List.of(domain, domainIP));
 
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
