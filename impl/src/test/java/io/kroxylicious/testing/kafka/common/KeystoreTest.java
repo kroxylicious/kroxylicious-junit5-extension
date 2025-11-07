@@ -67,8 +67,8 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"));
-        keystore.addSanNames(certificateBuilder, List.of(domainIP));
+                "Kroxylicious.io", null, null, "US"))
+                .addSanIpAddress(domainIP);
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         List<?> expectedIp = List.of(KeystoreTest.ASN_GENERAL_NAME_IP_ADDRESS, domainIP);
@@ -88,8 +88,8 @@ class KeystoreTest {
         String domain = "localhost";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"));// , List.of(domain));
-        keystore.addSanNames(certificateBuilder, List.of(domain));
+                "Kroxylicious.io", null, null, "US"))
+                .addSanDnsName(domain);
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         List<?> expectedDns = List.of(KeystoreTest.ASN_GENERAL_NAME_DNS, domain);
@@ -110,8 +110,9 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"));// , List.of(domain, domainIP));
-        keystore.addSanNames(certificateBuilder, List.of(domain, domainIP));
+                "Kroxylicious.io", null, null, "US"))
+                .addSanDnsName(domain)
+                .addSanIpAddress(domainIP);
 
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 

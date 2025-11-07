@@ -43,22 +43,22 @@ public class KeystoreManager {
                 .subject(distinguishedName);
     }
 
-    /**
-     * Add Subject Alternative Names (SAN) to a certificate builder.
-     *
-     * @param certificateBuilder the certificate builder
-     * @param sanNames the names for SAN: They can be DNS names and/or IP Addresses
-     */
-    public void addSanNames(CertificateBuilder certificateBuilder, List<String> sanNames) {
-        sanNames.forEach(name -> {
-            if (IPAddress.isValidIPv4(name) || IPAddress.isValidIPv6(name)) {
-                certificateBuilder.addSanIpAddress(name);
-            }
-            else {
-                certificateBuilder.addSanDnsName(name);
-            }
-        });
-    }
+//    /**
+//     * Add Subject Alternative Names (SAN) to a certificate builder.
+//     *
+//     * @param certificateBuilder the certificate builder
+//     * @param sanNames the names for SAN: They can be DNS names and/or IP Addresses
+//     */
+//    public void addSanNames(CertificateBuilder certificateBuilder, List<String> sanNames) {
+//        sanNames.forEach(name -> {
+//            if (IPAddress.isValidIPv4(name) || IPAddress.isValidIPv6(name)) {
+//                certificateBuilder.addSanIpAddress(name);
+//            }
+//            else {
+//                certificateBuilder.addSanDnsName(name);
+//            }
+//        });
+//    }
 
     /**
      * Builds and adds provided certificate builder as a self-signed certificate
@@ -103,7 +103,8 @@ public class KeystoreManager {
      * @return  the password
      */
     public String getPassword(Path keystorePath) {
-        return this.passwords.computeIfAbsent(keystorePath, path -> UUID.randomUUID().toString());
+        // hyphen is removed to make our debugging easier: copy-pasting with hyphens not always copy the whole password
+        return this.passwords.computeIfAbsent(keystorePath, path -> UUID.randomUUID().toString().replace("-", ""));
     }
 
     /**
