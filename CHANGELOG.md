@@ -9,7 +9,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ### Changes, deprecations and removals
 
-* This release deprecates the `KeytoolCertificateGenerator` annotation. Use `KeystoreManager` instead.
+* This release deprecates the `KeytoolCertificateGenerator` class. Use `KeystoreManager` instead.
 
 ## 0.12.0
 
