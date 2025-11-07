@@ -31,6 +31,7 @@ import static java.lang.System.Logger.Level.WARNING;
 /**
  * Used to configure and manage test certificates using the JDK's keytool.
  */
+@Deprecated(since = "0.13.0")
 @SuppressFBWarnings(value = "PATH_TRAVERSAL_IN", justification = "Requires ability to write test key material to file-system.")
 public class KeytoolCertificateGenerator {
     private static final String PKCS12_KEYSTORE_TYPE = "PKCS12";
