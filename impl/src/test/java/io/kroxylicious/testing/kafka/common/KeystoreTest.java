@@ -67,7 +67,8 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"), List.of(domainIP));
+                "Kroxylicious.io", null, null, "US"));
+        keystore.addSanNames(certificateBuilder, List.of(domainIP));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         List<?> expectedIp = List.of(KeystoreTest.ASN_GENERAL_NAME_IP_ADDRESS, domainIP);
@@ -87,7 +88,8 @@ class KeystoreTest {
         String domain = "localhost";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"), List.of(domain));
+                "Kroxylicious.io", null, null, "US"));//, List.of(domain));
+        keystore.addSanNames(certificateBuilder, List.of(domain));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
         List<?> expectedDns = List.of(KeystoreTest.ASN_GENERAL_NAME_DNS, domain);
@@ -108,7 +110,8 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"), List.of(domain, domainIP));
+                "Kroxylicious.io", null, null, "US"));//, List.of(domain, domainIP));
+        keystore.addSanNames(certificateBuilder, List.of(domain, domainIP));
 
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
@@ -138,8 +141,8 @@ class KeystoreTest {
         X509Bundle issuer = keystore.createSelfSignedCertificate(issuerCertificateBuilder);
         X509Bundle signed = keystore.createSignedCertificate(issuer, certificateBuilder);
 
-        String password = keystore.getPassword();
         Path keyStoreFilePath = keystore.generateCertificateFile(signed);
+        String password = keystore.getPassword(keyStoreFilePath);
         assertThat(keyStoreFilePath.toFile()).exists();
         var ks = KeyStore.getInstance(keyStoreFilePath.toFile(), password.toCharArray());
         var keyAliases = keyAliasList(ks);

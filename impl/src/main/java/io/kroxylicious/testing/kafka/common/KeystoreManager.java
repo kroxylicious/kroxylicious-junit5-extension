@@ -17,20 +17,19 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import org.bouncycastle.util.IPAddress;
 
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
 
-import edu.umd.cs.findbugs.annotations.NonNull;
-
 public class KeystoreManager {
-    private String password;
+    private final ConcurrentMap<Path, String> passwords = new ConcurrentHashMap<>();
 
     /**
      * Creates a CertificateBuilder with the appropriate default values for kroxylicious test usage.
@@ -39,21 +38,18 @@ public class KeystoreManager {
      * @return  The partially populated certificate builder.
      */
     public CertificateBuilder newCertificateBuilder(String distinguishedName) {
-        return newCertificateBuilder(distinguishedName, new ArrayList<>());
+        return new CertificateBuilder()
+                .rsa2048()
+                .subject(distinguishedName);
     }
 
     /**
-     * Creates a CertificateBuilder with the appropriate default values for kroxylicious test usage.
-     * @param distinguishedName the distinguished name. See {@link KeystoreManager#buildDistinguishedName(String, String, String, String, String, String, String)}
-     *                          for generating a distinguished name
+     * Add Subject Alternative Names (SAN) to a certificate builder.
+     *
+     * @param certificateBuilder the certificate builder
      * @param sanNames the names for SAN: They can be DNS names and/or IP Addresses
-     * @return  The partially populated certificate builder.
      */
-    public CertificateBuilder newCertificateBuilder(String distinguishedName, @NonNull List<String> sanNames) {
-        CertificateBuilder certificateBuilder = new CertificateBuilder()
-                .rsa2048()
-                .subject(distinguishedName);
-
+    public void addSanNames(CertificateBuilder certificateBuilder, List<String> sanNames) {
         sanNames.forEach(name -> {
             if (IPAddress.isValidIPv4(name) || IPAddress.isValidIPv6(name)) {
                 certificateBuilder.addSanIpAddress(name);
@@ -62,8 +58,6 @@ public class KeystoreManager {
                 certificateBuilder.addSanDnsName(name);
             }
         });
-
-        return certificateBuilder;
     }
 
     /**
@@ -108,17 +102,13 @@ public class KeystoreManager {
      *
      * @return  the password
      */
-    public String getPassword() {
-        if (this.password == null) {
-            this.password = UUID.randomUUID().toString().replace("-", "");
-        }
-
-        return this.password;
+    public String getPassword(Path keystorePath) {
+        return this.passwords.computeIfAbsent(keystorePath, path -> UUID.randomUUID().toString());
     }
 
     /**
-     * Generate certificate file path. It contains both certificates, subject's (key certs) and issuer's (trust CA certs)
-     * See {@link KeystoreManager#getPassword()} for getting the password
+     * Generate a keystore at returned path. It contains both certificates, subject's (key certs) and issuer's (trust CA certs)
+     * Use {@link KeystoreManager#getPassword(Path)} for getting the keystore password.
      *
      * @param bundle the bundle
      * @return  the path of the generated certificate file
@@ -128,12 +118,12 @@ public class KeystoreManager {
      * @throws NoSuchAlgorithmException the no such algorithm exception
      */
     public Path generateCertificateFile(X509Bundle bundle) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
-        KeyStore keyStore = bundle.toKeyStore(getPassword().toCharArray());
         FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
         Path certsDirectory = Files.createTempDirectory("kroxylicious", attr);
         Path keyStoreFilePath = Paths.get(certsDirectory.toAbsolutePath().toString(), "keystore.jks");
+        KeyStore keyStore = bundle.toKeyStore(getPassword(keyStoreFilePath).toCharArray());
         try (FileOutputStream stream = new FileOutputStream(keyStoreFilePath.toFile())) {
-            keyStore.store(stream, getPassword().toCharArray());
+            keyStore.store(stream, getPassword(keyStoreFilePath).toCharArray());
         }
         keyStoreFilePath.toFile().deleteOnExit();
         certsDirectory.toFile().deleteOnExit();
