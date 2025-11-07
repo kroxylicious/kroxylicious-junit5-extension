@@ -88,7 +88,7 @@ class KeystoreTest {
         String domain = "localhost";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"));//, List.of(domain));
+                "Kroxylicious.io", null, null, "US"));// , List.of(domain));
         keystore.addSanNames(certificateBuilder, List.of(domain));
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
 
@@ -110,7 +110,7 @@ class KeystoreTest {
         String domainIP = "127.0.0.1";
         var keystore = new KeystoreManager();
         CertificateBuilder certificateBuilder = keystore.newCertificateBuilder(keystore.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
-                "Kroxylicious.io", null, null, "US"));//, List.of(domain, domainIP));
+                "Kroxylicious.io", null, null, "US"));// , List.of(domain, domainIP));
         keystore.addSanNames(certificateBuilder, List.of(domain, domainIP));
 
         X509Bundle bundle = keystore.createSelfSignedCertificate(certificateBuilder);
