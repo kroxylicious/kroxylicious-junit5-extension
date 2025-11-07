@@ -17,13 +17,10 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-
-import org.bouncycastle.util.IPAddress;
 
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
@@ -42,23 +39,6 @@ public class KeystoreManager {
                 .rsa2048()
                 .subject(distinguishedName);
     }
-
-//    /**
-//     * Add Subject Alternative Names (SAN) to a certificate builder.
-//     *
-//     * @param certificateBuilder the certificate builder
-//     * @param sanNames the names for SAN: They can be DNS names and/or IP Addresses
-//     */
-//    public void addSanNames(CertificateBuilder certificateBuilder, List<String> sanNames) {
-//        sanNames.forEach(name -> {
-//            if (IPAddress.isValidIPv4(name) || IPAddress.isValidIPv6(name)) {
-//                certificateBuilder.addSanIpAddress(name);
-//            }
-//            else {
-//                certificateBuilder.addSanDnsName(name);
-//            }
-//        });
-//    }
 
     /**
      * Builds and adds provided certificate builder as a self-signed certificate
