@@ -3,6 +3,13 @@
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
 ## SNAPSHOT
+
+* [#544](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/544): Replace Keytool certificate generator by netty certificate builder
+
+### Changes, deprecations and removals
+
+* This release deprecates the `KeytoolCertificateGenerator` class. Use `KeystoreManager` instead.
+
 ## 0.12.0
 
 * [#519](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/519): Enable Users to customize automatically created Topic names
