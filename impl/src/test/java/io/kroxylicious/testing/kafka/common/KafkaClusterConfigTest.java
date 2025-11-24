@@ -434,8 +434,7 @@ class KafkaClusterConfigTest {
                 Arguments.of("3.9.1", false),
                 Arguments.of("4.0.0", false),
                 Arguments.of("4.1.0", true),
-                Arguments.of("4.1.0-rc1", true),
-                Arguments.of("4.1.0-SNAPSHOT", true),
+                Arguments.of("4.1.1", true),
                 Arguments.of("latest", true));
     }
 
