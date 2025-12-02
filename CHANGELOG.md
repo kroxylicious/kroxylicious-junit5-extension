@@ -9,6 +9,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 ## 0.13.0
 
 * [#544](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/544): Replace Keytool certificate generator by netty certificate builder
+* [#556](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/556): Upgrade to Testcontainers 2.0.2
 
 ### Changes, deprecations and removals
 
