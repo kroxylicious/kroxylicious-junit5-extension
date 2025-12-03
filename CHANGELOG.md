@@ -3,6 +3,9 @@
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
 ## SNAPSHOT
+
+* [#550](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/550):   Bump kafka.version from 4.1.0 to 4.1.1
+
 ## 0.13.0
 
 * [#544](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/544): Replace Keytool certificate generator by netty certificate builder
