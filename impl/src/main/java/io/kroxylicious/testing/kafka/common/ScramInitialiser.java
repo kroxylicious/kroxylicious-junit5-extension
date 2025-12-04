@@ -19,7 +19,7 @@ import org.awaitility.Awaitility;
 
 import io.kroxylicious.testing.kafka.internal.AdminSource;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class ScramInitialiser {
 
