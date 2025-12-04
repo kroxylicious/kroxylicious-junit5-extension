@@ -169,6 +169,11 @@
                         <groupId>ch.qos.logback</groupId>
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
+                    <!-- Pulled in transitively via Testcontainers -->
+                    <exclusion>
+                        <groupId>commons-io</groupId>
+                        <artifactId>commons-io</artifactId>
+                    </exclusion>
                 </exclusions>
                 <scope>provided</scope>
             </dependency>
@@ -196,6 +201,11 @@
                     <exclusion>
                         <groupId>ch.qos.logback</groupId>
                         <artifactId>logback-classic</artifactId>
+                    </exclusion>
+                    <!-- Pulled in transitively via Testcontainers -->
+                    <exclusion>
+                        <groupId>commons-io</groupId>
+                        <artifactId>commons-io</artifactId>
                     </exclusion>
                 </exclusions>
                 <!-- The user needs to provide this dependency only if they wish to use in-VM kafka with a Zookeeper
