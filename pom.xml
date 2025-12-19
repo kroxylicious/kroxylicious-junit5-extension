@@ -99,7 +99,7 @@
         <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
         <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
         <bouncycastle.version>1.83</bouncycastle.version>
-        <netty.version>4.2.7.Final</netty.version>
+        <netty.version>4.2.9.Final</netty.version>
 
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
