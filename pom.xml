@@ -169,7 +169,7 @@
                         <groupId>ch.qos.logback</groupId>
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
-                    <!-- Pulled in transitively via Testcontainers -->
+                    <!-- Version supplied by Kafka 3.9 and below is incompatible (too old) for Testcontainers 2.0 -->
                     <exclusion>
                         <groupId>commons-io</groupId>
                         <artifactId>commons-io</artifactId>
@@ -202,7 +202,7 @@
                         <groupId>ch.qos.logback</groupId>
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
-                    <!-- Pulled in transitively via Testcontainers -->
+                    <!-- Version supplied by Zookeeper is incompatible (too old) for Testcontainers 2.0 -->
                     <exclusion>
                         <groupId>commons-io</groupId>
                         <artifactId>commons-io</artifactId>
