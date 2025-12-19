@@ -87,7 +87,7 @@
 
         <junit.version>5.13.4</junit.version>
         <kafka.version>4.1.1</kafka.version>
-        <testcontainers.version>1.21.3</testcontainers.version>
+        <testcontainers.version>2.0.2</testcontainers.version>
         <lombok.version>1.18.42</lombok.version>
         <assertj-core.version>3.27.6</assertj-core.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
@@ -169,6 +169,11 @@
                         <groupId>ch.qos.logback</groupId>
                         <artifactId>logback-classic</artifactId>
                     </exclusion>
+                    <!-- Version supplied by Kafka 3.9 and below is incompatible (too old) for Testcontainers 2.0 -->
+                    <exclusion>
+                        <groupId>commons-io</groupId>
+                        <artifactId>commons-io</artifactId>
+                    </exclusion>
                 </exclusions>
                 <scope>provided</scope>
             </dependency>
@@ -196,6 +201,11 @@
                     <exclusion>
                         <groupId>ch.qos.logback</groupId>
                         <artifactId>logback-classic</artifactId>
+                    </exclusion>
+                    <!-- Version supplied by Zookeeper is incompatible (too old) for Testcontainers 2.0 -->
+                    <exclusion>
+                        <groupId>commons-io</groupId>
+                        <artifactId>commons-io</artifactId>
                     </exclusion>
                 </exclusions>
                 <!-- The user needs to provide this dependency only if they wish to use in-VM kafka with a Zookeeper
@@ -526,6 +536,23 @@
                                             <phases>clean,deploy</phases>
                                             <unCheckedPluginList>org.apache.maven.plugins:maven-site-plugin</unCheckedPluginList>
                                         </requirePluginVersions>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <!--AssertJ will throw different exceptions than expected when JUnit 4 is on the classpath -->
+                                <!-- See: https://github.com/kroxylicious/kroxylicious/issues/2801-->
+                                <id>ban-junit-4</id>
+                                <goals>
+                                    <goal>enforce</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <bannedDependencies>
+                                            <excludes>
+                                                <exclude>junit:junit</exclude>
+                                            </excludes>
+                                        </bannedDependencies>
                                     </rules>
                                 </configuration>
                             </execution>

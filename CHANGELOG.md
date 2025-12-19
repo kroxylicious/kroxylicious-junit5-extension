@@ -5,6 +5,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 ## SNAPSHOT
 
 * [#550](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/550):   Bump kafka.version from 4.1.0 to 4.1.1
+* [#556](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/556): Upgrade to Testcontainers 2.0.2
 
 ## 0.13.0
 
