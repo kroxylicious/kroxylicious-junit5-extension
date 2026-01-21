@@ -5,23 +5,22 @@
  */
 package io.kroxylicious.testing.kafka.invm;
 
-import java.io.PrintStream;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Optional;
-
+import kafka.server.KafkaConfig;
+import kafka.tools.StorageTool;
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.storage.Formatter;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
-
-import kafka.server.KafkaConfig;
-import kafka.tools.StorageTool;
 import scala.collection.immutable.Seq;
 import scala.jdk.javaapi.CollectionConverters;
+
+import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Optional;
 
 /**
  * Note that this code is base on code from Kafka's StorageTool.
@@ -80,19 +79,12 @@ final class KraftLogDirUtil {
     private static MetadataVersion getMetadataVersion(KafkaConfig config) {
         try {
             String version = ReflectionUtils.invokeInstanceMethod(config, "interBrokerProtocolVersionString");
-            return Optional.ofNullable(version).map(KraftLogDirUtil::getMetadataVersion).orElse(MetadataVersion.LATEST_PRODUCTION);
+            return Optional.ofNullable(version)
+                    .map(versionString -> (MetadataVersion) ReflectionUtils.invokeStaticMethod(MetadataVersion.class, "fromVersionString", versionString))
+                    .orElse(MetadataVersion.LATEST_PRODUCTION);
         }
         catch (Exception e) {
             return MetadataVersion.LATEST_PRODUCTION;
-        }
-    }
-
-    private static MetadataVersion getMetadataVersion(String versionString) {
-        try {
-            return MetadataVersion.fromVersionString(versionString, true);
-        }
-        catch (LinkageError | Exception exception) {
-            return ReflectionUtils.invokeStaticMethod(MetadataVersion.class, "fromVersionString", versionString);
         }
     }
 
