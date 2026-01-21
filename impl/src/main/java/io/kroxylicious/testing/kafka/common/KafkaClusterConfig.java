@@ -308,11 +308,14 @@ public class KafkaClusterConfig {
         configureSasl(nodeConfiguration);
 
         putConfig(nodeConfiguration, "offsets.topic.replication.factor", ONE_CONFIG);
-        // 1 partition for the __consumer_offsets_ topic should be enough
+        // 1 partition for the __consumer_offsets_ topic enables topic auto-creation to succeed on single-node clusters
         putConfig(nodeConfiguration, "offsets.topic.num.partitions", ONE_CONFIG);
-        // 1 partition for the __transaction_state_ topic should be enough
+        // 1 partition for the __transaction_state_ topic enables topic auto-creation to succeed on single-node clusters
         putConfig(nodeConfiguration, "transaction.state.log.replication.factor", ONE_CONFIG);
         putConfig(nodeConfiguration, "transaction.state.log.min.isr", ONE_CONFIG);
+        // 1 partition for the __share_group_state enables topic auto-creation to succeed on single-node clusters
+        putConfig(nodeConfiguration, "share.coordinator.state.topic.replication.factor", ONE_CONFIG);
+        putConfig(nodeConfiguration, "share.coordinator.state.topic.min.isr", ONE_CONFIG);
         // Disable delay during every re-balance
         putConfig(nodeConfiguration, "group.initial.rebalance.delay.ms", Integer.toString(0));
 
