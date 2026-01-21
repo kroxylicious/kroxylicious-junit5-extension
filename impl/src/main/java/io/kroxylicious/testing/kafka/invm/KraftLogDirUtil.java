@@ -5,22 +5,23 @@
  */
 package io.kroxylicious.testing.kafka.invm;
 
-import kafka.server.KafkaConfig;
-import kafka.tools.StorageTool;
+import java.io.PrintStream;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Optional;
+
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
 import org.apache.kafka.common.protocol.ApiMessage;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
 import org.apache.kafka.metadata.storage.Formatter;
 import org.apache.kafka.server.common.ApiMessageAndVersion;
 import org.apache.kafka.server.common.MetadataVersion;
+
+import kafka.server.KafkaConfig;
+import kafka.tools.StorageTool;
 import scala.collection.immutable.Seq;
 import scala.jdk.javaapi.CollectionConverters;
-
-import java.io.PrintStream;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Optional;
 
 /**
  * Note that this code is base on code from Kafka's StorageTool.
