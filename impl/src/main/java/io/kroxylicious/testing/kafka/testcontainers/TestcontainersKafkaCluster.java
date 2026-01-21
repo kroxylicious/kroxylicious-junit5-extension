@@ -383,6 +383,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         String defaultVersion;
         if (clusterConfig.isKafkaVersion41OrHigher()) {
             defaultVersion = clusterConfig.getKafkaVersion();
+            if (defaultVersion.equals("4.2.0")) {
+                defaultVersion = defaultVersion + "-rc1";
+            }
         }
         else if (MAJOR_MINOR_PATCH.matcher(clusterConfig.getKafkaVersion()).matches()) {
             defaultVersion = "latest-kafka-" + clusterConfig.getKafkaVersion();
