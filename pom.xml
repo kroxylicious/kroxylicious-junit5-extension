@@ -86,7 +86,7 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <junit.version>5.14.3</junit.version>
-        <kafka.version>4.1.1</kafka.version>
+        <kafka.version>4.2.0</kafka.version>
         <testcontainers.version>2.0.3</testcontainers.version>
         <lombok.version>1.18.42</lombok.version>
         <assertj-core.version>3.27.7</assertj-core.version>
@@ -762,6 +762,19 @@
             </build>
         </profile>
     </profiles>
+    <repositories>
+            <repository>
+                <id>apache-kafka-staging</id>
+                <name>Apache Kafka Staging Repository</name>
+                <url>https://repository.apache.org/content/groups/staging/</url>
+                <releases>
+                    <enabled>true</enabled>
+                </releases>
+                <snapshots>
+                    <enabled>false</enabled>
+                </snapshots>
+            </repository>
+        </repositories>
 
     <distributionManagement>
         <snapshotRepository>
