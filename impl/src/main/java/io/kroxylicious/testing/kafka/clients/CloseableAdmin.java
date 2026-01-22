@@ -433,11 +433,13 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    @SuppressWarnings("removal")
     public ListConsumerGroupsResult listConsumerGroups(ListConsumerGroupsOptions options) {
         return instance.listConsumerGroups(options);
     }
 
     @Override
+    @SuppressWarnings("removal")
     public ListConsumerGroupsResult listConsumerGroups() {
         return instance.listConsumerGroups();
     }
@@ -745,6 +747,7 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    @SuppressWarnings("removal")
     public ListClientMetricsResourcesResult listClientMetricsResources(ListClientMetricsResourcesOptions options) {
         return instance.listClientMetricsResources(options);
     }
@@ -825,6 +828,7 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     }
 
     @Override
+    @SuppressWarnings("removal")
     public ListClientMetricsResourcesResult listClientMetricsResources() {
         return instance.listClientMetricsResources();
     }
