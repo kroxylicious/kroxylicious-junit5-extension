@@ -42,21 +42,6 @@ class FloatingTagPullPolicyTest {
         floatingTagPullPolicy = new FloatingTagPullPolicy(defaultPullPolicy);
     }
 
-    @ParameterizedTest(name = "Should always pull Snapshot when cached image is: {0}")
-    @MethodSource("relativeDates")
-    void shouldAlwaysPullSnapshot(Instant imageCreatedAt) {
-        // Given
-        final ImageData imageData = ImageData.builder().createdAt(imageCreatedAt).build();
-
-        // When
-        final boolean actual = floatingTagPullPolicy.shouldPullCached(
-                DockerImageName.parse("quay.io/kroxylicious").withTag(Version.LATEST_SNAPSHOT),
-                imageData);
-
-        // Then
-        assertThat(actual).isTrue();
-    }
-
     @ParameterizedTest(name = "Should pull release when image is: {0}")
     @MethodSource("relativeDates")
     void shouldAlwaysPullRelease(Instant imageCreatedAt) {

@@ -38,10 +38,7 @@ class FloatingTagPullPolicy extends AbstractImagePullPolicy implements ImagePull
     @Override
     protected boolean shouldPullCached(DockerImageName imageName, ImageData localImageData) {
         final String versionTag = imageName.getVersionPart();
-        if (Version.LATEST_SNAPSHOT.equalsIgnoreCase(versionTag)) {
-            return true;
-        }
-        else if (Version.LATEST_RELEASE.equalsIgnoreCase(versionTag)) {
+        if (Version.LATEST_RELEASE.equalsIgnoreCase(versionTag)) {
             return true;
         }
         else if (MAJOR_MINOR_PATCH.matcher(versionTag).matches()) {

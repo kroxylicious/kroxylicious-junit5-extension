@@ -227,8 +227,7 @@ class TestcontainersKafkaClusterTest {
 
     private static Stream<Version> floatingVersions() {
         return Stream.of(
-                version(Version.LATEST_RELEASE),
-                version(Version.LATEST_SNAPSHOT));
+                version(Version.LATEST_RELEASE));
     }
 
     @Test

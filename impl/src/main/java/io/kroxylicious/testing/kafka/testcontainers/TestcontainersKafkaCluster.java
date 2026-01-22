@@ -408,9 +408,6 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             if (Version.LATEST_RELEASE.equalsIgnoreCase(v)) {
                 return Version.LATEST_RELEASE;
             }
-            else if (Version.LATEST_SNAPSHOT.equalsIgnoreCase(v)) {
-                return Version.LATEST_SNAPSHOT;
-            }
 
             v = v.replaceFirst("^latest-kafka-", "");
         }
