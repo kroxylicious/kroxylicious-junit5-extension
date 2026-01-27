@@ -64,6 +64,11 @@ public record CloseableShareConsumer<K, V>(ShareConsumer<K, V> instance) impleme
     }
 
     @Override
+    public void acknowledge(String topic, int partition, long offset, AcknowledgeType type) {
+        instance.acknowledge(topic, partition, offset, type);
+    }
+
+    @Override
     public Map<TopicIdPartition, Optional<KafkaException>> commitSync() {
         return instance.commitSync();
     }
@@ -86,6 +91,11 @@ public record CloseableShareConsumer<K, V>(ShareConsumer<K, V> instance) impleme
     @Override
     public Uuid clientInstanceId(Duration timeout) {
         return instance.clientInstanceId(timeout);
+    }
+
+    @Override
+    public Optional<Integer> acquisitionLockTimeoutMs() {
+        return instance.acquisitionLockTimeoutMs();
     }
 
     @Override

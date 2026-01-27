@@ -266,7 +266,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         if (clusterConfig.isKafkaVersion41OrHigher()) {
             kafkaContainer
                     .withEnv("CLUSTER_ID", holder.kraftClusterId())
-                    .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/etc/kafka/docker/server.properties");
+                    .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/mnt/shared/config/server.properties");
         }
         else {
             kafkaContainer.withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")
@@ -383,6 +383,9 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         String defaultVersion;
         if (clusterConfig.isKafkaVersion41OrHigher()) {
             defaultVersion = clusterConfig.getKafkaVersion();
+            if (defaultVersion.equals("4.2.0")) {
+                defaultVersion = defaultVersion + "-rc1";
+            }
         }
         else if (MAJOR_MINOR_PATCH.matcher(clusterConfig.getKafkaVersion()).matches()) {
             defaultVersion = "latest-kafka-" + clusterConfig.getKafkaVersion();
