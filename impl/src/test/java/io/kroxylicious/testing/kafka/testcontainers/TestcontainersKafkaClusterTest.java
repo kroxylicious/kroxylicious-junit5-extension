@@ -151,9 +151,6 @@ class TestcontainersKafkaClusterTest {
             assertThat(kafkaImage)
                     .isNotNull().satisfies(pullPolicyForImage -> {
                         String expected = version.value();
-                        if (Objects.equals(expected, "4.2.0")) {
-                            expected += "-rc1";
-                        }
                         assertThat(pullPolicyForImage.getVersionPart()).isEqualTo(expected);
                     });
         }
