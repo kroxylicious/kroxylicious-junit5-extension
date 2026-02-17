@@ -762,19 +762,6 @@
             </build>
         </profile>
     </profiles>
-    <repositories>
-            <repository>
-                <id>apache-kafka-staging</id>
-                <name>Apache Kafka Staging Repository</name>
-                <url>https://repository.apache.org/content/groups/staging/</url>
-                <releases>
-                    <enabled>true</enabled>
-                </releases>
-                <snapshots>
-                    <enabled>false</enabled>
-                </snapshots>
-            </repository>
-        </repositories>
 
     <distributionManagement>
         <snapshotRepository>
