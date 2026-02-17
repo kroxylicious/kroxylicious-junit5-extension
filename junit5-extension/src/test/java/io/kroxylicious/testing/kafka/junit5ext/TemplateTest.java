@@ -226,9 +226,7 @@ class TemplateTest {
 
         @AfterAll
         void afterAll() {
-            var expected = versions().map(Version::value)
-                    .map(s -> s.equals("4.2.0") ? s + "-rc1" : s)
-                    .collect(Collectors.toSet());
+            var expected = versions().map(Version::value).collect(Collectors.toSet());
             assertThat(observedVersions)
                     .containsExactlyInAnyOrderElementsOf(expected);
         }
