@@ -20,8 +20,10 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -93,7 +95,8 @@ class TemplateTest {
         }
 
         @TestTemplate
-        void testCartesianProduct(@DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
+        void testCartesianProduct(
+                                  @DimensionMethodSource(value = "clusterSizes", clazz = TemplateTest.class) @DimensionMethodSource(value = "compression") KafkaCluster cluster,
                                   Admin admin)
                 throws ExecutionException, InterruptedException {
             // Given
@@ -187,6 +190,8 @@ class TemplateTest {
     private static Stream<Version> versions() {
         return Stream.of(
                 version(Version.LATEST_RELEASE),
+                version("4.2.0"),
+                version("4.1.0"),
                 version("3.9.0"),
                 version("3.8.0"),
                 version("3.7.0"),
@@ -195,6 +200,17 @@ class TemplateTest {
                 version("3.4.0"),
                 version("3.2.3"),
                 version("3.1.2"));
+    }
+
+    /**
+     * This test is here to ensure that new versions are added to the relevant list of versions
+     */
+    @Test
+    void currentVersionTested() {
+        var versionFromClasspath = AppInfoParser.getVersion();
+        List<String> allTestedVersions = versions().map(Version::value).sorted().toList();
+        assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in test axes " + allTestedVersions)
+                .contains(versionFromClasspath);
     }
 
     @Nested

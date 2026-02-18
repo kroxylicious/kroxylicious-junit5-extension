@@ -4,6 +4,7 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## SNAPSHOT
 
+* [#568](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/568): Upgrade to kafka-4.2.0
 * [#418](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/418): Add CloseableShareConsumer (KIP-932)
 
 ## 0.14.0

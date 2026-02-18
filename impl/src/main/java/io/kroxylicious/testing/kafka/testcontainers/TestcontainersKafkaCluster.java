@@ -266,7 +266,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
         if (clusterConfig.isKafkaVersion41OrHigher()) {
             kafkaContainer
                     .withEnv("CLUSTER_ID", holder.kraftClusterId())
-                    .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/etc/kafka/docker/server.properties");
+                    .withCopyToContainer(Transferable.of(propertiesToBytes(properties), 0644), "/mnt/shared/config/server.properties");
         }
         else {
             kafkaContainer.withEnv("SERVER_PROPERTIES_FILE", "/cnf/server.properties")

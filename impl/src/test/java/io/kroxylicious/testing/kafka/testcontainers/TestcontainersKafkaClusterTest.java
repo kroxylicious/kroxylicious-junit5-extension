@@ -5,6 +5,7 @@
  */
 package io.kroxylicious.testing.kafka.testcontainers;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -16,12 +17,12 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.utils.AppInfoParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junitpioneer.jupiter.ClearEnvironmentVariable;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
@@ -148,7 +149,8 @@ class TestcontainersKafkaClusterTest {
             // Then
             assertThat(kafkaImage)
                     .isNotNull().satisfies(pullPolicyForImage -> {
-                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo(version.value());
+                        String expected = version.value();
+                        assertThat(pullPolicyForImage.getVersionPart()).isEqualTo(expected);
                     });
         }
     }
@@ -209,25 +211,47 @@ class TestcontainersKafkaClusterTest {
     }
 
     private static Stream<Version> fixedVersionsPre41() {
-        return Stream.of(
-                version("4.0.0"),
-                version("3.9.0"),
-                version("3.8.0"),
+        return Stream.concat(fixedVersionsPre41WithAlterScram(), Stream.of(
                 version("3.7.0"),
                 version("3.6.0"),
                 version("3.5.1"),
                 version("3.4.0"),
                 version("3.2.3"),
-                version("3.1.2"));
+                version("3.1.2")));
+    }
+
+    /**
+     * @return a stream of fixed Kafka versions older than 4.1.0 which support altering scram via the admin APIs
+     */
+    private static Stream<Version> fixedVersionsPre41WithAlterScram() {
+        return Stream.of(
+                version("4.0.0"),
+                version("3.9.0"),
+                version("3.8.0"));
     }
 
     private static Stream<Version> fixedVersionsPost41() {
-        return Stream.of(version("4.1.0"));
+        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"));
+    }
+
+    private static Stream<Version> allVersionsWithAlterScramSupport() {
+        return Stream.concat(fixedVersionsPost41(), fixedVersionsPre41WithAlterScram());
     }
 
     private static Stream<Version> floatingVersions() {
         return Stream.of(
                 version(Version.LATEST_RELEASE));
+    }
+
+    /**
+     * This test is here to ensure that new versions are added to the relevant list of versions
+     */
+    @Test
+    void currentVersionTested() {
+        var versionFromClasspath = AppInfoParser.getVersion();
+        List<String> allTestedVersions = Stream.concat(fixedVersionsPost41(), fixedVersionsPre41()).map(Version::value).sorted().toList();
+        assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in test axes " + allTestedVersions)
+                .contains(versionFromClasspath);
     }
 
     @Test
@@ -281,9 +305,9 @@ class TestcontainersKafkaClusterTest {
     }
 
     @ParameterizedTest
-    @CsvSource(value = { "4.1.0", "4.0.0", "3.9.0", "3.8.0" })
-    void scramUsersCreated(String version) {
-        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version).securityProtocol("SASL_PLAINTEXT").saslMechanism("SCRAM-SHA-256")
+    @MethodSource(value = "allVersionsWithAlterScramSupport")
+    void scramUsersCreated(Version version) {
+        KafkaClusterConfig config = clusterConfigBuilder.kafkaVersion(version.value()).securityProtocol("SASL_PLAINTEXT").saslMechanism("SCRAM-SHA-256")
                 .user("admin", "admin-secret").build();
         try (TestcontainersKafkaCluster testcontainersKafkaCluster = new TestcontainersKafkaCluster(config)) {
             testcontainersKafkaCluster.start();
