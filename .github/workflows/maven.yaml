@@ -71,11 +71,11 @@ jobs:
         run: TEST_CLUSTER_EXECUTION_MODE=CONTAINER KAFKA_VERSION=latest mvn -B clean verify -Dsurefire.failIfNoSpecifiedTests=false -Dtest=KafkaClusterTest
 
       - name: Save PR number to file
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+        if: ${{ github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' }}
         run: echo ${{ github.event.number }} > PR_NUMBER.txt
 
       - name: Archive PR number
-        if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest'
+        if: ${{ github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' }}
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
         with:
           name: PR_NUMBER
