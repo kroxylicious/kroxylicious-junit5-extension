@@ -46,11 +46,7 @@ jobs:
         uses: ./.github/actions/common/cache-maven-packages
 
       - name: Cache SonarCloud packages
-        uses: ./.github/actions/common/cache-maven-packages
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restoreKeys: ${{ runner.os }}-sonar
+        uses: ./.github/actions/common/cache-sonar-packages
 
       - name: 'Build junit extension with maven tests'
         if: github.ref_name != 'main' || env.SONAR_TOKEN_SET != 'true'

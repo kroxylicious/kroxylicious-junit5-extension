@@ -15,17 +15,15 @@
 #  limitations under the License.
 #
 
-name: "Cache Maven Packages"
-description: "Cache Maven Packages"
+name: "Cache SonarCloud Packages"
+description: "Cache SonarCloud Packages"
 
 runs:
   using: "composite"
   steps:
-    - name: 'Cache Maven packages'
+    - name: 'Cache SonarCloud packages'
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
       with:
-        path: |
-          ~/.m2
-          !~/.m2/repository/io/kroxylicious
-        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-        restore-keys: ${{ runner.os }}-m2
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
