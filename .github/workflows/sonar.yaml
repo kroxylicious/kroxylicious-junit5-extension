@@ -31,7 +31,7 @@ jobs:
           path: ./PR_NUMBER.txt
 
       - name: Request GitHub API for PR data
-        uses: octokit/request-action@fceefc326610e57c85d863dd44ac27fbd90f25e3 #v2.x
+        uses: octokit/request-action@10df4beff76ddd0c48b0e983ecde429e7174dfd3 #v2.x
         id: get_pr_data
         with:
           route: GET /repos/{full_name}/pulls/{number}
