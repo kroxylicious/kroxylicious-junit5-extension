@@ -85,7 +85,7 @@
         <skipITs>${skipTests}</skipITs>
         <skipUTs>${skipTests}</skipUTs>
 
-        <junit.version>5.14.3</junit.version>
+        <junit.version>5.14.4</junit.version>
         <kafka.version>4.2.0</kafka.version>
         <testcontainers.version>2.0.4</testcontainers.version>
         <lombok.version>1.18.44</lombok.version>
