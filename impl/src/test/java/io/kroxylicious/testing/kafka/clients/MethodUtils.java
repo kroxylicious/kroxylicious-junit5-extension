@@ -27,6 +27,7 @@ final class MethodUtils {
         return Arrays.stream(adminClass.getMethods())
                 .filter(method -> !Modifier.isStatic(method.getModifiers()) &&
                         !method.isSynthetic() &&
+                        !method.isDefault() &&
                         !method.getName().equals("close"));
     }
 

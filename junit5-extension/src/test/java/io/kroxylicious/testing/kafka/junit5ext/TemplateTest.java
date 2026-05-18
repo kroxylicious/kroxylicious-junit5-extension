@@ -190,6 +190,7 @@ class TemplateTest {
     private static Stream<Version> versions() {
         return Stream.of(
                 version(Version.LATEST_RELEASE),
+                version("4.3.0"),
                 version("4.2.0"),
                 version("4.1.0"),
                 version("3.9.0"),
