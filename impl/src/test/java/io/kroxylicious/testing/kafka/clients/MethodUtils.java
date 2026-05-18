@@ -23,8 +23,8 @@ final class MethodUtils {
         // do not construct
     }
 
-    static Stream<Method> delegatedMethods(Class<?> adminClass) {
-        return Arrays.stream(adminClass.getMethods())
+    static Stream<Method> delegatedMethods(Class<?> clazz) {
+        return Arrays.stream(clazz.getMethods())
                 .filter(method -> !Modifier.isStatic(method.getModifiers()) &&
                         !method.isSynthetic() &&
                         !method.isDefault() &&
