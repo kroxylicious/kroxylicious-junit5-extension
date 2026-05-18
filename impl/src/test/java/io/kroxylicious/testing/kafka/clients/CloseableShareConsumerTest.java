@@ -8,6 +8,8 @@ package io.kroxylicious.testing.kafka.clients;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.consumer.ShareConsumer;
@@ -74,5 +76,47 @@ class CloseableShareConsumerTest {
         var timeout = Duration.ofMinutes(1);
         closeableShareConsumer.close(timeout);
         verify(delegate).close(timeout);
+    }
+
+    @Test
+    void wrapShouldReturnWrappedInstance() {
+        // When
+        ShareConsumer<?, ?> wrapped = CloseableShareConsumer.wrap(delegate);
+
+        // Then
+        assertThat(wrapped).isInstanceOf(CloseableShareConsumer.class);
+        assertThat(((CloseableShareConsumer<?, ?>) wrapped).instance()).isSameAs(delegate);
+    }
+
+    @Test
+    void createWithPropertiesShouldReturnCloseableInstance() {
+        // Given
+        Properties properties = new Properties();
+        properties.put("bootstrap.servers", "localhost:9092");
+        properties.put("group.id", "test-group");
+        properties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        properties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        // When / Then
+        try (ShareConsumer<String, String> consumer = CloseableShareConsumer.create(properties)) {
+            assertThat(consumer).isInstanceOf(CloseableShareConsumer.class)
+                    .isInstanceOf(AutoCloseable.class);
+        }
+    }
+
+    @Test
+    void createWithMapShouldReturnCloseableInstance() {
+        // Given
+        Map<String, Object> configs = Map.of(
+                "bootstrap.servers", "localhost:9092",
+                "group.id", "test-group",
+                "key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer",
+                "value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        // When / Then
+        try (ShareConsumer<String, String> consumer = CloseableShareConsumer.create(configs)) {
+            assertThat(consumer).isInstanceOf(CloseableShareConsumer.class)
+                    .isInstanceOf(AutoCloseable.class);
+        }
     }
 }

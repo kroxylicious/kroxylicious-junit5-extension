@@ -9,12 +9,14 @@ import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 
 import org.apache.kafka.clients.consumer.AcknowledgeType;
 import org.apache.kafka.clients.consumer.AcknowledgementCommitCallback;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaShareConsumer;
 import org.apache.kafka.clients.consumer.ShareConsumer;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.Metric;
@@ -33,6 +35,42 @@ import org.apache.kafka.common.metrics.KafkaMetric;
  * @param <V>  the type parameter
  */
 public record CloseableShareConsumer<K, V>(ShareConsumer<K, V> instance) implements ShareConsumer<K, V>, AutoCloseable {
+    /**
+     * Wrap share consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param instance the instance
+     * @return the share consumer
+     */
+    public static <K, V> ShareConsumer<K, V> wrap(ShareConsumer<K, V> instance) {
+        return new CloseableShareConsumer<>(instance);
+    }
+
+    /**
+     * Create share consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param properties   The consumer configs
+     * @return the share consumer
+     */
+    public static <K, V> ShareConsumer<K, V> create(Properties properties) {
+        return wrap(new KafkaShareConsumer<>(properties));
+    }
+
+    /**
+     * Create share consumer.
+     *
+     * @param <K>  the type parameter
+     * @param <V>  the type parameter
+     * @param configs   The consumer configs
+     * @return the share consumer
+     */
+    public static <K, V> ShareConsumer<K, V> create(Map<String, Object> configs) {
+        return wrap(new KafkaShareConsumer<>(configs));
+    }
+
     @Override
     public Set<String> subscription() {
         return instance.subscription();
