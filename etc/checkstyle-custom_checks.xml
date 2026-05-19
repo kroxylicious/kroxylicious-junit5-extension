@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!--
+
+    Copyright Kroxylicious Authors.
+
+    Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+
+-->
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+
+    <module name="TreeWalker">
+        <module name="IllegalImport">
+            <property name="regexp" value="true"/>
+            <!-- ban jsr305 annotations - we use spotbugs annotations instead -->
+            <!-- Note: javax.annotation.processing is allowed (standard Java annotation processing API) -->
+            <property name="illegalClasses" value="^javax\.annotation\.(?!processing\.).*"/>
+        </module>
+
+        <!-- Ban fully qualified uses of jsr305 annotations (catches cases without imports) -->
+        <!-- Negative lookahead (?!processing\.) allows javax.annotation.processing.* which is standard Java -->
+        <module name="RegexpSinglelineJava">
+            <property name="format" value="javax\.annotation\.(?!processing\.)(concurrent\.)?" />
+            <property name="message" value="Do not use jsr305 annotations (javax.annotation.*). Use spotbugs annotations (e.g. edu.umd.cs.findbugs.annotations.Nullable) instead." />
+        </module>
+    </module>
+
+</module>
