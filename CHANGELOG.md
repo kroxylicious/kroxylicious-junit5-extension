@@ -4,7 +4,8 @@ Please enumerate all user-facing changes using format `<githib issue/pr number>:
 
 ## SNAPSHOT
 
-* [#568](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/616): deps: Upgrade to Kafka 4.3.0
+* [#617](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/617): fix: Add missing factory methods to CloseableShareConsumer and tests
+* [#616](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/616): deps: Upgrade to Kafka 4.3.0
 
 ## 0.15.0
 
