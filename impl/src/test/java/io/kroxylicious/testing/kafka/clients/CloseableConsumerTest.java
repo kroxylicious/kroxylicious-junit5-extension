@@ -9,6 +9,8 @@ package io.kroxylicious.testing.kafka.clients;
 import java.lang.reflect.Method;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.consumer.Consumer;
@@ -75,6 +77,48 @@ class CloseableConsumerTest {
         var timeout = Duration.ofMinutes(1);
         closeableConsumer.close(timeout);
         verify(delegate).close(timeout);
+    }
+
+    @Test
+    void wrapShouldReturnWrappedInstance() {
+        // When
+        Consumer<?, ?> wrapped = CloseableConsumer.wrap(delegate);
+
+        // Then
+        assertThat(wrapped).isInstanceOf(CloseableConsumer.class);
+        assertThat(((CloseableConsumer<?, ?>) wrapped).instance()).isSameAs(delegate);
+    }
+
+    @Test
+    void createWithPropertiesShouldReturnCloseableInstance() {
+        // Given
+        Properties properties = new Properties();
+        properties.put("bootstrap.servers", "localhost:9092");
+        properties.put("group.id", "test-group");
+        properties.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        properties.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        // When / Then
+        try (Consumer<String, String> consumer = CloseableConsumer.create(properties)) {
+            assertThat(consumer).isInstanceOf(CloseableConsumer.class)
+                    .isInstanceOf(AutoCloseable.class);
+        }
+    }
+
+    @Test
+    void createWithMapShouldReturnCloseableInstance() {
+        // Given
+        Map<String, Object> configs = Map.of(
+                "bootstrap.servers", "localhost:9092",
+                "group.id", "test-group",
+                "key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer",
+                "value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        // When / Then
+        try (Consumer<String, String> consumer = CloseableConsumer.create(configs)) {
+            assertThat(consumer).isInstanceOf(CloseableConsumer.class)
+                    .isInstanceOf(AutoCloseable.class);
+        }
     }
 
 }

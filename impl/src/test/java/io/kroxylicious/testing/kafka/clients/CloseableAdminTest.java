@@ -8,6 +8,8 @@ package io.kroxylicious.testing.kafka.clients;
 
 import java.lang.reflect.Method;
 import java.time.Duration;
+import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Stream;
 
 import org.apache.kafka.clients.admin.Admin;
@@ -74,6 +76,42 @@ class CloseableAdminTest {
         var timeout = Duration.ofMinutes(1);
         closeableAdmin.close(timeout);
         verify(delegate).close(timeout);
+    }
+
+    @Test
+    void wrapShouldReturnWrappedInstance() {
+        // When
+        Admin wrapped = CloseableAdmin.wrap(delegate);
+
+        // Then
+        assertThat(wrapped).isInstanceOf(CloseableAdmin.class);
+        assertThat(((CloseableAdmin) wrapped).instance()).isSameAs(delegate);
+    }
+
+    @Test
+    void createWithPropertiesShouldReturnCloseableInstance() {
+        // Given
+        Properties properties = new Properties();
+        properties.put("bootstrap.servers", "localhost:9092");
+
+        // When / Then
+        try (Admin admin = CloseableAdmin.create(properties)) {
+            assertThat(admin).isInstanceOf(CloseableAdmin.class)
+                    .isInstanceOf(AutoCloseable.class);
+        }
+    }
+
+    @Test
+    void createWithMapShouldReturnCloseableInstance() {
+        // Given
+        Map<String, Object> configs = Map.of(
+                "bootstrap.servers", "localhost:9092");
+
+        // When / Then
+        try (Admin admin = CloseableAdmin.create(configs)) {
+            assertThat(admin).isInstanceOf(CloseableAdmin.class)
+                    .isInstanceOf(AutoCloseable.class);
+        }
     }
 
 }
