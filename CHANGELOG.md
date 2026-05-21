@@ -3,6 +3,9 @@
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
 ## SNAPSHOT
+
+* [#568](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/616): deps: Upgrade to Kafka 4.3.0
+
 ## 0.15.0
 
 * [#568](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/568): Upgrade to kafka-4.2.0

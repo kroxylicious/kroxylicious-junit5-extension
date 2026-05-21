@@ -50,6 +50,12 @@ class TestcontainersTest {
     }
 
     @Test
+    void test43(@Version("4.3.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+        String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
+        assertThat(clusterId).isNotEmpty();
+    }
+
+    @Test
     void testLatest(@Version(Version.LATEST_RELEASE) TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
