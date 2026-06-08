@@ -34,7 +34,7 @@ jobs:
           echo "SONAR_TOKEN_SET=$(test ${SONAR_TOKEN} && echo true)" >> $GITHUB_ENV
 
       - name: 'Check out repository'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           submodules: 'true'
           fetch-depth: 0
@@ -92,7 +92,7 @@ jobs:
         version: [3.8.0,3.9.0,4.0.0,4.1.0,4.2.0,4.3.0]
     steps:
       - name: 'Check out repository'
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           submodules: 'true'
           fetch-depth: 0
