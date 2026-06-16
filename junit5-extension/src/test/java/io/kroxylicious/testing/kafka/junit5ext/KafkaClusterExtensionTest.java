@@ -5,9 +5,21 @@
  */
 package io.kroxylicious.testing.kafka.junit5ext;
 
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.CreateTopicsResult;
+import org.apache.kafka.clients.admin.ListTopicsResult;
+import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicListing;
+import org.apache.kafka.common.KafkaFuture;
+import org.apache.kafka.common.errors.TopicExistsException;
+import org.apache.kafka.common.internals.KafkaFutureImpl;
 import org.apache.kafka.common.internals.Topic;
+import org.awaitility.core.TerminalFailureException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -27,7 +39,11 @@ import static io.kroxylicious.testing.kafka.junit5ext.KafkaClusterExtensionTest.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class KafkaClusterExtensionTest {
@@ -47,6 +63,14 @@ class KafkaClusterExtensionTest {
         String name = randomHumanReadable.name();
         assertThat(name).isNotNull();
         assertThatCode(() -> Topic.validate(name)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void randomHumanReadableNameHighlyUnique() {
+        RandomHumanReadable randomHumanReadable = new RandomHumanReadable();
+        int generateCount = 1000000;
+        long unique = IntStream.range(0, generateCount).boxed().map(integer -> randomHumanReadable.name()).distinct().count();
+        assertThat(unique).isEqualTo(generateCount);
     }
 
     @MethodSource("testClassAndDefault")
@@ -145,6 +169,80 @@ class KafkaClusterExtensionTest {
     // used reflectively
     String instanceTopicName() {
         throw new IllegalStateException("should never be invoked");
+    }
+
+    @Test
+    void executeTopicCreateSuppressesCreateFailureCause() {
+        Admin admin = mock(Admin.class);
+        CreateTopicsResult createResult = mock(CreateTopicsResult.class);
+        KafkaFutureImpl<Void> failedFuture = new KafkaFutureImpl<>();
+        var cause = new TopicExistsException("already exists");
+        failedFuture.completeExceptionally(cause);
+        when(admin.createTopics(any())).thenReturn(createResult);
+        when(createResult.all()).thenReturn(failedFuture);
+        stubListTopics(admin);
+
+        var topicDef = new NewTopic("test", 1, (short) 1);
+        assertThatThrownBy(() -> KafkaClusterExtension.executeTopicCreate(admin, topicDef, "test"))
+                .isInstanceOf(TerminalFailureException.class)
+                .satisfies(ex -> assertThat(ex.getSuppressed())
+                        .singleElement()
+                        .isInstanceOf(ExecutionException.class)
+                        .extracting(Throwable::getCause)
+                        .isEqualTo(cause));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void executeTopicCreateRestoresInterruptFlagOnInterruptedException() throws Exception {
+        try {
+            Admin admin = mock(Admin.class);
+            CreateTopicsResult createResult = mock(CreateTopicsResult.class);
+            KafkaFuture<Void> mockFuture = mock(KafkaFuture.class);
+            when(mockFuture.isCompletedExceptionally()).thenReturn(true);
+            when(mockFuture.getNow(null)).thenThrow(new InterruptedException("test interrupt"));
+            when(admin.createTopics(any())).thenReturn(createResult);
+            when(createResult.all()).thenReturn(mockFuture);
+            stubListTopics(admin);
+
+            var topicDef = new NewTopic("test", 1, (short) 1);
+            assertThatThrownBy(() -> KafkaClusterExtension.executeTopicCreate(admin, topicDef, "test"))
+                    .isInstanceOf(TerminalFailureException.class)
+                    .satisfies(ex -> assertThat(ex.getSuppressed())
+                            .singleElement()
+                            .isInstanceOf(InterruptedException.class));
+            assertThat(Thread.interrupted()).as("interrupt flag should be restored").isTrue();
+        }
+        finally {
+            Thread.interrupted();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void executeTopicCreateCancelsFutureWhenNotCompletedExceptionally() {
+        Admin admin = mock(Admin.class);
+        CreateTopicsResult createResult = mock(CreateTopicsResult.class);
+        KafkaFuture<Void> mockFuture = mock(KafkaFuture.class);
+        when(mockFuture.isCompletedExceptionally()).thenReturn(true, false);
+        when(admin.createTopics(any())).thenReturn(createResult);
+        when(createResult.all()).thenReturn(mockFuture);
+        stubListTopics(admin);
+
+        var topicDef = new NewTopic("test", 1, (short) 1);
+        assertThatThrownBy(() -> KafkaClusterExtension.executeTopicCreate(admin, topicDef, "test"))
+                .isInstanceOf(TerminalFailureException.class)
+                .satisfies(ex -> assertThat(ex.getSuppressed()).isEmpty());
+
+        verify(mockFuture).cancel(true);
+    }
+
+    private static void stubListTopics(Admin admin) {
+        ListTopicsResult listResult = mock(ListTopicsResult.class);
+        KafkaFutureImpl<Map<String, TopicListing>> listFuture = new KafkaFutureImpl<>();
+        listFuture.complete(Map.of());
+        Mockito.lenient().when(admin.listTopics()).thenReturn(listResult);
+        Mockito.lenient().when(listResult.namesToListings()).thenReturn(listFuture);
     }
 
     public record Another() {

@@ -28,6 +28,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -36,6 +37,7 @@ import java.util.stream.Stream;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.admin.TopicListing;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -67,6 +69,7 @@ import org.apache.kafka.common.serialization.VoidDeserializer;
 import org.apache.kafka.common.serialization.VoidSerializer;
 import org.apache.kafka.common.utils.Bytes;
 import org.awaitility.Awaitility;
+import org.awaitility.core.TerminalFailureException;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
@@ -99,6 +102,7 @@ import io.kroxylicious.testing.kafka.internal.AdminSource;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
+import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.TRACE;
 import static org.apache.kafka.common.internals.Topic.validate;
 import static org.junit.platform.commons.support.ReflectionSupport.findFields;
@@ -186,7 +190,8 @@ public class KafkaClusterExtension implements
         record RandomHumanReadable() implements TopicNaming {
             @Override
             public String name() {
-                return MobyNamesGenerator.getRandomName();
+                // MobyNamesGenerator only has 25K unique outputs, chance of collisions is too high, so we add a random UUID on
+                return MobyNamesGenerator.getRandomName() + "_" + UUID.randomUUID();
             }
         }
 
@@ -1087,19 +1092,45 @@ public class KafkaClusterExtension implements
                 var numPartitions = Optional.ofNullable(sourceElement.getAnnotation(TopicPartitions.class)).map(TopicPartitions::value);
                 var replicationFactor = Optional.ofNullable(sourceElement.getAnnotation(TopicReplicationFactor.class)).map(TopicReplicationFactor::value);
                 var topicDef = new NewTopic(topicName, numPartitions, replicationFactor).configs(buildTopicConfig(sourceElement));
-                CreateTopicsResult topicsResult = admin.createTopics(List.of(topicDef));
-                var createFuture = topicsResult.all();
-
-                var topicMap = Awaitility.await()
-                        .failFast(createFuture::isCompletedExceptionally)
-                        .atMost(Duration.ofSeconds(5))
-                        .until(() -> admin.listTopics().namesToListings().get(),
-                                n -> n.containsKey(topicName));
+                Map<String, TopicListing> topicMap = executeTopicCreate(admin, topicDef, topicName);
                 return new KafkaTopic(topicName, topicMap.get(topicName).topicId());
             }
         }
         else {
             throw new UnsupportedOperationException("Kafka cluster " + cluster.getClass() + " does not support producing an anonymous admin client.");
+        }
+    }
+
+    @VisibleForTesting
+    static Map<String, TopicListing> executeTopicCreate(Admin admin, NewTopic topicDef, String topicName) {
+        CreateTopicsResult topicsResult = admin.createTopics(List.of(topicDef));
+        var createFuture = topicsResult.all();
+        try {
+            return Awaitility.await()
+                    .failFast(createFuture::isCompletedExceptionally)
+                    .atMost(Duration.ofSeconds(5))
+                    .until(() -> admin.listTopics().namesToListings().get(),
+                            n -> n.containsKey(topicName));
+        }
+        catch (TerminalFailureException exception) {
+            if (createFuture.isCompletedExceptionally()) {
+                try {
+                    // at language level 19 we could change to exceptionNow to avoid interrupt handling
+                    createFuture.getNow(null);
+                }
+                catch (ExecutionException e) {
+                    exception.addSuppressed(e);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    exception.addSuppressed(e);
+                }
+            }
+            else {
+                createFuture.cancel(true);
+            }
+            LOGGER.log(ERROR, "test {0}: failed to create topic", exception);
+            throw exception;
         }
     }
 
