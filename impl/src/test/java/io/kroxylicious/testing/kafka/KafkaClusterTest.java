@@ -5,10 +5,9 @@
  */
 package io.kroxylicious.testing.kafka;
 
-import java.io.IOException;
 import java.net.ConnectException;
 import java.net.Socket;
-import java.security.GeneralSecurityException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,7 +53,7 @@ import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
-import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
+import io.kroxylicious.testing.kafka.common.KeystoreManager;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.invm.InVMKafkaCluster;
 
@@ -79,8 +78,9 @@ class KafkaClusterTest {
 
     private static final boolean ZOOKEEPER_AVAILABLE = zookeeperAvailable();
     private TestInfo testInfo;
-    private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
-    private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
+    private KeystoreManager keystoreManager;
+    private Path brokerKeystorePath;
+    private Path clientKeystorePath;
 
     private enum ControllerType {
         KRAFT,
@@ -464,8 +464,9 @@ class KafkaClusterTest {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
+                .keystoreManager(keystoreManager)
+                .brokerKeystorePath(brokerKeystorePath)
+                .clientKeystorePath(clientKeystorePath)
                 .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
@@ -482,8 +483,9 @@ class KafkaClusterTest {
         createClientCertificate();
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
-                .clientKeytoolCertificateGenerator(clientKeytoolCertificateGenerator)
+                .keystoreManager(keystoreManager)
+                .brokerKeystorePath(brokerKeystorePath)
+                .clientKeystorePath(clientKeystorePath)
                 .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SSL")
                 .build())) {
@@ -497,7 +499,8 @@ class KafkaClusterTest {
     void kafkaClusterSSL_ClientNoAuth(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .keystoreManager(keystoreManager)
+                .brokerKeystorePath(brokerKeystorePath)
                 .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SSL")
                 .build())) {
@@ -511,7 +514,8 @@ class KafkaClusterTest {
     void kafkaClusterSASL_SSL_ClientNoAuth(ControllerType controllerType) throws Exception {
         try (var cluster = KafkaClusterFactory.create(KafkaClusterConfig.builder()
                 .testInfo(testInfo)
-                .brokerKeytoolCertificateGenerator(brokerKeytoolCertificateGenerator)
+                .keystoreManager(keystoreManager)
+                .brokerKeystorePath(brokerKeystorePath)
                 .kraftMode(controllerType.isKRaft())
                 .securityProtocol("SASL_SSL")
                 .saslMechanism("PLAIN")
@@ -714,14 +718,23 @@ class KafkaClusterTest {
     }
 
     @BeforeEach
-    void before(TestInfo testInfo) throws IOException {
+    void before(TestInfo testInfo) throws Exception {
         this.testInfo = testInfo;
-        this.brokerKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
+        this.keystoreManager = new KeystoreManager();
+        // Create broker certificate
+        String brokerDn = keystoreManager.buildDistinguishedName("test@kroxylicious.io", "localhost", "Dev",
+                "Kroxylicious.io", null, null, "US");
+        var brokerBuilder = keystoreManager.newCertificateBuilder(brokerDn).addSanDnsName("localhost");
+        var brokerBundle = keystoreManager.createSelfSignedCertificate(brokerBuilder);
+        this.brokerKeystorePath = keystoreManager.generateCertificateFile(brokerBundle);
     }
 
-    private void createClientCertificate() throws GeneralSecurityException, IOException {
-        this.clientKeytoolCertificateGenerator = new KeytoolCertificateGenerator();
-        this.clientKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("clientTest@kroxylicious.io", "client", "Dev", "Kroxylicious.ip", null, null, "US");
+    private void createClientCertificate() throws Exception {
+        String clientDn = keystoreManager.buildDistinguishedName("clientTest@kroxylicious.io", "client", "Dev",
+                "Kroxylicious.io", null, null, "US");
+        var clientBuilder = keystoreManager.newCertificateBuilder(clientDn).addSanDnsName("client");
+        var clientBundle = keystoreManager.createSelfSignedCertificate(clientBuilder);
+        this.clientKeystorePath = keystoreManager.generateCertificateFile(clientBundle);
     }
 
     public static boolean zookeeperAvailable() {

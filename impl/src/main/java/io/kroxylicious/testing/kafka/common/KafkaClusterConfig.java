@@ -5,13 +5,8 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,7 +19,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -43,6 +37,9 @@ import org.apache.kafka.common.security.plain.PlainLoginModule;
 import org.apache.kafka.common.security.scram.ScramLoginModule;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
+
+import io.netty.pkitesting.CertificateBuilder;
+import io.netty.pkitesting.X509Bundle;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -84,8 +81,11 @@ public class KafkaClusterConfig {
     private static final Pattern KAFKA_4_1_OR_HIGHER = Pattern.compile("^4\\.[1-9]\\d*\\..*$");
 
     private TestInfo testInfo;
-    private KeytoolCertificateGenerator brokerKeytoolCertificateGenerator;
-    private KeytoolCertificateGenerator clientKeytoolCertificateGenerator;
+    private KeystoreManager keystoreManager;
+    private Path brokerKeystorePath;
+    private X509Bundle brokerCertBundle;
+    private Path clientKeystorePath;
+    private X509Bundle clientCertBundle;
 
     /**
      * specifies the cluster execution mode.
@@ -193,7 +193,7 @@ public class KafkaClusterConfig {
             }
             else if (annotation instanceof Tls) {
                 tls = true;
-                processTls(builder::brokerKeytoolCertificateGenerator);
+                builder.keystoreManager(new KeystoreManager());
             }
             else if (annotation instanceof ClusterId clusterId) {
                 builder.kafkaKraftClusterId(clusterId.value());
@@ -222,15 +222,6 @@ public class KafkaClusterConfig {
 
         builder.securityProtocol(determineSecurityProtocol(useSasl, tls));
         return builder.build();
-    }
-
-    private static void processTls(Consumer<KeytoolCertificateGenerator> consumer) {
-        try {
-            consumer.accept(new KeytoolCertificateGenerator());
-        }
-        catch (IOException e) {
-            throw new UncheckedIOException("Failed to create broker certificate", e);
-        }
     }
 
     private static void processBrokerConfigs(Annotation annotation, BiConsumer<String, String> consumer) {
@@ -371,35 +362,43 @@ public class KafkaClusterConfig {
 
     private void configureTls(KafkaListener listener, Properties server) {
         if (securityProtocol != null && securityProtocol.contains("SSL")) {
-            if (brokerKeytoolCertificateGenerator == null) {
-                throw new RuntimeException("brokerKeytoolCertificateGenerator needs to be initialized when calling KafkaClusterConfig");
+            if (keystoreManager == null) {
+                throw new RuntimeException("keystoreManager needs to be initialized when calling KafkaClusterConfig");
             }
             try {
-                brokerKeytoolCertificateGenerator.generateSelfSignedCertificateEntry("test@kroxylicious.io", listener.advertised().host(), "Dev",
-                        "Kroxylicious.io", null,
-                        null,
-                        "US");
-                if (clientKeytoolCertificateGenerator != null && Path.of(clientKeytoolCertificateGenerator.getCertFilePath()).toFile().exists()) {
+                // Generate broker certificate if not already done
+                if (brokerCertBundle == null) {
+                    String dn = keystoreManager.buildDistinguishedName("test@kroxylicious.io", listener.advertised().host(), "Dev",
+                            "Kroxylicious.io", null, null, "US");
+                    CertificateBuilder builder = keystoreManager.newCertificateBuilder(dn)
+                            .addSanDnsName(listener.advertised().host());
+                    brokerCertBundle = keystoreManager.createSelfSignedCertificate(builder);
+                    brokerKeystorePath = keystoreManager.generateCertificateFile(brokerCertBundle);
+                }
+
+                // Configure client authentication if client certificate exists
+                if (clientKeystorePath != null && clientKeystorePath.toFile().exists()) {
                     if (securityProtocol.equals(SecurityProtocol.SASL_SSL.toString())) {
                         server.put("listener.name.%s.%s".formatted(EXTERNAL_LISTENER_NAME.toLowerCase(ROOT), BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG), "required");
                     }
                     else {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
                     }
-                    brokerKeytoolCertificateGenerator.generateTrustStore(clientKeytoolCertificateGenerator.getCertFilePath(), listener.advertised().host());
-                    server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreLocation());
-                    server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
-                    server.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, brokerKeytoolCertificateGenerator.getTrustStoreType());
+                    // Note: With KeystoreManager, the broker's keystore already contains the CA cert for trust
+                    // so we don't need a separate truststore operation like the old generateTrustStore() call
+                    server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeystorePath.toAbsolutePath().toString());
+                    server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keystoreManager.getPassword(brokerKeystorePath));
+                    server.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PKCS12");
                 }
             }
-            catch (GeneralSecurityException | IOException e) {
+            catch (Exception e) {
                 throw new RuntimeException(e);
             }
 
-            server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, brokerKeytoolCertificateGenerator.getKeyStoreLocation());
-            server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
-            server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, brokerKeytoolCertificateGenerator.getPassword());
-            server.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, brokerKeytoolCertificateGenerator.getKeyStoreType());
+            server.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, brokerKeystorePath.toAbsolutePath().toString());
+            server.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keystoreManager.getPassword(brokerKeystorePath));
+            server.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keystoreManager.getPassword(brokerKeystorePath));
+            server.put(SslConfigs.SSL_KEYSTORE_TYPE_CONFIG, "PKCS12");
 
         }
     }
@@ -604,40 +603,22 @@ public class KafkaClusterConfig {
     private void buildSecurityProtocolConfig(Map<String, Object> kafkaConfig) {
         String clientTrustStoreFilePath;
         String clientTrustStorePassword;
-        if (clientKeytoolCertificateGenerator != null) {
-            if (Path.of(clientKeytoolCertificateGenerator.getKeyStoreLocation()).toFile().exists()) {
-                // SSL client auth case
-                kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeytoolCertificateGenerator.getKeyStoreLocation());
-                kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
-                kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, clientKeytoolCertificateGenerator.getPassword());
-            }
-            try {
-                clientKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client");
-            }
-            catch (GeneralSecurityException | IOException e) {
-                throw new RuntimeException(e);
-            }
-            clientTrustStoreFilePath = clientKeytoolCertificateGenerator.getTrustStoreLocation();
-            clientTrustStorePassword = clientKeytoolCertificateGenerator.getPassword();
+        if (clientKeystorePath != null && clientKeystorePath.toFile().exists()) {
+            // SSL client auth case - use client's keystore for both key and trust
+            kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeystorePath.toAbsolutePath().toString());
+            kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keystoreManager.getPassword(clientKeystorePath));
+            kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keystoreManager.getPassword(clientKeystorePath));
+            clientTrustStoreFilePath = clientKeystorePath.toAbsolutePath().toString();
+            clientTrustStorePassword = keystoreManager.getPassword(clientKeystorePath);
         }
         else {
-            Path clientTrustStore;
-            try {
-                Path certsDirectory = Files.createTempDirectory("kafkaClient");
-                clientTrustStore = Paths.get(certsDirectory.toAbsolutePath().toString(), "kafka.truststore.jks");
-                certsDirectory.toFile().deleteOnExit();
-                clientTrustStore.toFile().deleteOnExit();
-                brokerKeytoolCertificateGenerator.generateTrustStore(brokerKeytoolCertificateGenerator.getCertFilePath(), "client",
-                        clientTrustStore.toAbsolutePath().toString());
-            }
-            catch (GeneralSecurityException | IOException e) {
-                throw new RuntimeException(e);
-            }
-            clientTrustStoreFilePath = clientTrustStore.toAbsolutePath().toString();
-            clientTrustStorePassword = brokerKeytoolCertificateGenerator.getPassword();
+            // No client auth - use broker's keystore for trust only
+            clientTrustStoreFilePath = brokerKeystorePath.toAbsolutePath().toString();
+            clientTrustStorePassword = keystoreManager.getPassword(brokerKeystorePath);
         }
         kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientTrustStoreFilePath);
         kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientTrustStorePassword);
+        kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PKCS12");
     }
 
     private void buildSaslConnectConfig(Map<String, Object> kafkaConfig, String user, String password, String securityProtocol, String saslMechanism) {
