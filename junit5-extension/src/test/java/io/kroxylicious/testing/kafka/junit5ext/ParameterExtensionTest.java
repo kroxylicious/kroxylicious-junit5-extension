@@ -14,7 +14,6 @@ import java.util.regex.Pattern;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
-import org.apache.kafka.clients.admin.ConsumerGroupListing;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -114,10 +113,10 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         // start the consumer to create the group
         consumer.poll(Duration.ofSeconds(1));
 
-        var groups = admin.listConsumerGroups().all().get(5, TimeUnit.SECONDS);
+        var groups = admin.listGroups().valid().get(5, TimeUnit.SECONDS);
         assertThat(groups)
                 .singleElement()
-                .extracting(ConsumerGroupListing::groupId).isEqualTo(CONSUMER_GROUP);
+                .extracting(listing -> listing.groupId()).isEqualTo(CONSUMER_GROUP);
     }
 
     @Test
