@@ -384,10 +384,9 @@ public class KafkaClusterConfig {
                     else {
                         server.put(BrokerSecurityConfigs.SSL_CLIENT_AUTH_CONFIG, "required");
                     }
-                    // Note: With KeystoreManager, the broker's keystore already contains the CA cert for trust
-                    // so we don't need a separate truststore operation like the old generateTrustStore() call
-                    server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, brokerKeystorePath.toAbsolutePath().toString());
-                    server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keystoreManager.getPassword(brokerKeystorePath));
+                    // The broker must trust the client's CA certificate so that it can authenticate client certificates.
+                    server.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientKeystorePath.toAbsolutePath().toString());
+                    server.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, keystoreManager.getPassword(clientKeystorePath));
                     server.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PKCS12");
                 }
             }
@@ -604,18 +603,14 @@ public class KafkaClusterConfig {
         String clientTrustStoreFilePath;
         String clientTrustStorePassword;
         if (clientKeystorePath != null && clientKeystorePath.toFile().exists()) {
-            // SSL client auth case - use client's keystore for both key and trust
+            // SSL client auth: present the client certificate as the client's identity.
             kafkaConfig.put(SslConfigs.SSL_KEYSTORE_LOCATION_CONFIG, clientKeystorePath.toAbsolutePath().toString());
             kafkaConfig.put(SslConfigs.SSL_KEYSTORE_PASSWORD_CONFIG, keystoreManager.getPassword(clientKeystorePath));
             kafkaConfig.put(SslConfigs.SSL_KEY_PASSWORD_CONFIG, keystoreManager.getPassword(clientKeystorePath));
-            clientTrustStoreFilePath = clientKeystorePath.toAbsolutePath().toString();
-            clientTrustStorePassword = keystoreManager.getPassword(clientKeystorePath);
         }
-        else {
-            // No client auth - use broker's keystore for trust only
-            clientTrustStoreFilePath = brokerKeystorePath.toAbsolutePath().toString();
-            clientTrustStorePassword = keystoreManager.getPassword(brokerKeystorePath);
-        }
+        // The client must trust the broker's CA certificate regardless of whether client auth is used.
+        clientTrustStoreFilePath = brokerKeystorePath.toAbsolutePath().toString();
+        clientTrustStorePassword = keystoreManager.getPassword(brokerKeystorePath);
         kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_LOCATION_CONFIG, clientTrustStoreFilePath);
         kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_PASSWORD_CONFIG, clientTrustStorePassword);
         kafkaConfig.put(SslConfigs.SSL_TRUSTSTORE_TYPE_CONFIG, "PKCS12");
