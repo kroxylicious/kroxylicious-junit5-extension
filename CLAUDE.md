@@ -82,7 +82,7 @@ Signed-off-by: <name> <email>
 
 **AI Disclosure Requirement:**
 When AI assists with code changes, add an `Assisted-by:` trailer:
-- Format: `Assisted-by: Claude <model-name> <noreply@anthropic.com>`
+- Format: `Assisted-by: <harness|Agent framework> <model-name> <noreply@anthropic.com>`
 - Model name examples: "Claude Sonnet 4.5", "Claude Opus 4.6"
 - DO NOT use `Co-Authored-By:`
 - Placement: After commit body, before `Signed-off-by:` trailer
