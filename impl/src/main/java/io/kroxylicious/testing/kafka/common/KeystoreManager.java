@@ -101,7 +101,7 @@ public class KeystoreManager {
     public Path generateCertificateFile(X509Bundle bundle) throws KeyStoreException, IOException, CertificateException, NoSuchAlgorithmException {
         FileAttribute<Set<PosixFilePermission>> attr = PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------"));
         Path certsDirectory = Files.createTempDirectory("kroxylicious", attr);
-        Path keyStoreFilePath = Paths.get(certsDirectory.toAbsolutePath().toString(), UUID.randomUUID().toString().replace("-", "") + "-keystore.p12");
+        Path keyStoreFilePath = Paths.get(certsDirectory.toAbsolutePath().toString(), "keystore.jks");
         KeyStore keyStore = bundle.toKeyStore(getPassword(keyStoreFilePath).toCharArray());
         try (FileOutputStream stream = new FileOutputStream(keyStoreFilePath.toFile())) {
             keyStore.store(stream, getPassword(keyStoreFilePath).toCharArray());
