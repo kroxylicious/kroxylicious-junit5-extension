@@ -5,7 +5,9 @@
  */
 package io.kroxylicious.testing.kafka.common;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.DockerClientFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -14,6 +16,8 @@ class KafkaClusterFactoryTest {
     @SuppressWarnings("resource")
     @Test
     void shouldCreateInstanceInContainerModeWithControllerOnlyNodes() throws Exception {
+        Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker/Podman not available");
+
         // Given
         final KafkaClusterConfig kafkaClusterConfig = KafkaClusterConfig.builder()
                 .execMode(KafkaClusterExecutionMode.CONTAINER)
