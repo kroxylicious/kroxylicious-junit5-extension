@@ -455,14 +455,13 @@ class ParameterExtensionTest extends AbstractExtensionTest {
                 .succeedsWithin(Duration.ofSeconds(10), STRING)
                 .isEqualTo(cluster.getClusterId());
 
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertThat(dc.nodes())
+        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertThat(describeCluster(cluster.getKafkaClientConfiguration()).nodes())
                 .succeedsWithin(Duration.ofSeconds(10))
                 .asInstanceOf(collection(Node.class)).hasSize(expectedNodes));
     }
 
     private void assertClusterSize(KafkaCluster cluster, int expectedNodes) throws Exception {
-        var dc = describeCluster(cluster.getKafkaClientConfiguration());
-        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertThat(dc.nodes())
+        await().atMost(CLUSTER_FORMATION_TIMEOUT).untilAsserted(() -> assertThat(describeCluster(cluster.getKafkaClientConfiguration()).nodes())
                 .succeedsWithin(Duration.ofSeconds(10))
                 .asInstanceOf(collection(Node.class)).hasSize(expectedNodes));
     }
