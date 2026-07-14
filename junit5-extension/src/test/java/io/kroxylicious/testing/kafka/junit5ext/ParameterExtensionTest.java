@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
+import org.apache.kafka.clients.admin.ConsumerGroupListing;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -101,6 +102,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         assertConfigValue(configs, "delete.topic.enable", "false");
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     void consumerConfiguration(KafkaCluster cluster,
                                Admin admin,
@@ -113,10 +115,10 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         // start the consumer to create the group
         consumer.poll(Duration.ofSeconds(1));
 
-        var groups = admin.listGroups().valid().get(5, TimeUnit.SECONDS);
+        var groups = admin.listConsumerGroups().all().get(5, TimeUnit.SECONDS);
         assertThat(groups)
                 .singleElement()
-                .extracting(listing -> listing.groupId()).isEqualTo(CONSUMER_GROUP);
+                .extracting(ConsumerGroupListing::groupId).isEqualTo(CONSUMER_GROUP);
     }
 
     @Test
