@@ -22,8 +22,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
-
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
 
@@ -75,40 +73,8 @@ public class KeystoreManager {
      * @param country the country
      * @return the distinguished name
      */
-    public String buildDistinguishedName(@Nullable String email,
-                                         @Nullable String domain,
-                                         @Nullable String organizationUnit,
-                                         @Nullable String organization,
-                                         @Nullable String city,
-                                         @Nullable String state,
-                                         @Nullable String country) {
-        StringBuilder result = new StringBuilder();
-        String comma = ", ";
-        if (domain != null && !domain.isEmpty()) {
-            result.append("CN=").append(domain).append(comma);
-        }
-        if (organizationUnit != null && !organizationUnit.isEmpty()) {
-            result.append("OU=").append(organizationUnit).append(comma);
-        }
-        if (organization != null && !organization.isEmpty()) {
-            result.append("O=").append(organization).append(comma);
-        }
-        if (city != null && !city.isEmpty()) {
-            result.append("L=").append(city).append(comma);
-        }
-        if (state != null && !state.isEmpty()) {
-            result.append("ST=").append(state).append(comma);
-        }
-        if (country != null && !country.isEmpty()) {
-            result.append("C=").append(country).append(comma);
-        }
-        if (email != null && !email.isEmpty()) {
-            result.append("EMAILADDRESS=").append(email).append(comma);
-        }
-        if (result.isEmpty()) {
-            throw new IllegalArgumentException("At least one argument must be non-null and non-empty");
-        }
-        return result.substring(0, result.length() - comma.length());
+    public String buildDistinguishedName(String email, String domain, String organizationUnit, String organization, String city, String state, String country) {
+        return "CN=" + domain + ", OU=" + organizationUnit + ", O=" + organization + ", L=" + city + ", ST=" + state + ", C=" + country + ", EMAILADDRESS=" + email;
     }
 
     /**
