@@ -25,7 +25,18 @@ import java.util.concurrent.ConcurrentMap;
 import io.netty.pkitesting.CertificateBuilder;
 import io.netty.pkitesting.X509Bundle;
 
+/**
+ * Creates and manages TLS keystores and certificates for use in Kafka cluster test configurations.
+ * Each instance maintains a per-keystore password map for the lifetime of the test.
+ */
 public class KeystoreManager {
+
+    /**
+     * Creates a new KeystoreManager.
+     */
+    public KeystoreManager() {
+    }
+
     private final ConcurrentMap<Path, String> passwords = new ConcurrentHashMap<>();
 
     /**
@@ -44,6 +55,7 @@ public class KeystoreManager {
      * Builds and adds provided certificate builder as a self-signed certificate
      * @param certificateBuilder the builder configuring the certificate
      * @return the self-signed certificate.
+     * @throws Exception if certificate generation fails
      */
     public X509Bundle createSelfSignedCertificate(CertificateBuilder certificateBuilder) throws Exception {
         return certificateBuilder.copy()
@@ -52,10 +64,11 @@ public class KeystoreManager {
     }
 
     /**
-     * Optional we don't need this today!
      * Builds and adds provided certificate builder as a certificate signed by the provided issuer.
+     * @param issuer             the CA bundle used to sign the certificate
      * @param certificateBuilder the builder configuring the certificate
      * @return the signed certificate.
+     * @throws Exception if certificate generation fails
      */
     public X509Bundle createSignedCertificate(X509Bundle issuer, CertificateBuilder certificateBuilder) throws Exception {
         return certificateBuilder.copy()
@@ -78,8 +91,9 @@ public class KeystoreManager {
     }
 
     /**
-     * Gets password.
+     * Gets (or lazily generates) a random password for the given keystore path.
      *
+     * @param keystorePath the path to the keystore file
      * @return  the password
      */
     public String getPassword(Path keystorePath) {

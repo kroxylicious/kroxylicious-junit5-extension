@@ -639,7 +639,7 @@
                                 </goals>
                                 <configuration>
                                     <links>
-                                        <link>https://junit.org/junit5/docs/${junit.version}/api/</link>
+                                        <link>https://docs.junit.org/${junit.version}/api/</link>
                                     </links>
                                 </configuration>
                             </execution>

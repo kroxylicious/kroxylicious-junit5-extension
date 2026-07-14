@@ -6,6 +6,9 @@
 
 package io.kroxylicious.testing.kafka.api;
 
+/**
+ * Style in which a Kafka cluster component should be terminated.
+ */
 public enum TerminationStyle {
     /**
      * Graceful termination style where components are requested to terminate and have the opportunity to close

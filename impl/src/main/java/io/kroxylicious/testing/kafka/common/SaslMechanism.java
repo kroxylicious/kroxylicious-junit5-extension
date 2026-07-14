@@ -51,8 +51,18 @@ public @interface SaslMechanism {
     @Repeatable(Principal.List.class)
     @interface Principal {
 
+        /**
+         * Returns the SASL username.
+         *
+         * @return the SASL username
+         */
         String user();
 
+        /**
+         * Returns the SASL password for the user.
+         *
+         * @return the SASL password for the user
+         */
         String password();
 
         /**
@@ -62,6 +72,11 @@ public @interface SaslMechanism {
         @Retention(RetentionPolicy.RUNTIME)
         @KafkaClusterConstraint
         @interface List {
+            /**
+             * Returns the principals.
+             *
+             * @return the principals
+             */
             Principal[] value();
         }
     }

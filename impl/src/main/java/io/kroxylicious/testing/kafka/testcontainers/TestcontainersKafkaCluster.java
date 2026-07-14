@@ -85,8 +85,16 @@ import static io.kroxylicious.testing.kafka.common.Utils.awaitExpectedBrokerCoun
  */
 public class TestcontainersKafkaCluster implements Startable, KafkaCluster, KafkaListenerSource, AdminSource {
 
+    /**
+     * environment variable specifying the zookeeper image tag.
+     * @deprecated no longer used; ZooKeeper-based mode is not supported in current images
+     */
     @Deprecated(since = "0.12.0")
     public static final String LEGACY_ZOOKEEPER_IMAGE_TAG = "ZOOKEEPER_IMAGE_TAG";
+    /**
+     * environment variable specifying the zookeeper image repository.
+     * @deprecated no longer used; ZooKeeper-based mode is not supported in current images
+     */
     @Deprecated(since = "0.12.0")
     public static final String LEGACY_ZOOKEEPER_IMAGE_REPO = "ZOOKEEPER_IMAGE_REPO";
     private static final System.Logger LOGGER = System.getLogger(TestcontainersKafkaCluster.class.getName());
@@ -132,6 +140,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final Duration MINIMUM_RUNNING_DURATION = Duration.ofMillis(500);
     private static final boolean CONTAINER_ENGINE_PODMAN = isContainerEnginePodman();
     private static final String KAFKA_CONTAINER_MOUNT_POINT = "/tmp";
+    /** Bind address that causes the listener to accept connections on all network interfaces. */
     public static final String WILDCARD_BIND_ADDRESS = "0.0.0.0";
 
     // This uid needs to match the uid used by the ozangunalp native kafka container to execute the kafka process
@@ -140,7 +149,7 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
     private static final int READY_TIMEOUT_SECONDS = 120;
     private static final String LOCALHOST = "localhost";
     private static final Pattern MAJOR_MINOR_PATCH = Pattern.compile("\\d+(\\.\\d+(\\.\\d+)?)?");
-    // This uid needs to match the uid used by the apache kafka containers to execute the kafka process
+    /** UID used by the Apache Kafka container image to run the Kafka process; must match the container image. */
     public static final String APACHE_CONTAINER_UID = "1000";
 
     private final DockerImageName kafkaImage;
@@ -909,6 +918,12 @@ public class TestcontainersKafkaCluster implements Startable, KafkaCluster, Kafk
             return this;
         }
 
+        /**
+         * Adds a Docker bind mount to this container.
+         *
+         * @param bind the bind mount to add
+         * @return this container instance for chaining
+         */
         public LoggingGenericContainer<C> addGenericBind(Bind bind) {
             super.getBinds().add(bind);
             return this;

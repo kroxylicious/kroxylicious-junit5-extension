@@ -18,11 +18,18 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * {@see KafkaClusterExtension}
  */
 public interface Topic {
+    /**
+     * Returns the name of the created topic.
+     *
+     * @return the name of the created topic
+     */
     @NonNull
     String name();
 
     /**
-     * @return the topic id of the created topic, will be non-empty for kafka versions >=2.8
+     * Returns the topic id assigned by the broker.
+     *
+     * @return the topic id of the created topic, will be non-empty for kafka versions &gt;=2.8
      */
     @NonNull
     Optional<Uuid> topicId();
