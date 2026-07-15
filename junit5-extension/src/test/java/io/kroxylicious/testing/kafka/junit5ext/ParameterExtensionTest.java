@@ -102,6 +102,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
         assertConfigValue(configs, "delete.topic.enable", "false");
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     void consumerConfiguration(KafkaCluster cluster,
                                Admin admin,

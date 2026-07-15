@@ -249,6 +249,12 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
+                <groupId>net.bytebuddy</groupId>
+                <artifactId>byte-buddy-agent</artifactId>
+                <version>1.17.7</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
                 <groupId>info.schnatterer.moby-names-generator</groupId>
                 <artifactId>moby-names-generator</artifactId>
                 <version>${moby-names-generator.version}</version>
@@ -329,6 +335,7 @@
                     <version>3.15.0</version>
                     <configuration>
                         <parameters>true</parameters>
+                        <proc>full</proc>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -407,7 +414,9 @@
                         <systemPropertyVariables>
                             <container.logs.dir>${project.build.directory}/container-logs/</container.logs.dir>
                         </systemPropertyVariables>
+                        <!--suppress UnresolvedMavenProperty --> <!-- Initialized by maven-dependency-plugin's get-agent-path below -->
                         <argLine>
+                            -javaagent:@{net.bytebuddy:byte-buddy-agent:jar}
                             --add-opens java.base/java.util=ALL-UNNAMED
                             --add-opens java.base/java.lang=ALL-UNNAMED
                             @{argLine}
@@ -494,6 +503,20 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>get-agent-path</id>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>
