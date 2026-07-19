@@ -31,10 +31,13 @@ import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.assertj.core.api.ObjectAssert;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
+import org.testcontainers.DockerClientFactory;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -43,6 +46,7 @@ import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.ClientConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.SaslMechanism;
 import io.kroxylicious.testing.kafka.common.SaslMechanism.Principal;
@@ -64,6 +68,14 @@ import static org.awaitility.Awaitility.await;
 class ParameterExtensionTest extends AbstractExtensionTest {
 
     private static final Duration CLUSTER_FORMATION_TIMEOUT = Duration.ofSeconds(10);
+
+    @BeforeEach
+    void assumeDockerAvailableWhenContainerModeForced() {
+        if (KafkaClusterExecutionMode.CONTAINER.name().equals(System.getenv(KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE))) {
+            Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker/Podman not available");
+        }
+    }
+
     private static final String CONSUMER_GROUP = "mygroup";
     private static final String TRANSACTIONAL_ID = "mytxn1";
     private static final String CLIENT_ID = "myclientid";

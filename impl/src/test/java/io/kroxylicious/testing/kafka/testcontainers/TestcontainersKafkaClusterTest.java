@@ -19,6 +19,8 @@ import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.common.utils.AppInfoParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -26,6 +28,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junitpioneer.jupiter.ClearEnvironmentVariable;
 import org.junitpioneer.jupiter.SetEnvironmentVariable;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.RemoteDockerImage;
 import org.testcontainers.utility.DockerImageName;
@@ -42,6 +45,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ClearEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_REPO)
 @ClearEnvironmentVariable(key = TestcontainersKafkaCluster.LEGACY_ZOOKEEPER_IMAGE_TAG)
 class TestcontainersKafkaClusterTest {
+
+    @BeforeAll
+    static void assumeDockerAvailable() {
+        Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker/Podman not available");
+    }
 
     private KafkaClusterConfig.KafkaClusterConfigBuilder clusterConfigBuilder;
 
