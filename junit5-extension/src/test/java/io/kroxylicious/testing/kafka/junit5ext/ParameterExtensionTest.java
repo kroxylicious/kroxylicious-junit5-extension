@@ -11,6 +11,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
+import io.kroxylicious.testing.kafka.common.KafkaClusterExecutionMode;
+
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.clients.admin.ConfigEntry;
@@ -70,7 +72,7 @@ class ParameterExtensionTest extends AbstractExtensionTest {
 
     @BeforeEach
     void assumeDockerAvailableWhenContainerModeForced() {
-        if ("CONTAINER".equals(System.getenv(KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE))) {
+        if (KafkaClusterExecutionMode.CONTAINER.name().equals(System.getenv(KafkaClusterFactory.TEST_CLUSTER_EXECUTION_MODE))) {
             Assumptions.assumeTrue(DockerClientFactory.instance().isDockerAvailable(), "Docker/Podman not available");
         }
     }
