@@ -35,6 +35,7 @@ public class KeystoreManager {
      * Creates a new KeystoreManager.
      */
     public KeystoreManager() {
+        // exists purely to host the javadoc.
     }
 
     private final ConcurrentMap<Path, String> passwords = new ConcurrentHashMap<>();
