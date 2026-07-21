@@ -19,7 +19,7 @@ This document gives a detailed breakdown of the various build processes and opti
 
 ## Build Prerequisites
 
-- [JDK](https://openjdk.org/projects/jdk/17/) (version 17 and above) - Maven CLI
+- [JDK](https://openjdk.org/projects/jdk/21/) (version 21 and above) - Maven CLI
 - [`mvn`](https://maven.apache.org/index.html) (version 3.5 and above) - Maven CLI
 - [`docker`](https://docs.docker.com/install/) or [`podman`](https://podman.io/docs/installation) - Docker or Podman
 
@@ -27,7 +27,7 @@ This document gives a detailed breakdown of the various build processes and opti
 > 
 ## JDK target
 
-The project targets language Java level 17.
+The project targets language Java level 21.
 
 ## Building / Running the Tests
 
