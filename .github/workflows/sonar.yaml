@@ -45,6 +45,8 @@ jobs:
           repository: ${{ github.event.workflow_run.head_repository.full_name }}
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
+          # Fork PR code runs in the base repo's trusted context. We mitigate the pwn-request
+          # risk via approval-required settings on CI runs. See https://gh.io/securely-using-pull_request_target
           allow-unsafe-pr-checkout: true
 
       - name: Checkout base branch
