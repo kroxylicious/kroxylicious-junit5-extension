@@ -239,7 +239,7 @@ class TestcontainersKafkaClusterTest {
     }
 
     private static Stream<Version> fixedVersionsPost41() {
-        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"), version("4.3.0"));
+        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"), version("4.3.1"));
     }
 
     private static Stream<Version> allVersionsWithAlterScramSupport() {
