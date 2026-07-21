@@ -673,10 +673,20 @@ public class KafkaClusterConfig {
         return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).equals(PLAIN_SASL_MECHANISM_NAME);
     }
 
+    /**
+     * Returns whether the configured SASL mechanism is a SCRAM-SHA variant.
+     *
+     * @return {@code true} if the configured SASL mechanism is a SCRAM-SHA variant
+     */
     public boolean isSaslScram() {
         return this.saslMechanism != null && this.saslMechanism.toUpperCase(ROOT).startsWith(SCRAM_SHA_SASL_MECHANISM_PREFIX);
     }
 
+    /**
+     * Returns the specific SCRAM mechanism implied by the configured SASL mechanism name.
+     *
+     * @return the SCRAM mechanism, or empty if the cluster is not configured for SCRAM
+     */
     public Optional<ScramMechanism> getScramMechanism() {
         if (!isSaslScram()) {
             return Optional.empty();
@@ -717,6 +727,11 @@ public class KafkaClusterConfig {
         return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
     }
 
+    /**
+     * Returns whether the configured Kafka version is 4.1 or higher.
+     *
+     * @return {@code true} if the configured Kafka version is 4.1 or higher (or {@code LATEST_RELEASE})
+     */
     public boolean isKafkaVersion41OrHigher() {
         return kafkaVersion.equals(Version.LATEST_RELEASE) || KAFKA_4_1_OR_HIGHER.matcher(kafkaVersion).matches();
     }
@@ -734,10 +749,20 @@ public class KafkaClusterConfig {
                                String kraftClusterId,
                                String roles) {
 
+        /**
+         * Returns whether this node has the broker role.
+         *
+         * @return {@code true} if this node has the broker role
+         */
         public boolean isBroker() {
             return roles.contains(BROKER_ROLE);
         }
 
+        /**
+         * Returns whether this node has the controller role.
+         *
+         * @return {@code true} if this node has the controller role
+         */
         public boolean isController() {
             return roles.contains(CONTROLLER_ROLE);
         }

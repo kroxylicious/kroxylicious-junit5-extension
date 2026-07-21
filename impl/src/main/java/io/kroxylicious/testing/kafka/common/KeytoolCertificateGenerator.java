@@ -267,10 +267,20 @@ public class KeytoolCertificateGenerator {
         return List.of("-ext", "SAN=" + sanType + ":" + domain);
     }
 
+    /**
+     * Returns the trust store type used by this generator.
+     *
+     * @return the trust store type ({@code PKCS12})
+     */
     public String getTrustStoreType() {
         return PKCS12_KEYSTORE_TYPE;
     }
 
+    /**
+     * Returns the key store type used by this generator.
+     *
+     * @return the key store type ({@code PKCS12})
+     */
     public String getKeyStoreType() {
         return PKCS12_KEYSTORE_TYPE;
     }
