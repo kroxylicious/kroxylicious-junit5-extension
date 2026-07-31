@@ -19,7 +19,6 @@ import org.awaitility.Awaitility;
 
 import io.kroxylicious.testing.kafka.internal.AdminSource;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Utility for initialising SCRAM users on a Kafka cluster after it has started.
@@ -51,7 +50,9 @@ public class ScramInitialiser {
                     Awaitility.await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
                         Map<String, UserScramCredentialsDescription> scramDescription = admin.describeUserScramCredentials(users).all()
                                 .get(5, TimeUnit.SECONDS);
-                        assertTrue(users.stream().allMatch(scramDescription::containsKey));
+                        if (!users.stream().allMatch(scramDescription::containsKey)) {
+                            throw new IllegalStateException("SCRAM users not yet visible: " + users);
+                        }
                     });
                 }
             }
