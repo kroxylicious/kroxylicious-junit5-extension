@@ -953,7 +953,7 @@ public class KafkaClusterExtension implements
                 extensionContext.getUniqueId(),
                 sourceElement,
                 clusterName);
-        Closeable<KafkaCluster> closeableCluster = store.getOrComputeIfAbsent(clusterName,
+        Closeable<KafkaCluster> closeableCluster = store.computeIfAbsent(clusterName,
                 __ -> {
                     return createCluster(extensionContext, clusterName, type, sourceElement, constraints);
                 },
@@ -1008,7 +1008,7 @@ public class KafkaClusterExtension implements
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
         return extensionContext.getStore(ADMIN_NAMESPACE)
-                .<Object, Closeable<Admin>> getOrComputeIfAbsent(sourceElement, __ -> {
+                .<Object, Closeable<Admin>> computeIfAbsent(sourceElement, __ -> {
                     LOGGER.log(TRACE, "test {0}: decl {1}: Creating Admin",
                             extensionContext.getUniqueId(),
                             sourceElement);
@@ -1037,7 +1037,7 @@ public class KafkaClusterExtension implements
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
         return extensionContext.getStore(PRODUCER_NAMESPACE)
-                .<Object, Closeable<KafkaProducer<?, ?>>> getOrComputeIfAbsent(sourceElement, __ -> {
+                .<Object, Closeable<KafkaProducer<?, ?>>> computeIfAbsent(sourceElement, __ -> {
                     LOGGER.log(TRACE, "test {0}: decl {1}: Creating KafkaProducer<>",
                             extensionContext.getUniqueId(),
                             sourceElement);
@@ -1067,7 +1067,7 @@ public class KafkaClusterExtension implements
         KafkaCluster cluster = findClusterFromContext(sourceElement, extensionContext, type, description);
 
         return extensionContext.getStore(CONSUMER_NAMESPACE)
-                .<Object, Closeable<KafkaConsumer<?, ?>>> getOrComputeIfAbsent(sourceElement, __ -> {
+                .<Object, Closeable<KafkaConsumer<?, ?>>> computeIfAbsent(sourceElement, __ -> {
                     LOGGER.log(TRACE, "test {0}: decl {1}: Creating KafkaConsumer<>",
                             extensionContext.getUniqueId(),
                             sourceElement);
