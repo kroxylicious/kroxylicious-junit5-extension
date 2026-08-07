@@ -71,8 +71,8 @@
     </modules>
 
     <properties>
-        <java.version>17</java.version>
-        <java.test.version>17</java.test.version>
+        <java.version>21</java.version>
+        <java.test.version>21</java.test.version>
         <maven.compiler.parameters>true</maven.compiler.parameters>
         <maven.compiler.release>${java.version}</maven.compiler.release>
         <maven.compiler.testRelease>${java.test.version}</maven.compiler.testRelease>
@@ -86,20 +86,20 @@
         <skipUTs>${skipTests}</skipUTs>
 
         <junit.version>5.14.4</junit.version>
-        <kafka.version>4.3.0</kafka.version>
+        <kafka.version>4.3.1</kafka.version>
         <testcontainers.version>2.0.5</testcontainers.version>
         <lombok.version>1.18.46</lombok.version>
         <assertj-core.version>3.27.7</assertj-core.version>
-        <spotbugs-annotations.version>4.10.2</spotbugs-annotations.version>
+        <spotbugs-annotations.version>4.10.3</spotbugs-annotations.version>
         <zookeeper.version>3.8.4</zookeeper.version>
-        <log4j.version>2.26.0</log4j.version>
+        <log4j.version>2.26.1</log4j.version>
         <awaitility.version>4.3.0</awaitility.version>
         <duct-tape.version>1.0.8</duct-tape.version>
         <mockito.version>5.23.0</mockito.version>
         <moby-names-generator.version>20.10.1-r0</moby-names-generator.version>
         <jacoco-maven-plugin.version>0.8.15</jacoco-maven-plugin.version>
-        <bouncycastle.version>1.84</bouncycastle.version>
-        <netty.version>4.2.15.Final</netty.version>
+        <bouncycastle.version>1.85</bouncycastle.version>
+        <netty.version>4.2.16.Final</netty.version>
 
         <!-- Avoids issues with ryuk when running with podman https://github.com/containers/podman/issues/7927#issuecomment-731525556 -->
         <testcontainers.ryuk.disabled>true</testcontainers.ryuk.disabled>
@@ -251,7 +251,7 @@
             <dependency>
                 <groupId>net.bytebuddy</groupId>
                 <artifactId>byte-buddy-agent</artifactId>
-                <version>1.17.7</version>
+                <version>1.18.11</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
@@ -285,7 +285,7 @@
                 <plugin>
                     <groupId>com.mycila</groupId>
                     <artifactId>license-maven-plugin</artifactId>
-                    <version>5.0.0</version>
+                    <version>5.1.1</version>
                     <configuration>
                         <strictCheck>true</strictCheck>
                         <licenseSets>
@@ -379,7 +379,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.5.0</version>
+                    <version>3.5.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -637,11 +637,7 @@
                                 <goals>
                                     <goal>jar</goal>
                                 </goals>
-                                <configuration>
-                                    <links>
-                                        <link>https://junit.org/junit5/docs/${junit.version}/api/</link>
-                                    </links>
-                                </configuration>
+
                             </execution>
                         </executions>
                     </plugin>

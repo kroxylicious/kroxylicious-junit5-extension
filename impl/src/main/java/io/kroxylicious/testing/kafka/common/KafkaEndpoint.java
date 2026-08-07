@@ -16,6 +16,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @param port the port
  */
 public record KafkaEndpoint(@NonNull String host, int port) {
+    /**
+     * Creates a KafkaEndpoint, validating that host is non-null.
+     */
     public KafkaEndpoint {
         Objects.requireNonNull(host);
     }

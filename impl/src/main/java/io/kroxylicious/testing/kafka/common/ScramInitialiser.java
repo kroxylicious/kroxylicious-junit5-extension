@@ -21,11 +21,21 @@ import io.kroxylicious.testing.kafka.internal.AdminSource;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Utility for initialising SCRAM users on a Kafka cluster after it has started.
+ */
 public class ScramInitialiser {
 
     private ScramInitialiser() {
     }
 
+    /**
+     * Creates SCRAM credentials for all users declared in the cluster configuration.
+     * Blocks until the credentials are visible via the Admin API.
+     *
+     * @param adminSource   source used to obtain an {@link org.apache.kafka.clients.admin.Admin} connection
+     * @param clusterConfig the cluster configuration whose users should be provisioned
+     */
     public static void initialiseScramUsers(AdminSource adminSource, KafkaClusterConfig clusterConfig) {
         try {
             if (clusterConfig.isSaslScram() && !clusterConfig.getUsers().isEmpty()) {

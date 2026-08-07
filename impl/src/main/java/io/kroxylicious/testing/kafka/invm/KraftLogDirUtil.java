@@ -9,6 +9,7 @@ import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.apache.kafka.common.metadata.FeatureLevelRecord;
@@ -70,11 +71,15 @@ final class KraftLogDirUtil {
     }
 
     static void prepareLogDirsForKraft(String clusterId, KafkaConfig config) {
+        prepareLogDirsForKraft(clusterId, config, List.of());
+    }
+
+    static void prepareLogDirsForKraft(String clusterId, KafkaConfig config, List<String> scramArguments) {
         var metadataVersion = getMetadataVersion(config);
         var directoriesScala = StorageTool.configToLogDirectories(config);
-        tryWithFallbacks(() -> prepareLogDirsForKraftKafka41Plus(clusterId, config, directoriesScala, metadataVersion),
-                () -> prepareLogDirsForKraftKafka39Plus(clusterId, config, directoriesScala, metadataVersion),
-                () -> prepareLogDirsForKraftPreKafka39(clusterId, config, directoriesScala, metadataVersion));
+        tryWithFallbacks(() -> prepareLogDirsForKraftKafka41Plus(clusterId, config, directoriesScala, metadataVersion, scramArguments),
+                () -> prepareLogDirsForKraftKafka39Plus(clusterId, config, directoriesScala, metadataVersion, scramArguments),
+                () -> prepareLogDirsForKraftPreKafka39(clusterId, config, directoriesScala, metadataVersion, scramArguments));
     }
 
     private static MetadataVersion getMetadataVersion(KafkaConfig config) {
@@ -90,7 +95,7 @@ final class KraftLogDirUtil {
     }
 
     private static void prepareLogDirsForKraftKafka41Plus(String clusterId, KafkaConfig config, Seq<String> directoriesScala,
-                                                          MetadataVersion metadataVersion)
+                                                          MetadataVersion metadataVersion, List<String> scramArguments)
             throws Exception {
         var controllerListenerName = config.controllerListenerNames().stream().findFirst().orElseThrow();
         var directories = CollectionConverters.asJava(directoriesScala);
@@ -103,11 +108,14 @@ final class KraftLogDirUtil {
         formatter.setIgnoreFormatted(IGNORE_FORMATTED);
         formatter.setPrintStream(LOGGING_PRINT_STREAM);
         formatter.setReleaseVersion(metadataVersion);
+        if (!scramArguments.isEmpty()) {
+            formatter.setScramArguments(scramArguments);
+        }
         formatter.run();
     }
 
     private static void prepareLogDirsForKraftKafka39Plus(String clusterId, KafkaConfig config, Seq<String> directoriesScala,
-                                                          MetadataVersion metadataVersion)
+                                                          MetadataVersion metadataVersion, List<String> scramArguments)
             throws ClassNotFoundException, InstantiationException, IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         // Try Formatter class (introduced Kafka 3.9)
         scala.collection.Seq<String> controllerListenerNameSeq = (scala.collection.Seq<String>) KafkaConfig.class.getMethod("controllerListenerNames")
@@ -125,18 +133,22 @@ final class KraftLogDirUtil {
         formatterClazz.getMethod("setIgnoreFormatted", boolean.class).invoke(formatter, IGNORE_FORMATTED);
         formatterClazz.getMethod("setPrintStream", PrintStream.class).invoke(formatter, LOGGING_PRINT_STREAM);
         formatterClazz.getMethod("setReleaseVersion", MetadataVersion.class).invoke(formatter, metadataVersion);
+        if (!scramArguments.isEmpty()) {
+            formatterClazz.getMethod("setScramArguments", List.class).invoke(formatter, scramArguments);
+        }
 
         formatterClazz.getMethod("run").invoke(formatter);
     }
 
-    private static void prepareLogDirsForKraftPreKafka39(String clusterId, KafkaConfig config, Seq<String> directories, MetadataVersion metadataVersion) {
+    private static void prepareLogDirsForKraftPreKafka39(String clusterId, KafkaConfig config, Seq<String> directories, MetadataVersion metadataVersion,
+                                                         List<String> scramArguments) {
         try {
             // Default the metadata version from the IBP version specified in config in the same way as kafka.tools.StorageTool.
 
             // in kafka 3.7.0 the MetadataProperties class moved package, we use reflection to enable the extension to work with
             // the old and new class.
             var metaProperties = buildMetadataPropertiesReflectively(clusterId, config);
-            var bootstrapMetadata = buildBootstrapMetadata(metadataVersion);
+            var bootstrapMetadata = buildBootstrapMetadata(metadataVersion, scramArguments);
 
             formatReflectively(metaProperties, directories, bootstrapMetadata, metadataVersion);
         }
@@ -164,9 +176,12 @@ final class KraftLogDirUtil {
         }
     }
 
-    private static BootstrapMetadata buildBootstrapMetadata(MetadataVersion metadataVersion) {
+    private static BootstrapMetadata buildBootstrapMetadata(MetadataVersion metadataVersion, List<String> scramArguments) {
         var metadataRecords = new ArrayList<ApiMessageAndVersion>();
         metadataRecords.add(metadataVersionMessage(metadataVersion));
+        ScramUtils.getUserScramCredentialRecords(scramArguments).stream()
+                .map(KraftLogDirUtil::wrap)
+                .forEach(metadataRecords::add);
         return BootstrapMetadata.fromRecords(metadataRecords, KraftLogDirUtil.class.getName());
     }
 

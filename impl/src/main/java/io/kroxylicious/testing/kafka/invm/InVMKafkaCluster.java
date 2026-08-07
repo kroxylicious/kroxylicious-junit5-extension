@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -57,6 +58,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
 
     private final KafkaClusterConfig clusterConfig;
     private final Path tempDirectory;
+    private final List<String> scramArguments;
     private ZooKeeperServer zooServer;
 
     /**
@@ -79,6 +81,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
      */
     public InVMKafkaCluster(KafkaClusterConfig clusterConfig) {
         this.clusterConfig = clusterConfig;
+        this.scramArguments = clusterConfig.isKraftMode() && clusterConfig.isSaslScram()
+                ? ScramUtils.toKafkaScramArguments(clusterConfig.getSaslMechanism(), clusterConfig.getUsers())
+                : List.of();
         try {
             tempDirectory = Files.createTempDirectory("kafka");
             tempDirectory.toFile().deleteOnExit();
@@ -103,7 +108,7 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
         boolean kraftMode = clusterConfig.isKraftMode();
         if (kraftMode) {
             var clusterId = c.kraftClusterId();
-            KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config);
+            KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramArguments);
             return instantiateKraftServer(config, threadNamePrefix);
         }
         else {
@@ -170,7 +175,9 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
                 clusterConfig.getAnonConnectConfigForCluster(buildBrokersListFor(Listener.ANON)), 120,
                 TimeUnit.SECONDS,
                 clusterConfig.getBrokersNum());
-        ScramInitialiser.initialiseScramUsers(this, clusterConfig);
+        if (scramArguments.isEmpty()) {
+            ScramInitialiser.initialiseScramUsers(this, clusterConfig);
+        }
     }
 
     private String buildBrokersListFor(Listener listener) {

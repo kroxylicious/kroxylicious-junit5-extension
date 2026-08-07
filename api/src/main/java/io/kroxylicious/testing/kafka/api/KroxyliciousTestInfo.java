@@ -11,6 +11,15 @@ import java.util.Set;
 
 import org.junit.jupiter.api.TestInfo;
 
+/**
+ * Implementation of {@link TestInfo} carrying display name, test class, test method and tags
+ * for use within Kroxylicious test infrastructure.
+ *
+ * @param displayName the display name of the test
+ * @param testClass   the test class, if available
+ * @param testMethod  the test method, if available
+ * @param tags        the tags associated with the test
+ */
 public record KroxyliciousTestInfo(String displayName, Optional<Class<?>> testClass, Optional<Method> testMethod, Set<String> tags) implements TestInfo {
     @Override
     public String getDisplayName() {
