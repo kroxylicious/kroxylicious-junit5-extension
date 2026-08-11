@@ -2,7 +2,7 @@
 
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
-## SNAPSHOT
+## 0.16.0
 
 * [#630](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/630): deps: Bump io.netty:netty-pkitesting from 4.2.14.Final to 4.2.15.Final
 * [#617](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/617): fix: Add missing factory methods to CloseableShareConsumer and tests
