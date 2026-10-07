@@ -727,6 +727,15 @@
             <properties>
                 <skipTests>true</skipTests>
             </properties>
+        </profile>        
+        <profile>
+            <id>junit5</id>
+        </profile>
+        <profile>
+            <id>junit6</id>
+            <properties>
+                <junit.version>6.1.3</junit.version>
+            </properties>
         </profile>
         <profile>
             <id>release</id>
