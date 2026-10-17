@@ -33,6 +33,7 @@ Current version: ![Maven Central Version](https://img.shields.io/maven-central/v
 Gradle 
 ```
 testImplementation 'io.kroxylicious.testing:testing-junit5-extension:0.1'
+testImplementation 'org.junit.jupiter:junit-jupiter:${junitVersion}'
 ```
 
 Maven
@@ -43,6 +44,13 @@ Maven
         <groupId>io.kroxylicious.testing</groupId>
         <artifactId>testing-junit5-extension</artifactId>
         <version>0.1</version>
+    </dependency>
+    <!-- JUnit Jupiter version you want to use (5.x or 6.x) -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>${junit.version}</version>
+        <scope>test</scope>
     </dependency>
     <!-- Kafka Broker version you want to use -->
     <dependency>
@@ -60,6 +68,9 @@ Maven
     </dependency>
 </dependencies>
 ```
+
+The extension does not bring JUnit Jupiter in transitively: `junit-jupiter-api` is a `provided` dependency, so you must declare
+the JUnit Jupiter version you want to use. Both JUnit 5 and JUnit 6 are supported.
 
 ## Example
 
