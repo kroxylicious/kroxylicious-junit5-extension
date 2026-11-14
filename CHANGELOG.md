@@ -3,6 +3,9 @@
 Please enumerate all user-facing changes using format `<githib issue/pr number>: <short description>`, with changes ordered in reverse chronological order.
 
 ## SNAPSHOT
+
+* [#669](https://github.com/kroxylicious/kroxylicious-junit5-extension/issues/669): build!: `junit-jupiter-api` is now `provided` scope. Consumers must declare their own JUnit Jupiter dependency (5.x or 6.x).
+
 ## 0.16.0
 
 * [#630](https://github.com/kroxylicious/kroxylicious-junit5-extension/pull/630): deps: Bump io.netty:netty-pkitesting from 4.2.14.Final to 4.2.15.Final
