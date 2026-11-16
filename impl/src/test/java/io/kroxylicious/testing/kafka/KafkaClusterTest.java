@@ -31,7 +31,7 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;

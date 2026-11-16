@@ -41,7 +41,7 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule;
 import org.apache.kafka.common.security.plain.PlainLoginModule;
 import org.apache.kafka.common.security.scram.ScramLoginModule;
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -722,9 +722,25 @@ public class KafkaClusterConfig {
     }
 
     private static String detectKafkaVersionFromClasspath() {
-        var version = AppInfoParser.getVersion();
+        var version = getAppInfoParserVersion();
         var appInfoParserUnknown = "unknown"; // Defined by AppInfoParser.DEFAULT_VALUE. Symbol is package-private.
         return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
+    }
+
+    private static String getAppInfoParserVersion() {
+        try {
+            return AppInfoParser.getVersion();
+        }
+        catch (LinkageError e) {
+            // AppInfoParser moved from org.apache.kafka.common.utils to org.apache.kafka.common.utils.internals in Kafka 4.4.
+            try {
+                var clazz = Class.forName("org.apache.kafka.common.utils.AppInfoParser");
+                return (String) clazz.getMethod("getVersion").invoke(null);
+            }
+            catch (ReflectiveOperationException ex) {
+                throw new IllegalStateException("failed to determine kafka version from classpath", ex);
+            }
+        }
     }
 
     /**

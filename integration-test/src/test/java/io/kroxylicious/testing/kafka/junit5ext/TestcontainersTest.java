@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.platform.commons.util.ReflectionUtils;
@@ -51,6 +51,12 @@ class TestcontainersTest {
 
     @Test
     void test43(@Version("4.3.1") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+        String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
+        assertThat(clusterId).isNotEmpty();
+    }
+
+    @Test
+    void test44(@Version("4.4.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
     }

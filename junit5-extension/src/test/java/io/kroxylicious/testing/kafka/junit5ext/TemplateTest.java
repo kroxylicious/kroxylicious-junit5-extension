@@ -20,7 +20,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -190,6 +190,7 @@ class TemplateTest {
     private static Stream<Version> versions() {
         return Stream.of(
                 version(Version.LATEST_RELEASE),
+                version("4.4.0"),
                 version("4.3.1"),
                 version("4.2.0"),
                 version("4.1.0"),

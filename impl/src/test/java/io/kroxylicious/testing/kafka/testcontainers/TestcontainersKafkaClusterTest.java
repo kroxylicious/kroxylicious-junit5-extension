@@ -17,7 +17,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -239,7 +239,7 @@ class TestcontainersKafkaClusterTest {
     }
 
     private static Stream<Version> fixedVersionsPost41() {
-        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"), version("4.3.1"));
+        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"), version("4.3.1"), version("4.4.0"));
     }
 
     private static Stream<Version> allVersionsWithAlterScramSupport() {
