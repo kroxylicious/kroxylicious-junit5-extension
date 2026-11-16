@@ -31,7 +31,6 @@ import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.SaslAuthenticationException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.AppInfoParser;
 import org.apache.kafka.server.common.MetadataVersion;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
@@ -52,6 +51,7 @@ import io.kroxylicious.testing.kafka.api.TerminationStyle;
 import io.kroxylicious.testing.kafka.clients.CloseableAdmin;
 import io.kroxylicious.testing.kafka.clients.CloseableConsumer;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
+import io.kroxylicious.testing.kafka.common.KafkaClientsVersion;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.KafkaClusterFactory;
 import io.kroxylicious.testing.kafka.common.KeytoolCertificateGenerator;
@@ -74,7 +74,7 @@ class KafkaClusterTest {
     private static final System.Logger LOGGER = System.getLogger(KafkaClusterTest.class.getName());
 
     static {
-        LOGGER.log(System.Logger.Level.INFO, "Kafka on classpath is version: {0}", AppInfoParser.getVersion());
+        LOGGER.log(System.Logger.Level.INFO, "Kafka on classpath is version: {0}", KafkaClientsVersion.detectFromClasspath());
     }
 
     private static final boolean ZOOKEEPER_AVAILABLE = zookeeperAvailable();

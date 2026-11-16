@@ -145,6 +145,8 @@ import org.apache.kafka.clients.admin.TerminateTransactionOptions;
 import org.apache.kafka.clients.admin.TerminateTransactionResult;
 import org.apache.kafka.clients.admin.UnregisterBrokerOptions;
 import org.apache.kafka.clients.admin.UnregisterBrokerResult;
+import org.apache.kafka.clients.admin.UnregisterControllerOptions;
+import org.apache.kafka.clients.admin.UnregisterControllerResult;
 import org.apache.kafka.clients.admin.UpdateFeaturesOptions;
 import org.apache.kafka.clients.admin.UpdateFeaturesResult;
 import org.apache.kafka.clients.admin.UserScramCredentialAlteration;
@@ -689,6 +691,11 @@ public record CloseableAdmin(Admin instance) implements Admin, AutoCloseable {
     @InterfaceStability.Unstable
     public UnregisterBrokerResult unregisterBroker(int brokerId, UnregisterBrokerOptions options) {
         return instance.unregisterBroker(brokerId, options);
+    }
+
+    @Override
+    public UnregisterControllerResult unregisterController(int controllerId, UnregisterControllerOptions options) {
+        return instance.unregisterController(controllerId, options);
     }
 
     @Override

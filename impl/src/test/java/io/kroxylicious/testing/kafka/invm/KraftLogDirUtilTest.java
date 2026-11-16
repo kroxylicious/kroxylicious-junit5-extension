@@ -15,8 +15,8 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import org.apache.kafka.common.metadata.UserScramCredentialRecord;
-import org.apache.kafka.metadata.bootstrap.BootstrapDirectory;
 import org.apache.kafka.metadata.bootstrap.BootstrapMetadata;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class KraftLogDirUtilTest {
     }
 
     @Test
-    void formatsLogDirectoryWithScramArguments() throws Exception {
+    void formatsLogDirectoryWithScramArguments() {
         var config = createMinimalKraftConfig();
         var clusterId = UUID.randomUUID().toString();
         var scramArguments = List.of("SCRAM-SHA-256=[name=alice,password=alice-secret]");
@@ -62,10 +62,18 @@ class KraftLogDirUtilTest {
         KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramArguments);
 
         assertThat(logDir.resolve("meta.properties")).exists();
-        BootstrapMetadata metadata = new BootstrapDirectory(logDir.toString()).read();
+        BootstrapMetadata metadata = getMetadata();
         assertThat(metadata.records())
                 .extracting(r -> r.message())
                 .hasAtLeastOneElementOfType(UserScramCredentialRecord.class);
+    }
+
+    private @NonNull BootstrapMetadata getMetadata() {
+        Path metadataDir = logDir.resolve("__cluster_metadata-0");
+        assertThat(metadataDir).exists().isDirectory();
+        Path checkpointFile = metadataDir.resolve("00000000000000000000-0000000000.checkpoint");
+        assertThat(checkpointFile).exists().isRegularFile();
+        return BootstrapMetadata.fromCheckpointFile(checkpointFile);
     }
 
     @Test
@@ -78,7 +86,7 @@ class KraftLogDirUtilTest {
 
         KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, scramArguments);
 
-        BootstrapMetadata metadata = new BootstrapDirectory(logDir.toString()).read();
+        BootstrapMetadata metadata = getMetadata();
         var scramRecords = metadata.records().stream()
                 .map(r -> r.message())
                 .filter(UserScramCredentialRecord.class::isInstance)
@@ -96,7 +104,7 @@ class KraftLogDirUtilTest {
 
         KraftLogDirUtil.prepareLogDirsForKraft(clusterId, config, List.of());
 
-        BootstrapMetadata metadata = new BootstrapDirectory(logDir.toString()).read();
+        BootstrapMetadata metadata = getMetadata();
         assertThat(metadata.records())
                 .extracting(r -> r.message())
                 .noneMatch(UserScramCredentialRecord.class::isInstance);

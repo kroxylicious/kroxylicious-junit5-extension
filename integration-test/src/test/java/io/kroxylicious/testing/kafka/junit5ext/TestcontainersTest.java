@@ -12,11 +12,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.platform.commons.util.ReflectionUtils;
 
+import io.kroxylicious.testing.kafka.common.KafkaClientsVersion;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
 
@@ -56,6 +56,12 @@ class TestcontainersTest {
     }
 
     @Test
+    void test44(@Version("4.4.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+        String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
+        assertThat(clusterId).isNotEmpty();
+    }
+
+    @Test
     void testLatest(@Version(Version.LATEST_RELEASE) TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
@@ -66,7 +72,7 @@ class TestcontainersTest {
      */
     @Test
     void testCurrentVersion() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = KafkaClientsVersion.detectFromClasspath();
         List<Method> methods = ReflectionUtils.findMethods(TestcontainersTest.class,
                 method -> method.getParameterCount() == 1 && method.getParameterTypes()[0] == TestcontainersKafkaCluster.class
                         && method.getParameters()[0].isAnnotationPresent(Version.class));
