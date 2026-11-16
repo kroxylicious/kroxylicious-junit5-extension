@@ -20,7 +20,6 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.Config;
 import org.apache.kafka.common.config.ConfigResource;
 import org.apache.kafka.common.errors.UnsupportedVersionException;
-import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -41,6 +40,7 @@ import io.kroxylicious.testing.kafka.api.KafkaCluster;
 import io.kroxylicious.testing.kafka.common.BrokerCluster;
 import io.kroxylicious.testing.kafka.common.BrokerConfig;
 import io.kroxylicious.testing.kafka.common.KRaftCluster;
+import io.kroxylicious.testing.kafka.common.KafkaClientsVersion;
 import io.kroxylicious.testing.kafka.common.Utils;
 import io.kroxylicious.testing.kafka.common.Version;
 import io.kroxylicious.testing.kafka.testcontainers.TestcontainersKafkaCluster;
@@ -190,6 +190,7 @@ class TemplateTest {
     private static Stream<Version> versions() {
         return Stream.of(
                 version(Version.LATEST_RELEASE),
+                version("4.4.0"),
                 version("4.3.1"),
                 version("4.2.0"),
                 version("4.1.0"),
@@ -208,7 +209,7 @@ class TemplateTest {
      */
     @Test
     void currentVersionTested() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = KafkaClientsVersion.detectFromClasspath();
         List<String> allTestedVersions = versions().map(Version::value).sorted().toList();
         assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in test axes " + allTestedVersions)
                 .contains(versionFromClasspath);

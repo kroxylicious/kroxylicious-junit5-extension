@@ -9,6 +9,7 @@ package io.kroxylicious.testing.kafka.invm;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,8 +28,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.kafka.clients.admin.Admin;
-import org.apache.kafka.common.utils.Exit;
 import org.apache.kafka.common.utils.Time;
+import org.apache.kafka.common.utils.internals.Exit;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZooKeeperServer;
 
@@ -454,8 +455,31 @@ public class InVMKafkaCluster implements KafkaCluster, KafkaListenerSource, Admi
     }
 
     private static void trapKafkaSystemExit() {
-        Exit.setExitProcedure(InVMKafkaCluster::exitHandler);
-        Exit.setHaltProcedure(InVMKafkaCluster::exitHandler);
+        try {
+            Exit.setExitProcedure(InVMKafkaCluster::exitHandler);
+            Exit.setHaltProcedure(InVMKafkaCluster::exitHandler);
+        }
+        catch (LinkageError e) {
+            trapKafkaSystemExitPreKafka44();
+        }
+    }
+
+    private static void trapKafkaSystemExitPreKafka44() {
+        try {
+            // Exit moved from org.apache.kafka.common.utils to org.apache.kafka.common.utils.internals in Kafka 4.4.
+            var exitClazz = Class.forName("org.apache.kafka.common.utils.Exit");
+            var procedureClazz = Class.forName("org.apache.kafka.common.utils.Exit$Procedure");
+            var procedure = Proxy.newProxyInstance(procedureClazz.getClassLoader(), new Class<?>[]{ procedureClazz },
+                    (proxy, method, args) -> {
+                        exitHandler((int) args[0], (String) args[1]);
+                        return null;
+                    });
+            exitClazz.getMethod("setExitProcedure", procedureClazz).invoke(null, procedure);
+            exitClazz.getMethod("setHaltProcedure", procedureClazz).invoke(null, procedure);
+        }
+        catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("failed to trap kafka system exit", e);
+        }
     }
 
     @Override

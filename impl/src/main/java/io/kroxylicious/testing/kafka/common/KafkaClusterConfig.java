@@ -41,7 +41,6 @@ import org.apache.kafka.common.security.auth.SecurityProtocol;
 import org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule;
 import org.apache.kafka.common.security.plain.PlainLoginModule;
 import org.apache.kafka.common.security.scram.ScramLoginModule;
-import org.apache.kafka.common.utils.AppInfoParser;
 import org.junit.jupiter.api.TestInfo;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -722,9 +721,8 @@ public class KafkaClusterConfig {
     }
 
     private static String detectKafkaVersionFromClasspath() {
-        var version = AppInfoParser.getVersion();
-        var appInfoParserUnknown = "unknown"; // Defined by AppInfoParser.DEFAULT_VALUE. Symbol is package-private.
-        return version == null || version.equals(appInfoParserUnknown) ? Version.LATEST_RELEASE : version;
+        var version = KafkaClientsVersion.detectFromClasspath();
+        return version.equals(KafkaClientsVersion.UNKNOWN_VERSION) ? Version.LATEST_RELEASE : version;
     }
 
     /**
