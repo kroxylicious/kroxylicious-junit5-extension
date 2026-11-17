@@ -17,7 +17,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,6 +32,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.RemoteDockerImage;
 import org.testcontainers.utility.DockerImageName;
 
+import io.kroxylicious.testing.kafka.KafkaVersionTestUtil;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Version;
@@ -256,7 +256,7 @@ class TestcontainersKafkaClusterTest {
      */
     @Test
     void currentVersionTested() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = KafkaVersionTestUtil.getAppInfoParserVersion();
         List<String> allTestedVersions = Stream.concat(fixedVersionsPost41(), fixedVersionsPre41()).map(Version::value).sorted().toList();
         assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in test axes " + allTestedVersions)
                 .contains(versionFromClasspath);

@@ -72,7 +72,7 @@ class TestcontainersTest {
      */
     @Test
     void testCurrentVersion() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = getAppInfoParserVersion();
         List<Method> methods = ReflectionUtils.findMethods(TestcontainersTest.class,
                 method -> method.getParameterCount() == 1 && method.getParameterTypes()[0] == TestcontainersKafkaCluster.class
                         && method.getParameters()[0].isAnnotationPresent(Version.class));
@@ -81,5 +81,21 @@ class TestcontainersTest {
                 .toList();
         assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in tested versions " + allTestedVersions)
                 .contains(versionFromClasspath);
+    }
+
+    private static String getAppInfoParserVersion() {
+        try {
+            return AppInfoParser.getVersion();
+        }
+        catch (LinkageError e) {
+            // AppInfoParser moved from org.apache.kafka.common.utils to org.apache.kafka.common.utils.internals in Kafka 4.4.
+            try {
+                var clazz = Class.forName("org.apache.kafka.common.utils.AppInfoParser");
+                return (String) clazz.getMethod("getVersion").invoke(null);
+            }
+            catch (ReflectiveOperationException ex) {
+                throw new IllegalStateException("failed to determine kafka version from classpath", ex);
+            }
+        }
     }
 }

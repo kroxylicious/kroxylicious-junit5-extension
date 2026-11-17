@@ -209,10 +209,26 @@ class TemplateTest {
      */
     @Test
     void currentVersionTested() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = getAppInfoParserVersion();
         List<String> allTestedVersions = versions().map(Version::value).sorted().toList();
         assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in test axes " + allTestedVersions)
                 .contains(versionFromClasspath);
+    }
+
+    private static String getAppInfoParserVersion() {
+        try {
+            return AppInfoParser.getVersion();
+        }
+        catch (LinkageError e) {
+            // AppInfoParser moved from org.apache.kafka.common.utils to org.apache.kafka.common.utils.internals in Kafka 4.4.
+            try {
+                var clazz = Class.forName("org.apache.kafka.common.utils.AppInfoParser");
+                return (String) clazz.getMethod("getVersion").invoke(null);
+            }
+            catch (ReflectiveOperationException ex) {
+                throw new IllegalStateException("failed to determine kafka version from classpath", ex);
+            }
+        }
     }
 
     @Nested
