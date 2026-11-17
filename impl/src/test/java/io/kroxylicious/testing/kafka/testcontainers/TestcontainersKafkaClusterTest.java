@@ -17,7 +17,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.config.SaslConfigs;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.utils.AppInfoParser;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,6 +32,7 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.images.RemoteDockerImage;
 import org.testcontainers.utility.DockerImageName;
 
+import io.kroxylicious.testing.kafka.KafkaVersionTestUtil;
 import io.kroxylicious.testing.kafka.clients.CloseableProducer;
 import io.kroxylicious.testing.kafka.common.KafkaClusterConfig;
 import io.kroxylicious.testing.kafka.common.Version;
@@ -239,7 +239,7 @@ class TestcontainersKafkaClusterTest {
     }
 
     private static Stream<Version> fixedVersionsPost41() {
-        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"), version("4.3.1"));
+        return Stream.of(version("4.1.0"), version("4.1.1"), version("4.2.0"), version("4.3.1"), version("4.4.0"));
     }
 
     private static Stream<Version> allVersionsWithAlterScramSupport() {
@@ -256,7 +256,7 @@ class TestcontainersKafkaClusterTest {
      */
     @Test
     void currentVersionTested() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = KafkaVersionTestUtil.getAppInfoParserVersion();
         List<String> allTestedVersions = Stream.concat(fixedVersionsPost41(), fixedVersionsPre41()).map(Version::value).sorted().toList();
         assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in test axes " + allTestedVersions)
                 .contains(versionFromClasspath);

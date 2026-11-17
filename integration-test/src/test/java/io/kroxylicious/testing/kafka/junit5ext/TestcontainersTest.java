@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
-import org.apache.kafka.common.utils.AppInfoParser;
+import org.apache.kafka.common.utils.internals.AppInfoParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.platform.commons.util.ReflectionUtils;
@@ -56,6 +56,12 @@ class TestcontainersTest {
     }
 
     @Test
+    void test44(@Version("4.4.0") TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
+        String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
+        assertThat(clusterId).isNotEmpty();
+    }
+
+    @Test
     void testLatest(@Version(Version.LATEST_RELEASE) TestcontainersKafkaCluster cluster) throws ExecutionException, InterruptedException, TimeoutException {
         String clusterId = cluster.createAdmin().describeCluster().clusterId().get(10, TimeUnit.SECONDS);
         assertThat(clusterId).isNotEmpty();
@@ -66,7 +72,7 @@ class TestcontainersTest {
      */
     @Test
     void testCurrentVersion() {
-        var versionFromClasspath = AppInfoParser.getVersion();
+        var versionFromClasspath = getAppInfoParserVersion();
         List<Method> methods = ReflectionUtils.findMethods(TestcontainersTest.class,
                 method -> method.getParameterCount() == 1 && method.getParameterTypes()[0] == TestcontainersKafkaCluster.class
                         && method.getParameters()[0].isAnnotationPresent(Version.class));
@@ -75,5 +81,21 @@ class TestcontainersTest {
                 .toList();
         assertThat(allTestedVersions).withFailMessage("kafka version '" + versionFromClasspath + "' from classpath not found in tested versions " + allTestedVersions)
                 .contains(versionFromClasspath);
+    }
+
+    private static String getAppInfoParserVersion() {
+        try {
+            return AppInfoParser.getVersion();
+        }
+        catch (LinkageError e) {
+            // AppInfoParser moved from org.apache.kafka.common.utils to org.apache.kafka.common.utils.internals in Kafka 4.4.
+            try {
+                var clazz = Class.forName("org.apache.kafka.common.utils.AppInfoParser");
+                return (String) clazz.getMethod("getVersion").invoke(null);
+            }
+            catch (ReflectiveOperationException ex) {
+                throw new IllegalStateException("failed to determine kafka version from classpath", ex);
+            }
+        }
     }
 }
